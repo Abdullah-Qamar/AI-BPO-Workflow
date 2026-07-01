@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "TASA Orbiter", var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ---------- Locked design system (light theme, Figma 2026-06-27) ----------
+ * Note: production target uses TASA Orbiter (Pangram Pangram). Prototype
+ * substitutes Geist Sans until the licensed font is wired up; visual feel is
+ * close but kerning and letterform geometry will differ. */
+
+:root {
+  /* Page surfaces */
+  --bg-grad: linear-gradient(150.68deg, #eeeff5 0%, #dddfe8 45.34%);
+  --bg-side: #dddfe8;
+  --surface-card: #f7f8fa;
+  --surface-chip: #eff3f8;
+  --surface-input: rgba(221, 223, 232, 0.4);
+  --surface-tab-active: #e9ebf3;
+
+  /* Text */
+  --text-1: #303b45;
+  --text-2: #627483;
+  --text-3: #63696e;
+  --text-4: #7f7f87;
+  --text-muted: #656c76;
+  --text-placeholder: #61717f;
+
+  /* Lines */
+  --line: #9db3c5;
+  --line-soft: #d3d6d8;
+  --line-inner-white: rgba(253, 255, 255, 0.6);
+
+  /* Status dots & accents */
+  --dot-active: #001aff;
+  --dot-failed: #ff0000;
+  --dot-complete: #1eff00;
+
+  /* Failed-file chips */
+  --chip-failed-bg: #fff2f2;
+  --chip-failed-border: #ffc0c0;
+
+  /* Shadows — named depth scale.
+   *   depth-1: barely-there lift (chips, pills resting state)
+   *   depth-2: card resting on canvas (bento cards, agent inner card)
+   *   depth-3: floating element (tooltips, popovers)
+   *   depth-4: modal / overlay surface
+   * The old --shadow-card / --shadow-chip names are kept as aliases. */
+  --shadow-depth-1: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-depth-2: 0 0 6px rgba(0, 0, 0, 0.15);
+  --shadow-depth-3: 0 8px 24px -6px rgba(0, 0, 0, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-depth-4: 0 24px 64px -12px rgba(0, 0, 0, 0.25),
+    0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  --shadow-card: var(--shadow-depth-2);
+  --shadow-chip: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  /* Action color — dark pill primary action surface. */
+  --action-primary: #1a1f25;
+  --action-primary-hover: #2a2f35;
+  --action-on-primary: #ffffff;
+
+  /* Inner light gradient used on lifted surfaces (top-down soft highlight). */
+  --surface-card-glow: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #f7f8fa 100%
+  );
+
+  /* Radii */
+  --radius-card: 12px;
+  --radius-panel: 20px;
+  --radius-chip: 8px;
+  --radius-small: 6px;
+}
+
+html,
+body {
+  /* Root container background — cool grey-blue vertical gradient. Shows through
+   * the transparent LeftRail + WorkspaceNav, making the lighter MainCanvas and
+   * the rounded AgentsPanel inner card read as lifted surfaces above it. */
+  background: linear-gradient(180deg, #c4c9d4 0%, #a7b9c8 100%);
+  background-attachment: fixed;
+  color: var(--text-1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-feature-settings: "ss01" 1;
+}
+
+/* Gradient text utilities used in the agents panel. Each run gets its own
+ * colored gradient — see the design-system page for the tone palette. */
+.text-grad-neutral {
+  background: linear-gradient(90deg, #454547 0%, #a8a9ad 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-grad-failed {
+  background: linear-gradient(90deg, #ff0000 0%, #ffa1a1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-grad-approved {
+  background: linear-gradient(90deg, #001aff 0%, #6a85ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-grad-unapproved {
+  background: linear-gradient(90deg, #ff0000 0%, #ffa1a1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Shimmer-on-text: keeps the dark→light grey character of .text-grad-neutral
+ * and slides a soft white highlight through it. Used on the line of an agent
+ * that's currently working. The background is 300% wide so the highlight has
+ * room to travel without flashing the text edges. */
+@keyframes status-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+.text-grad-neutral-shimmer {
+  background: linear-gradient(
+    90deg,
+    #454547 0%,
+    #6e7075 30%,
+    #ffffff 50%,
+    #6e7075 70%,
+    #454547 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: status-shimmer 2.4s linear infinite;
+}
+.text-grad-failed-shimmer {
+  background: linear-gradient(
+    90deg,
+    #ff0000 0%,
+    #ff5a5a 30%,
+    #ffd6d6 50%,
+    #ff5a5a 70%,
+    #ff0000 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: status-shimmer 2.4s linear infinite;
+}
+
+/* Scroll chrome */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(48, 59, 69, 0.18) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgba(48, 59, 69, 0.18);
+  border-radius: 8px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: rgba(0, 26, 255, 0.14);
+  color: var(--text-1);
+}
+
+/* Smooth swap for AgentsPanel's collapsed "current action" line. React
+ * remounts the wrapping div on line.id change; this keyframe runs once on
+ * mount, signalling the change without yanking attention. ≤200ms, no
+ * translate-Y bounce — just a subtle rise + fade. */
+@keyframes agent-line-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.agent-line-swap {
+  animation: agent-line-swap-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Canvas horizontal padding. Heavy at wide viewports, lighter as space tightens. */
+.canvas-pad {
+  padding: 28px 60px 12px;
+}
+@media (max-width: 1440px) {
+  .canvas-pad {
+    padding: 28px 40px 12px;
+  }
+}
+@media (max-width: 1280px) {
+  .canvas-pad {
+    padding: 28px 28px 12px;
+  }
+}
