@@ -38,17 +38,7 @@ export default function Page() {
   return (
     <div
       className="flex flex-row items-stretch"
-      style={{
-        minHeight: "100vh",
-        background: "transparent",
-        /* Insets the app inside the darker body gradient. The 8px padding on
-         * the outer edges + 8px gap between panels lets the darker "outer
-         * container" show as a frame around every brighter surface (main
-         * canvas, workspace nav, agents panel), so each floats inside the
-         * outer container rather than sitting flush against the viewport. */
-        padding: 8,
-        gap: 8,
-      }}
+      style={{ minHeight: "100vh", background: "transparent" }}
     >
       <LeftRail route={route} onNavigate={setRoute} />
       {route === "dashboard" && (
