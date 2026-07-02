@@ -170,14 +170,11 @@ function Header({
   showReupload: boolean;
   onReupload: () => void;
 }) {
-  /* During the lifecycle (running / reconciling / updating-yardi) the canvas
-   * is supposed to read as quiet — the right agents panel carries the live
-   * status. We keep the header band intact for structure but suppress the
-   * subtitle copy and the inline reupload chip. The phase CTA still anchors
-   * the bottom-center as a single high-affordance action.
-   *
-   * Layout: top row carries property title (left) + month picker (right).
-   * Bottom row centers the phase CTA so it draws the eye to "what's next." */
+  /* Single-row header. Property title anchors the left, the phase CTA sits as
+   * the primary control on the right just before the month picker, with the
+   * quiet re-upload chip tucked in when relevant. Keeping everything on one
+   * line prevents the earlier "floating pill between title and canvas" state
+   * where the CTA had no visual anchor. */
   const inLifecycle =
     runState === "running" ||
     runState === "reconciling" ||
@@ -190,7 +187,7 @@ function Header({
     >
       <div
         className="flex flex-row items-center"
-        style={{ width: "100%", gap: 12, height: 40 }}
+        style={{ width: "100%", gap: 12, minHeight: 40 }}
       >
         <div className="relative shrink-0" style={{ width: 28, height: 28 }}>
           <Building2 size={28} strokeWidth={1.25} color="#464A51" />
@@ -247,6 +244,8 @@ function Header({
           </button>
         )}
 
+        <PhaseCTA />
+
         <button
           className="flex flex-row justify-center items-center"
           style={{
@@ -277,13 +276,6 @@ function Header({
             strokeLinejoin="round"
           />
         </button>
-      </div>
-
-      <div
-        className="flex flex-row items-center justify-center"
-        style={{ width: "100%", paddingTop: 4 }}
-      >
-        <PhaseCTA />
       </div>
     </div>
   );

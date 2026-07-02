@@ -19,23 +19,32 @@ import { useId } from "react";
  * Each instance derives a unique id prefix via useId so multiple wires on
  * the same page don't share gradient/filter IDs or keyframe names. */
 export function WireConnector({
-  width = 305,
-  height = 262,
+  width = "100%",
+  height = "100%",
   active = false,
   inactive = false,
 }: {
-  width?: number;
-  height?: number;
+  /* Both dimensions default to 100% so the wire fills its flex container
+   * responsively. Pass numeric values only when driving from a fixed slot. */
+  width?: number | string;
+  height?: number | string;
   active?: boolean;
-  /* Inactive mode collapses the wire to a single dulled-grey line — no chrome
-   * gradient, no shimmer, no endpoint cap glow. Used for pair rows whose
-   * inputs haven't landed yet: the bridge is there but unpowered. */
+  /* Inactive mode replaces the wire with a stylized blueprint: dotted trail
+   * along the same path + a pair of ringed port sockets at each end.
+   * Communicates "cable in place, unpowered" instead of a flat hairline. */
   inactive?: boolean;
 }) {
   const raw = useId();
   const uid = `w${raw.replace(/[^a-zA-Z0-9]/g, "")}`;
 
   if (inactive) {
+    /* Blueprint mode.
+     *
+     * The path itself is drawn with a small dash pattern (2 units on, 6 off)
+     * so the wire reads as a dotted line — "route present, current absent."
+     * Two sockets sit at the bank/ledger terminals: a hollow outer ring +
+     * inner filled dot. They mirror what an actual cable would plug into,
+     * making the unplugged state feel intentional rather than incomplete. */
     return (
       <svg
         width={width}
@@ -43,21 +52,46 @@ export function WireConnector({
         viewBox="0 0 305 262"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="none"
         aria-hidden
         style={{ display: "block", pointerEvents: "none", userSelect: "none" }}
       >
-        {/* Single hairline path — same geometry as the active spine, in a
-         * muted slate so the silhouette stays familiar but the energy is gone. */}
         <path
           d="M9.17676 101.254C26.8406 101.138 73.3334 103.772 112.216 114.581C160.161 127.909 181.189 137.528 237.125 142.512C248.9 143.786 283.177 144.25 283.177 144.25"
-          stroke="rgba(98, 116, 131, 0.32)"
-          strokeWidth={1}
+          stroke="rgba(98, 116, 131, 0.4)"
+          strokeWidth={1.25}
           strokeLinecap="round"
+          strokeDasharray="1.5 5"
         />
-        {/* Two small endpoint dots at the bank/ledger termini. Muted to match
-         * the line; they read as "ports waiting for the cable to power on." */}
-        <circle cx={9.5} cy={101.5} r={3} fill="rgba(98, 116, 131, 0.42)" />
-        <circle cx={283.5} cy={144.5} r={3} fill="rgba(98, 116, 131, 0.42)" />
+        {/* Left socket (bank side) */}
+        <g>
+          <circle
+            cx={9.5}
+            cy={101.5}
+            r={6}
+            fill="none"
+            stroke="rgba(98, 116, 131, 0.35)"
+            strokeWidth={1}
+          />
+          <circle cx={9.5} cy={101.5} r={2.2} fill="rgba(98, 116, 131, 0.55)" />
+        </g>
+        {/* Right socket (ledger side) */}
+        <g>
+          <circle
+            cx={283.5}
+            cy={144.5}
+            r={6}
+            fill="none"
+            stroke="rgba(98, 116, 131, 0.35)"
+            strokeWidth={1}
+          />
+          <circle
+            cx={283.5}
+            cy={144.5}
+            r={2.2}
+            fill="rgba(98, 116, 131, 0.55)"
+          />
+        </g>
       </svg>
     );
   }
@@ -82,6 +116,7 @@ export function WireConnector({
       viewBox="0 0 305 262"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
       aria-hidden
       style={{ display: "block", pointerEvents: "none", userSelect: "none" }}
       className={uid}

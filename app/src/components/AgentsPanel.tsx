@@ -31,21 +31,26 @@ import {
   totalExceptions,
 } from "@/lib/session/reducer";
 import type { RunState } from "@/lib/session/types";
-import { PixelField, type PixelFieldShape } from "./PixelField";
+import { DotGridAvatar, type DotGridPattern } from "./DotGridAvatar";
 import { KnowledgePanel } from "./KnowledgePanel";
 
-/* Per-agent avatar art. Active accents pull directly from the three workspace
- * status dots (#001AFF blue, #1EFF00 green, #FF0000 red), distributed one
- * per agent so the panel reads as three distinct organisms. The idle/grey
- * variant is handled below in AgentAvatar — same dots palette, no accent
- * color, so the bloom reads as "present but inactive". */
+/* Per-agent avatar patterns from the DotGridAvatar system. The three
+ * organisms map to the source assets in /AI Agents Animations/:
+ *
+ *   intake         → stars   (four star glyphs cycling through a 2×2 lattice)
+ *   reconciliation → pulse   (radial rings expanding outward — the "spiral")
+ *   summary        → summary (looped cursive scribble traced by a highlight)
+ *
+ * Active state renders in full contrast; idle pauses the animation at t=0
+ * with a muted dot color so the shape signature stays legible without
+ * competing for attention. */
 const AGENT_VISUAL: Record<
   AgentSectionData["id"],
-  { shape: PixelFieldShape; accent: string }
+  { pattern: DotGridPattern }
 > = {
-  intake: { shape: "arrow", accent: "#001AFF" },
-  reconciliation: { shape: "cluster", accent: "#1EFF00" },
-  summary: { shape: "swirl", accent: "#FF0000" },
+  intake: { pattern: "stars" },
+  reconciliation: { pattern: "pulse" },
+  summary: { pattern: "summary" },
 };
 
 const DOT_COLOR: Record<DotState, string> = {
@@ -1030,28 +1035,33 @@ function AgentAvatar({
   idle: boolean;
 }) {
   const visual = AGENT_VISUAL[agentId];
-  /* Idle = PixelField rendered statically (speed 0 = peak-pose hold in
-   * PATTERNS; see PixelField.tsx). Colors collapse onto a uniform mid-grey
-   * so the agent's signature shape (arrow / cluster / swirl) reads clearly
-   * but carries no color signal. Active runs the bloom at full speed with
-   * the agent's bright workspace-dot accent. */
+  /* Active runs the pattern at full contrast (#1a1a1a on #F7F8FA) so the
+   * hex dot field reads crisply at the small 26px avatar size. Idle pauses
+   * at t=0 and dampens to a mid-grey — the signature shape holds a static
+   * pose while carrying no motion signal. Tuned constants below are scaled
+   * from the reference index.html (originally 520px canvas) down to 26px:
+   * tighter spacing, smaller radii, smaller amplitude. */
   return (
     <div
       className="shrink-0 overflow-hidden"
-      style={{ width: 24, height: 24, borderRadius: 5 }}
+      style={{
+        width: 26,
+        height: 26,
+        borderRadius: 6,
+        background: "#F7F8FA",
+      }}
     >
-      <PixelField
-        shape={visual.shape}
-        size={24}
-        gridSize={12}
-        samples={2}
-        speed={idle ? 0 : 1}
-        dotColor={idle ? "#A8A9AD" : "#43484E"}
-        accentColor={idle ? "#A8A9AD" : visual.accent}
-        accentReach={0.7}
-        bgColor="#F7F8FA"
-        dotBase={0.12}
-        dotMax={1.0}
+      <DotGridAvatar
+        size={26}
+        pattern={visual.pattern}
+        paused={idle}
+        spacing={2.4}
+        baseRadius={0.28}
+        amp={0.85}
+        baseAlpha={idle ? 0.18 : 0.24}
+        peakAlpha={idle ? 0.5 : 1.0}
+        edgeFadeFrac={0.1}
+        dotColor={idle ? "#A8A9AD" : "#1a1a1a"}
       />
     </div>
   );

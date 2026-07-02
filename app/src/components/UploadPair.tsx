@@ -664,13 +664,13 @@ function WireSpan({
     <div
       className="flex-1 flex items-center justify-center relative"
       style={{
-        minWidth: 80,
+        minWidth: 40,
         marginInline: -3,
         height: CARD_H,
       }}
     >
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="absolute inset-0"
         style={{
           opacity: inactive ? 1 : complete ? 0.85 : 1,
           filter:
@@ -678,12 +678,10 @@ function WireSpan({
           pointerEvents: "none",
         }}
       >
-        <WireConnector
-          width={305}
-          height={CARD_H}
-          active={active}
-          inactive={inactive}
-        />
+        {/* WireConnector fills this slot (100% × 100%). preserveAspectRatio="none"
+         * lets it scale horizontally as the flex container tightens without
+         * clipping or overflowing. */}
+        <WireConnector active={active} inactive={inactive} />
       </div>
       {stageLabel && (
         <div
