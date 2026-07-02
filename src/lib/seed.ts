@@ -1438,12 +1438,16 @@ export interface PropertyBankMapping {
   gl: string;
   /* Whose name is on the account — usually the property's legal entity,
    * but can differ when the bank account is held by a parent entity or
-   * an SPV that fronts multiple properties. */
-  accountHolder: string;
-  /* Live connection health — drives the per-row pill. */
-  connectionStatus: BankConnectionStatus;
-  /* Human-readable last-sync label ("4h ago", "May 28", "Never"). */
-  lastSynced: string;
+   * an SPV that fronts multiple properties. Optional in the prototype
+   * because the seeded mappings aren't detailed enough to carry it;
+   * consumers should fall back to the property's legal entity. */
+  accountHolder?: string;
+  /* Live connection health — drives the per-row pill. Optional in the
+   * prototype seeds; renderers should treat undefined as "unknown". */
+  connectionStatus?: BankConnectionStatus;
+  /* Human-readable last-sync label ("4h ago", "May 28", "Never"). Optional
+   * for the same reason as the two fields above. */
+  lastSynced?: string;
 }
 
 export interface PropertyRecentSession {
