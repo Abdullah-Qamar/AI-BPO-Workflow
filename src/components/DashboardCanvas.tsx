@@ -94,10 +94,8 @@ function PrimaryCTA({ onClick }: { onClick: () => void }) {
         borderRadius: 32,
         cursor: "pointer",
         color: "var(--action-on-primary)",
-        boxShadow: hover
-          ? "0 12px 32px rgba(20, 28, 38, 0.22), 0 4px 12px rgba(20, 28, 38, 0.12)"
-          : "0 8px 24px rgba(20, 28, 38, 0.16), 0 2px 6px rgba(20, 28, 38, 0.08)",
-        transition: "box-shadow 160ms ease, transform 160ms ease",
+        boxShadow: "0 8px 24px rgba(20, 28, 38, 0.16), 0 2px 6px rgba(20, 28, 38, 0.08)",
+        transition: "transform 160ms ease, background 160ms ease",
         transform: hover ? "translateY(-1px)" : "translateY(0)",
         fontFamily: "inherit",
       }}
@@ -618,12 +616,13 @@ function SessionRow({ session }: { session: DashboardSession }) {
         padding: "12px 12px 12px 14px",
         gap: 6,
         background: hover ? "#FFFFFF" : "transparent",
-        border: hover ? "1px solid #FFFFFF" : "1px solid transparent",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
+        border: hover
+          ? "1px solid rgba(157, 179, 197, 0.35)"
+          : "1px solid transparent",
         borderRadius: 10,
         cursor: "pointer",
         transition:
-          "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+          "background 140ms ease, border-color 140ms ease",
         fontFamily: "inherit",
       }}
     >
@@ -743,8 +742,7 @@ function RerunPill() {
         borderRadius: 999,
         cursor: "pointer",
         color: "var(--text-1)",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
-        transition: "background 140ms ease, box-shadow 140ms ease",
+        transition: "background 140ms ease",
         flexShrink: 0,
       }}
     >

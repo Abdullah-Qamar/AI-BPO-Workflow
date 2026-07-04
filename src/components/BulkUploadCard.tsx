@@ -385,47 +385,37 @@ function BankInfoChip({
       }}
       title={`${shortBankName(bank.name)} · ${bank.accountNumber}`}
     >
-      <span
-        key={filled ? "filled" : "empty"}
-        className="flex items-center justify-center shrink-0 relative"
-        style={{
-          width: 26,
-          height: 26,
-          borderRadius: 999,
-          background: filled ? "#22C55E" : "#FFFFFF",
-          border: filled
-            ? "1px solid rgba(15, 77, 38, 0.22)"
-            : "1px solid rgba(157, 179, 197, 0.32)",
-          boxShadow: filled ? "none" : "var(--shadow-chip)",
-          overflow: "visible",
-          animation: filled
-            ? "mark-swap 400ms cubic-bezier(0.22, 1, 0.36, 1)"
-            : undefined,
-        }}
-      >
+      {filled ? (
         <span
-          className="flex items-center justify-center"
+          key="filled"
+          className="flex items-center justify-center shrink-0 relative"
           style={{
-            width: "100%",
-            height: "100%",
+            width: 22,
+            height: 22,
             borderRadius: 999,
-            overflow: "hidden",
+            background: "#22C55E",
+            border: "1px solid rgba(15, 77, 38, 0.22)",
+            overflow: "visible",
+            animation: "mark-swap 400ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          {filled ? (
-            <Check size={13} strokeWidth={2.5} color="#FFFFFF" />
-          ) : (
-            <Image
-              src={bank.logoSrc}
-              width={16}
-              height={16}
-              alt=""
-              style={{ objectFit: "contain" }}
-            />
-          )}
+          <Check size={13} strokeWidth={2.5} color="#FFFFFF" />
+          {justFilled && <ParticleBurst />}
         </span>
-        {justFilled && <ParticleBurst />}
-      </span>
+      ) : (
+        /* Empty state — logo sits directly in the pill. The pill itself is
+         * the frame; a second white-circle ring around the logo would
+         * duplicate the shape and read as chrome. */
+        <Image
+          key="empty"
+          src={bank.logoSrc}
+          width={20}
+          height={20}
+          alt=""
+          className="shrink-0"
+          style={{ objectFit: "contain", width: 20, height: 20 }}
+        />
+      )}
       <div
         className="flex flex-row items-baseline min-w-0"
         style={{ gap: 6, flex: 1 }}

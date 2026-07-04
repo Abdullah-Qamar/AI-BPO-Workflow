@@ -358,9 +358,8 @@ function InactiveBankCard({
             borderRadius: 10,
             background: hover ? "#FFFFFF" : "rgba(255,255,255,0.7)",
             border: "1px solid rgba(157, 179, 197, 0.45)",
-            boxShadow: hover ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
             color: "#43484E",
-            transition: "background 140ms ease, box-shadow 140ms ease",
+            transition: "background 140ms ease",
           }}
         >
           <Upload size={14} strokeWidth={2} />

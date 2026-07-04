@@ -48,9 +48,8 @@ export function SlotChip({
           minWidth: 0,
           padding: "8px 12px",
           gap: 10,
-          background: "#E8F8EE",
+          background: hover ? "#DCF4E5" : "#E8F8EE",
           border: "1px solid #C5EBD2",
-          boxShadow: hover ? "var(--shadow-depth-1)" : "none",
           borderRadius: 10,
           cursor: "pointer",
         }}

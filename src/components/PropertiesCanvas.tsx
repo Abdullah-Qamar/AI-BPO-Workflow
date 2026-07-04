@@ -614,12 +614,13 @@ function PropertyRow({
         padding: "12px 14px",
         gap: 6,
         background: hover ? "#FFFFFF" : "transparent",
-        border: hover ? "1px solid #FFFFFF" : "1px solid transparent",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
+        border: hover
+          ? "1px solid rgba(157, 179, 197, 0.35)"
+          : "1px solid transparent",
         borderRadius: 10,
         cursor: "pointer",
         transition:
-          "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+          "background 140ms ease, border-color 140ms ease",
         fontFamily: "inherit",
       }}
     >
@@ -636,9 +637,7 @@ function PropertyRow({
             height: 8,
             borderRadius: 999,
             background: dotColor,
-            boxShadow: hover
-              ? "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(48,59,69,0.08)"
-              : "0 0 0 2px #F7F8FA",
+            boxShadow: "0 0 0 2px #F7F8FA",
             flexShrink: 0,
           }}
         />
@@ -1574,11 +1573,12 @@ function BankMappingRow({
         padding: "12px 14px",
         gap: 14,
         background: hover ? "#FFFFFF" : "transparent",
-        border: hover ? "1px solid #FFFFFF" : "1px solid transparent",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
+        border: hover
+          ? "1px solid rgba(157, 179, 197, 0.35)"
+          : "1px solid transparent",
         borderRadius: 10,
         transition:
-          "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+          "background 140ms ease, border-color 140ms ease",
       }}
     >
       <span
@@ -1589,7 +1589,6 @@ function BankMappingRow({
           borderRadius: 8,
           background: "#FFFFFF",
           border: "1px solid rgba(157,179,197,0.35)",
-          boxShadow: "var(--shadow-chip)",
         }}
       >
         <Image
@@ -2235,14 +2234,15 @@ function SessionMiniRow({ session }: { session: PropertyRecentSession }) {
         padding: "10px 14px",
         gap: 12,
         background: hover ? "#FFFFFF" : "transparent",
-        border: hover ? "1px solid #FFFFFF" : "1px solid transparent",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
+        border: hover
+          ? "1px solid rgba(157, 179, 197, 0.35)"
+          : "1px solid transparent",
         borderRadius: 10,
         cursor: "pointer",
         fontFamily: "inherit",
         textAlign: "left",
         transition:
-          "background 140ms ease, box-shadow 140ms ease, border-color 140ms ease",
+          "background 140ms ease, border-color 140ms ease",
       }}
     >
       <span
@@ -2251,9 +2251,7 @@ function SessionMiniRow({ session }: { session: PropertyRecentSession }) {
           height: 8,
           borderRadius: 999,
           background: dotColor,
-          boxShadow: hover
-            ? "0 0 0 2px #FFFFFF, 0 0 0 3px rgba(48,59,69,0.08)"
-            : "0 0 0 2px #F7F8FA",
+          boxShadow: "0 0 0 2px #F7F8FA",
         }}
       />
       <span

@@ -81,8 +81,8 @@ export function AgentsPanel({
       <aside
         className="flex flex-col items-start shrink-0"
         style={{
-          /* Sticky sliver — same 12px gutter around the collapsed rail so the
-           * transition to expanded feels continuous. */
+          /* Sticky sliver — same surface as the expanded panel so collapsing
+           * doesn't reveal a second underlying container. One card, resized. */
           position: "sticky",
           top: 12,
           alignSelf: "flex-start",
@@ -91,9 +91,9 @@ export function AgentsPanel({
           width: 68,
           padding: "20px 12px",
           gap: 16,
-          background: "var(--bg-side)",
+          background: "var(--surface-card)",
           borderRadius: 20,
-          boxShadow: "var(--shadow-depth-1)",
+          boxShadow: "var(--shadow-card)",
           transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
@@ -121,36 +121,32 @@ export function AgentsPanel({
 
   return (
     <aside
-      className="flex flex-row items-stretch shrink-0"
+      className="flex flex-col items-stretch shrink-0 relative overflow-hidden"
       style={{
-        /* Sticky, floating: the outer bg-side gutter now has equal top / right
-         * / bottom breathing room, so the root gradient shows around it and the
-         * whole panel reads as a lifted rounded container in the viewport. */
+        /* Single-surface panel. Previously the aside had a bg-side "gutter"
+         * and the inner card sat inside — two nested backgrounds read as an
+         * extra container. Now the aside IS the panel: one surface, one
+         * shadow, one radius. Padding replaces the old gutter. */
         position: "sticky",
         top: 12,
         alignSelf: "flex-start",
         height: "calc(100vh - 24px)",
         margin: "12px 12px 12px 0",
         width: 400,
-        padding: 12,
-        gap: 10,
-        background: "var(--bg-side)",
+        padding: "20px 16px 20px 20px",
+        gap: 16,
+        background: "var(--surface-card)",
         borderRadius: 20,
-        boxShadow: "var(--shadow-depth-1)",
-        /* Smooth width transition so the collapse triggered by opening the
-         * review canvas reads as one connected animation with the canvas
-         * fade-in. Cubic-bezier tuned to match the review-in keyframe. */
+        boxShadow: "var(--shadow-card)",
         transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
       }}
     >
       <div
-        className="flex flex-col items-start flex-1 relative overflow-hidden"
+        className="flex flex-col items-start flex-1 relative"
         style={{
-          padding: "12px 16px 12px 12px",
+          width: "100%",
+          minHeight: 0,
           gap: 16,
-          background: "var(--surface-card)",
-          boxShadow: "var(--shadow-card)",
-          borderRadius: "var(--radius-panel)",
         }}
       >
         {/* Collapse chevron — absolutely positioned so it stays at the exact
@@ -1375,10 +1371,10 @@ function ReviewPrimaryButton({
             ? "var(--action-primary-hover)"
             : "var(--action-primary)",
           border: "1px solid var(--action-primary)",
-          boxShadow: hover ? "var(--shadow-depth-2)" : "var(--shadow-chip)",
           borderRadius: 999,
           cursor: "pointer",
           color: "var(--action-on-primary)",
+          transition: "background 140ms ease",
         }}
         aria-label={action.label}
       >
@@ -1506,13 +1502,15 @@ function UtilityChip({
         padding: "0 12px",
         gap: 6,
         background: hover ? "#FFFFFF" : "var(--surface-card-glow)",
-        border: "1px solid #FFFFFF",
-        boxShadow: hover ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
+        border: hover
+          ? "1px solid rgba(157, 179, 197, 0.4)"
+          : "1px solid rgba(157, 179, 197, 0.28)",
         borderRadius: 999,
         cursor: "pointer",
         color: "var(--text-1)",
         fontSize: 12,
         lineHeight: "14px",
+        transition: "background 140ms ease, border-color 140ms ease",
       }}
     >
       {icon}

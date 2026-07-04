@@ -748,11 +748,7 @@ function SessionNavRow({
     : hover
     ? "1px solid rgba(255, 255, 255, 0.65)"
     : "1px solid transparent";
-  const shadow = selected
-    ? "var(--shadow-chip)"
-    : hover
-    ? "var(--shadow-depth-1)"
-    : "none";
+  const shadow = selected ? "var(--shadow-chip)" : "none";
 
   return (
     <button

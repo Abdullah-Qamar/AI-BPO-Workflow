@@ -475,8 +475,7 @@ function EntryCard({
         background: hover || expanded ? "#FFFFFF" : "var(--surface-card)",
         border: "1px solid",
         borderColor:
-          hover || expanded ? "var(--line-inner-white)" : "transparent",
-        boxShadow: hover || expanded ? "var(--shadow-chip)" : "none",
+          hover || expanded ? "rgba(157, 179, 197, 0.35)" : "transparent",
         borderRadius: 10,
         cursor: "pointer",
         opacity: isArchived ? 0.72 : 1,

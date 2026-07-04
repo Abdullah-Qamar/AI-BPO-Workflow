@@ -170,8 +170,9 @@ function Header({ onBack }: { onBack: () => void }) {
           height: 32,
           padding: "0 14px 0 12px",
           background: hover ? "#FFFFFF" : "var(--surface-card-glow)",
-          border: "1px solid #FFFFFF",
-          boxShadow: hover ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
+          border: hover
+            ? "1px solid rgba(157, 179, 197, 0.4)"
+            : "1px solid #FFFFFF",
           borderRadius: 999,
           fontSize: 12,
           lineHeight: "14px",
@@ -662,13 +663,12 @@ function RecordRow({
         border: lifted
           ? moved
             ? "1px solid rgba(0, 26, 255, 0.35)"
-            : "1px solid #FFFFFF"
+            : "1px solid rgba(157, 179, 197, 0.35)"
           : "1px solid rgba(157, 179, 197, 0.18)",
-        boxShadow: lifted ? "var(--shadow-card)" : "none",
         borderRadius: "var(--radius-card)",
         overflow: "hidden",
         transition:
-          "background 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+          "background 200ms ease, border-color 200ms ease",
       }}
     >
       <div
