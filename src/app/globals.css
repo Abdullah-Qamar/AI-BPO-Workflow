@@ -83,6 +83,16 @@ body {
   background: linear-gradient(180deg, #c4c9d4 0%, #a7b9c8 100%);
   background-attachment: fixed;
   color: var(--text-1);
+  /* Kill the rubber-band overscroll — otherwise scrolling past the top or
+   * bottom exposes whatever's behind the document (browser chrome / white)
+   * and yanks the sticky rails visually with it. */
+  overscroll-behavior: none;
+}
+html {
+  /* Height clamped so the document never exceeds the natural scroll length —
+   * combined with overscroll-behavior above this stops the "empty band"
+   * appearing above the fixed rails when the user flicks upward. */
+  height: 100%;
 }
 
 * {
