@@ -227,28 +227,46 @@ export function WireConnector({
         </linearGradient>
       </defs>
 
+      {/* Chrome cable: three layers of the SAME path, differentiated by blur
+       * radius and stroke width. Originally the Figma export used three
+       * subtly-different curves that fused at native 305×262 but diverged
+       * into visible parallel strokes once preserveAspectRatio="none"
+       * stretched the SVG horizontally to fit variable-width slots. Sharing
+       * one path — and pinning stroke width with non-scaling-stroke — keeps
+       * the chrome cohesive at any aspect ratio; the three blur radii still
+       * give it the layered metallic sheen. */}
       <g className="wc-base">
-        <use href={`#${ids.path}`} stroke={`url(#${ids.chrome})`} filter={`url(#${ids.drop})`} />
-        <path
-          d="M9.17676 102.25C77.9268 102.25 108.6 130.734 199.962 132.734C211.526 133.775 257.265 144.88 284.177 145.25"
+        <use
+          href={`#${ids.path}`}
           stroke={`url(#${ids.chrome})`}
+          strokeWidth={1.2}
           filter={`url(#${ids.b1})`}
+          vectorEffect="non-scaling-stroke"
         />
-        <path
-          d="M9.17676 104.994C33.4105 103.212 71.1923 95.8894 101.748 108.435C143.263 125.482 191.74 151.736 284.177 143.788"
+        <use
+          href={`#${ids.path}`}
           stroke={`url(#${ids.chrome})`}
+          strokeWidth={1}
           filter={`url(#${ids.b05})`}
+          vectorEffect="non-scaling-stroke"
+        />
+        <use
+          href={`#${ids.path}`}
+          stroke={`url(#${ids.chrome})`}
+          strokeWidth={0.9}
+          filter={`url(#${ids.drop})`}
+          vectorEffect="non-scaling-stroke"
         />
       </g>
 
       {active && (
         <g className="wc-shimmer">
-          <use href={`#${ids.path}`} className="wc-shim-lr-halo" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeDasharray="70 700" filter={`url(#${ids.glow})`} />
-          <use href={`#${ids.path}`} className="wc-shim-lr-mid" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeDasharray="55 700" filter={`url(#${ids.midGlow})`} />
-          <use href={`#${ids.path}`} className="wc-shim-lr-core" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="40 700" />
-          <use href={`#${ids.path}`} className="wc-shim-rl-halo" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeDasharray="70 700" filter={`url(#${ids.glow})`} />
-          <use href={`#${ids.path}`} className="wc-shim-rl-mid" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeDasharray="55 700" filter={`url(#${ids.midGlow})`} />
-          <use href={`#${ids.path}`} className="wc-shim-rl-core" stroke="#FFFFFF" strokeWidth="1.1" strokeLinecap="round" strokeDasharray="40 700" />
+          <use href={`#${ids.path}`} className="wc-shim-lr-halo" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeDasharray="70 700" filter={`url(#${ids.glow})`} vectorEffect="non-scaling-stroke" />
+          <use href={`#${ids.path}`} className="wc-shim-lr-mid" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeDasharray="55 700" filter={`url(#${ids.midGlow})`} vectorEffect="non-scaling-stroke" />
+          <use href={`#${ids.path}`} className="wc-shim-lr-core" stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="40 700" vectorEffect="non-scaling-stroke" />
+          <use href={`#${ids.path}`} className="wc-shim-rl-halo" stroke="#FFFFFF" strokeWidth="6" strokeLinecap="round" strokeDasharray="70 700" filter={`url(#${ids.glow})`} vectorEffect="non-scaling-stroke" />
+          <use href={`#${ids.path}`} className="wc-shim-rl-mid" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeDasharray="55 700" filter={`url(#${ids.midGlow})`} vectorEffect="non-scaling-stroke" />
+          <use href={`#${ids.path}`} className="wc-shim-rl-core" stroke="#FFFFFF" strokeWidth="1.1" strokeLinecap="round" strokeDasharray="40 700" vectorEffect="non-scaling-stroke" />
         </g>
       )}
 

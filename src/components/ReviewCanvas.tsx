@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -9,6 +9,9 @@ import {
   Flag,
   Check,
   MessageSquarePlus,
+  MessageSquareText,
+  Undo2,
+  X,
 } from "lucide-react";
 import {
   activeProperty,
@@ -33,10 +36,22 @@ type BankFilter = "all" | RecordBankId;
 
 /* Per-record local action state so the design can demonstrate live
  * interaction states without wiring back to the session reducer. Kept in
- * component state; the reducer wiring is a follow-up. */
+ * component state; the reducer wiring is a follow-up.
+ *
+ * commentText is the actual reviewer feedback — persisted per record when
+ * the user saves. Undefined means no comment; "" means an in-flight draft
+ * we haven't saved yet. */
 type RecordOverride = {
   status?: RecordStatus;
-  commented?: boolean;
+  commentText?: string;
+};
+
+type Toast = {
+  id: string;
+  kind: "approved" | "flagged";
+  message: string;
+  detail?: string;
+  onUndo?: () => void;
 };
 
 export function ReviewCanvas({ onBack }: { onBack: () => void }) {
@@ -47,38 +62,101 @@ export function ReviewCanvas({ onBack }: { onBack: () => void }) {
   /* Just-moved ids so the row can flash a brief "moved" acknowledgement
    * before settling into its new bucket. Cleared 900ms after the action. */
   const [recentlyMoved, setRecentlyMoved] = useState<Set<string>>(new Set());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  /* When the user clicks the comment icon on a collapsed row we auto-expand
+   * AND queue a focus request for its textarea. RecordDetail consumes this
+   * flag on mount and clears it after focusing. */
+  const [focusCommentFor, setFocusCommentFor] = useState<string | null>(null);
 
-  const toggleStatus = useCallback((r: RecordItem) => {
-    const currentStatus = r.status;
-    const nextStatus: RecordStatus =
-      currentStatus === "flagged" ? "approved" : "flagged";
-    setOverrides((prev) => ({
-      ...prev,
-      [r.id]: { ...prev[r.id], status: nextStatus },
-    }));
-    setRecentlyMoved((prev) => {
-      const next = new Set(prev);
-      next.add(r.id);
-      return next;
-    });
-    window.setTimeout(() => {
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (t: Toast) => {
+      setToasts((prev) => [...prev, t]);
+      window.setTimeout(() => dismissToast(t.id), 4200);
+    },
+    [dismissToast]
+  );
+
+  const toggleStatus = useCallback(
+    (r: RecordItem) => {
+      const currentStatus = r.status;
+      const nextStatus: RecordStatus =
+        currentStatus === "flagged" ? "approved" : "flagged";
+      setOverrides((prev) => ({
+        ...prev,
+        [r.id]: { ...prev[r.id], status: nextStatus },
+      }));
       setRecentlyMoved((prev) => {
         const next = new Set(prev);
-        next.delete(r.id);
+        next.add(r.id);
         return next;
       });
-    }, 900);
+      window.setTimeout(() => {
+        setRecentlyMoved((prev) => {
+          const next = new Set(prev);
+          next.delete(r.id);
+          return next;
+        });
+      }, 900);
+
+      const toastId = `t-${r.id}-${nextStatus}-${toasts.length}`;
+      pushToast({
+        id: toastId,
+        kind: nextStatus,
+        message:
+          nextStatus === "approved" ? "Moved to Approved" : "Moved to Flagged",
+        detail: r.title,
+        onUndo: () => {
+          setOverrides((prev) => {
+            const copy = { ...prev };
+            const cur = copy[r.id];
+            if (cur) {
+              const { status: _s, ...rest } = cur;
+              copy[r.id] =
+                Object.keys(rest).length > 0
+                  ? (rest as RecordOverride)
+                  : {};
+              if (Object.keys(copy[r.id]).length === 0) delete copy[r.id];
+            }
+            return copy;
+          });
+          dismissToast(toastId);
+        },
+      });
+    },
+    [dismissToast, pushToast, toasts.length]
+  );
+
+  /* Comment icon click. Two behaviors depending on current state:
+   *   - row collapsed → expand it AND set focus target so the textarea
+   *     auto-focuses on mount. Feels like one gesture: click comment →
+   *     you're immediately typing.
+   *   - row expanded  → focus the textarea (no collapse; the click here
+   *     just re-enters the note field). */
+  const openCommentEditor = useCallback((r: RecordItem) => {
+    setExpandedId(r.id);
+    setFocusCommentFor(r.id);
   }, []);
 
-  const toggleComment = useCallback((r: RecordItem) => {
-    setOverrides((prev) => ({
-      ...prev,
-      [r.id]: {
-        ...prev[r.id],
-        commented: !prev[r.id]?.commented,
-      },
-    }));
+  const setCommentText = useCallback((id: string, text: string | undefined) => {
+    setOverrides((prev) => {
+      const copy = { ...prev };
+      const cur = copy[id] ?? {};
+      if (text === undefined || text.trim() === "") {
+        const { commentText: _c, ...rest } = cur;
+        copy[id] = rest as RecordOverride;
+        if (Object.keys(copy[id]).length === 0) delete copy[id];
+      } else {
+        copy[id] = { ...cur, commentText: text };
+      }
+      return copy;
+    });
   }, []);
+
+  const clearFocusCommentFor = useCallback(() => setFocusCommentFor(null), []);
 
   const effective = useMemo(() => {
     return reconciledRecords.map((r) => {
@@ -126,10 +204,15 @@ export function ReviewCanvas({ onBack }: { onBack: () => void }) {
         expandedId={expandedId}
         onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
         onToggleStatus={toggleStatus}
-        onToggleComment={toggleComment}
+        onCommentClick={openCommentEditor}
         overrides={overrides}
         recentlyMoved={recentlyMoved}
+        focusCommentFor={focusCommentFor}
+        clearFocusCommentFor={clearFocusCommentFor}
+        setCommentText={setCommentText}
       />
+
+      <ToastLayer toasts={toasts} onDismiss={dismissToast} />
 
       <style jsx>{`
         .review-canvas-enter {
@@ -575,17 +658,23 @@ function RecordList({
   expandedId,
   onToggle,
   onToggleStatus,
-  onToggleComment,
+  onCommentClick,
   overrides,
   recentlyMoved,
+  focusCommentFor,
+  clearFocusCommentFor,
+  setCommentText,
 }: {
   records: RecordItem[];
   expandedId: string | null;
   onToggle: (id: string) => void;
   onToggleStatus: (r: RecordItem) => void;
-  onToggleComment: (r: RecordItem) => void;
+  onCommentClick: (r: RecordItem) => void;
   overrides: Record<string, RecordOverride>;
   recentlyMoved: Set<string>;
+  focusCommentFor: string | null;
+  clearFocusCommentFor: () => void;
+  setCommentText: (id: string, text: string | undefined) => void;
 }) {
   if (records.length === 0) {
     return (
@@ -614,9 +703,12 @@ function RecordList({
           expanded={r.id === expandedId}
           onToggle={() => onToggle(r.id)}
           onToggleStatus={() => onToggleStatus(r)}
-          onToggleComment={() => onToggleComment(r)}
-          commented={!!overrides[r.id]?.commented}
+          onCommentClick={() => onCommentClick(r)}
+          commentText={overrides[r.id]?.commentText}
           moved={recentlyMoved.has(r.id)}
+          focusCommentOnMount={focusCommentFor === r.id}
+          onCommentFocused={clearFocusCommentFor}
+          onSaveComment={(text) => setCommentText(r.id, text)}
         />
       ))}
     </div>
@@ -628,18 +720,25 @@ function RecordRow({
   expanded,
   onToggle,
   onToggleStatus,
-  onToggleComment,
-  commented,
+  onCommentClick,
+  commentText,
   moved,
+  focusCommentOnMount,
+  onCommentFocused,
+  onSaveComment,
 }: {
   record: RecordItem;
   expanded: boolean;
   onToggle: () => void;
   onToggleStatus: () => void;
-  onToggleComment: () => void;
-  commented: boolean;
+  onCommentClick: () => void;
+  commentText: string | undefined;
   moved: boolean;
+  focusCommentOnMount: boolean;
+  onCommentFocused: () => void;
+  onSaveComment: (text: string | undefined) => void;
 }) {
+  const commented = !!commentText;
   const meta = getBankMeta(record.bankId);
   const dot = record.status === "flagged" ? "#FF0000" : "#001AFF";
   const Chevron = expanded ? ChevronUp : ChevronDown;
@@ -796,15 +895,19 @@ function RecordRow({
             }
           />
           <ActionButton
-            label={commented ? "Comment added" : "Add comment"}
+            label={commented ? "Edit comment" : "Add comment"}
             onClick={(e) => {
               e.stopPropagation();
-              onToggleComment();
+              onCommentClick();
             }}
             tone="comment"
             active={commented}
             icon={
-              <MessageSquarePlus size={14} strokeWidth={1.75} />
+              commented ? (
+                <MessageSquareText size={14} strokeWidth={1.75} />
+              ) : (
+                <MessageSquarePlus size={14} strokeWidth={1.75} />
+              )
             }
           />
           <button
@@ -827,7 +930,15 @@ function RecordRow({
           </button>
         </div>
       </div>
-      {expanded && <RecordDetail record={record} />}
+      {expanded && (
+        <RecordDetail
+          record={record}
+          commentText={commentText}
+          focusOnMount={focusCommentOnMount}
+          onFocused={onCommentFocused}
+          onSave={onSaveComment}
+        />
+      )}
     </div>
   );
 }
@@ -958,14 +1069,86 @@ function ConfidenceChip({ value }: { value: number }) {
 
 /* ---------- Expanded detail ---------- */
 
-function RecordDetail({ record }: { record: RecordItem }) {
+/* Expanded row detail — reason + evidence + reviewer note. The reviewer
+ * note is a two-mode area:
+ *   view mode   → saved comment reads back as a quoted block with Edit /
+ *                 Clear controls
+ *   edit mode   → textarea + Save / Cancel; Cmd/Ctrl+Enter saves; Esc
+ *                 cancels. Auto-enters edit mode on first open (no comment
+ *                 yet) OR when the parent flags a focus request (user
+ *                 clicked the comment icon).
+ *
+ * The two-mode approach keeps saved notes readable at a glance (the
+ * common case for a reviewer scanning back through a run), while still
+ * letting the reviewer amend them without an extra dialog step. */
+function RecordDetail({
+  record,
+  commentText,
+  focusOnMount,
+  onFocused,
+  onSave,
+}: {
+  record: RecordItem;
+  commentText: string | undefined;
+  focusOnMount: boolean;
+  onFocused: () => void;
+  onSave: (text: string | undefined) => void;
+}) {
+  const [editing, setEditing] = useState(!commentText);
+  const [draft, setDraft] = useState(commentText ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /* When the row was opened via the comment icon, the parent sets
+   * focusOnMount. We enter edit mode + focus, then clear the parent flag
+   * so the same request doesn't refire on unrelated re-renders. */
+  useEffect(() => {
+    if (focusOnMount) {
+      setEditing(true);
+      setDraft(commentText ?? "");
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        const el = textareaRef.current;
+        if (el) el.selectionStart = el.selectionEnd = el.value.length;
+      });
+      onFocused();
+    }
+  }, [focusOnMount, commentText, onFocused]);
+
+  const startEdit = () => {
+    setDraft(commentText ?? "");
+    setEditing(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed.length === 0) {
+      onSave(undefined);
+    } else {
+      onSave(trimmed);
+    }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(commentText ?? "");
+    setEditing(false);
+  };
+
+  const clear = () => {
+    onSave(undefined);
+    setDraft("");
+    setEditing(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   return (
     <div
       className="flex flex-col items-start"
       style={{
         width: "100%",
         padding: "0 16px 16px 56px",
-        gap: 12,
+        gap: 16,
         background: "transparent",
       }}
     >
@@ -999,6 +1182,184 @@ function RecordDetail({ record }: { record: RecordItem }) {
             ))}
           </ul>
         </DetailColumn>
+      </div>
+
+      <div className="flex flex-col items-start" style={{ width: "100%", gap: 6 }}>
+        <div
+          className="flex flex-row items-center"
+          style={{ width: "100%", gap: 8 }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              lineHeight: "15px",
+              color: "var(--text-2)",
+            }}
+          >
+            Reviewer note
+          </span>
+          <div className="flex-1" />
+          {!editing && commentText && (
+            <>
+              <button
+                type="button"
+                onClick={startEdit}
+                className="inline-flex items-center transition"
+                style={{
+                  height: 24,
+                  padding: "0 10px",
+                  gap: 4,
+                  background: "transparent",
+                  border: "1px solid var(--line-soft)",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  lineHeight: "14px",
+                  color: "var(--text-1)",
+                  cursor: "pointer",
+                }}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={clear}
+                className="inline-flex items-center transition"
+                style={{
+                  height: 24,
+                  padding: "0 10px",
+                  gap: 4,
+                  background: "transparent",
+                  border: "1px solid var(--line-soft)",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  lineHeight: "14px",
+                  color: "var(--text-2)",
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+
+        {editing ? (
+          <div
+            className="flex flex-col items-start"
+            style={{ width: "100%", gap: 8 }}
+          >
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancel();
+                }
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  commit();
+                }
+              }}
+              placeholder="Explain your decision, flag context for the controller, or leave a note for next cycle…"
+              rows={3}
+              maxLength={500}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                background: "#FFFFFF",
+                border: "1px solid rgba(0, 26, 255, 0.28)",
+                borderRadius: 10,
+                fontSize: 13,
+                lineHeight: "18px",
+                color: "var(--text-1)",
+                fontFamily: "inherit",
+                resize: "vertical",
+                minHeight: 68,
+                outline: "none",
+                boxShadow: "0 0 0 3px rgba(0, 26, 255, 0.08)",
+              }}
+            />
+            <div
+              className="flex flex-row items-center"
+              style={{ width: "100%", gap: 8 }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  lineHeight: "14px",
+                  color: "var(--text-4)",
+                }}
+              >
+                {draft.length}/500 · Cmd/Ctrl+Enter to save · Esc to cancel
+              </span>
+              <div className="flex-1" />
+              {commentText !== undefined && (
+                <button
+                  type="button"
+                  onClick={cancel}
+                  className="inline-flex items-center transition"
+                  style={{
+                    height: 28,
+                    padding: "0 12px",
+                    background: "transparent",
+                    border: "1px solid var(--line-soft)",
+                    borderRadius: 999,
+                    fontSize: 12,
+                    lineHeight: "14px",
+                    color: "var(--text-1)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={commit}
+                disabled={draft.trim().length === 0 && !commentText}
+                className="inline-flex items-center transition"
+                style={{
+                  height: 28,
+                  padding: "0 14px",
+                  background:
+                    draft.trim().length === 0 && !commentText
+                      ? "rgba(26, 31, 37, 0.35)"
+                      : "var(--action-primary)",
+                  border: "1px solid var(--action-primary)",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  lineHeight: "14px",
+                  color: "var(--action-on-primary)",
+                  cursor:
+                    draft.trim().length === 0 && !commentText
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              >
+                {commentText ? "Save changes" : "Save note"}
+              </button>
+            </div>
+          </div>
+        ) : commentText ? (
+          <div
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              background: "#F1EBFF",
+              border: "1px solid rgba(124, 77, 255, 0.24)",
+              borderLeft: "3px solid rgba(124, 77, 255, 0.6)",
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: "18px",
+              color: "var(--text-1)",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {commentText}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1057,4 +1418,180 @@ function formatAmount(amount: number): string {
     maximumFractionDigits: 2,
   });
   return `${sign}$${formatted}`;
+}
+
+/* ---------- Toast layer ----------
+ *
+ * Bottom-right stack. Each toast is a dark pill with a colored leading
+ * icon (blue check for approved, red flag for flagged), primary line,
+ * detail line (the record title so the reviewer knows which one was just
+ * moved), an Undo button, and a subtle close X. Auto-dismiss at 4.2s
+ * (matches the ReviewCanvas timeout — long enough for a considered undo,
+ * short enough not to loiter).
+ *
+ * Positioned via `position: fixed` with `right: 108` so the stack clears
+ * the collapsed AgentsPanel sliver (68 wide + 12 margin + 24 breathing).
+ * The two states of the review workspace only differ by that gutter, so
+ * the toast pin stays consistent across renders. */
+function ToastLayer({
+  toasts,
+  onDismiss,
+}: {
+  toasts: Toast[];
+  onDismiss: (id: string) => void;
+}) {
+  return (
+    <div
+      aria-live="polite"
+      style={{
+        position: "fixed",
+        bottom: 24,
+        right: 108,
+        zIndex: 90,
+        display: "flex",
+        flexDirection: "column-reverse",
+        gap: 10,
+        pointerEvents: "none",
+      }}
+    >
+      {toasts.map((t) => (
+        <ToastItem key={t.id} toast={t} onDismiss={() => onDismiss(t.id)} />
+      ))}
+      <style>{`
+        @keyframes toast-in {
+          from { opacity: 0; transform: translate(12px, 8px) scale(0.98); }
+          to   { opacity: 1; transform: translate(0, 0) scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function ToastItem({
+  toast,
+  onDismiss,
+}: {
+  toast: Toast;
+  onDismiss: () => void;
+}) {
+  const isApproved = toast.kind === "approved";
+  return (
+    <div
+      role="status"
+      style={{
+        pointerEvents: "auto",
+        minWidth: 320,
+        maxWidth: 380,
+        padding: "12px 12px 12px 14px",
+        gap: 10,
+        display: "flex",
+        alignItems: "center",
+        background: "var(--action-primary)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 12,
+        boxShadow:
+          "0 12px 32px rgba(20, 28, 38, 0.28), 0 4px 12px rgba(20, 28, 38, 0.16)",
+        color: "var(--action-on-primary)",
+        animation: "toast-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both",
+      }}
+    >
+      <span
+        aria-hidden
+        className="flex items-center justify-center shrink-0"
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 999,
+          background: isApproved
+            ? "rgba(0, 26, 255, 0.28)"
+            : "rgba(255, 0, 0, 0.28)",
+          color: isApproved ? "#B7C0FF" : "#FFB4B4",
+        }}
+      >
+        {isApproved ? (
+          <Check size={14} strokeWidth={2} />
+        ) : (
+          <Flag size={14} strokeWidth={2} />
+        )}
+      </span>
+
+      <div className="flex flex-col min-w-0" style={{ flex: 1, gap: 2 }}>
+        <span
+          style={{
+            fontSize: 13,
+            lineHeight: "16px",
+            color: "var(--action-on-primary)",
+          }}
+        >
+          {toast.message}
+        </span>
+        {toast.detail && (
+          <span
+            className="truncate"
+            style={{
+              fontSize: 12,
+              lineHeight: "15px",
+              color: "rgba(255,255,255,0.6)",
+            }}
+          >
+            {toast.detail}
+          </span>
+        )}
+      </div>
+
+      {toast.onUndo && (
+        <button
+          type="button"
+          onClick={toast.onUndo}
+          className="inline-flex items-center transition"
+          style={{
+            height: 28,
+            padding: "0 10px",
+            gap: 5,
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.22)",
+            borderRadius: 999,
+            fontSize: 12,
+            lineHeight: "14px",
+            color: "var(--action-on-primary)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          <Undo2 size={12} strokeWidth={2} />
+          Undo
+        </button>
+      )}
+
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={onDismiss}
+        className="shrink-0 flex items-center justify-center transition"
+        style={{
+          width: 24,
+          height: 24,
+          background: "transparent",
+          border: "none",
+          borderRadius: 999,
+          color: "rgba(255,255,255,0.55)",
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = "rgba(255,255,255,0.9)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = "rgba(255,255,255,0.55)";
+        }}
+      >
+        <X size={13} strokeWidth={2} />
+      </button>
+    </div>
+  );
 }
