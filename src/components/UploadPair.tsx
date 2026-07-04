@@ -84,6 +84,12 @@ export function UploadPair({
     );
   }
 
+  /* Pair is only "complete" (wire lights up) when BOTH statement and ledger
+   * have landed. If either is missing the wire stays in inactive/unplugged
+   * mode — the pairing signal is what activates the wire, not just the bank
+   * side being uploaded. */
+  const pairComplete = statementUploaded && ledgerUploaded;
+
   return (
     <div
       className="flex flex-row items-start relative"
@@ -91,10 +97,11 @@ export function UploadPair({
     >
       <BankCard pair={pair} />
       <WireSpan
-        active={!!isActiveBank}
+        active={pairComplete && !!isActiveBank}
         complete={stageTone === "complete"}
         stageLabel={hideBadge ? null : stageLabel ?? null}
         stageTone={stageTone ?? "neutral"}
+        inactive={!pairComplete}
       />
       {ledgerUploaded ? (
         <LedgerCard pair={pair} />
@@ -107,9 +114,14 @@ export function UploadPair({
 
 function BankCard({ pair }: { pair: UploadPairType }) {
   const { bank } = pair;
+  /* Mount-in bloom — plays a soft rise + green-glow burst so the transition
+   * from InactiveBankCard to the populated BankCard reads as "file landed"
+   * rather than an instant swap. The BulkUploadCard version of this
+   * animation unmounts too fast to be seen; running it on the pair-row card
+   * mount is where the delight actually surfaces. */
   return (
     <div
-      className="flex flex-col justify-start items-start shrink-0 relative"
+      className="flex flex-col justify-start items-start shrink-0 relative card-bloom-in"
       style={{
         width: CARD_W,
         height: CARD_H,
@@ -161,7 +173,7 @@ function LedgerCard({ pair }: { pair: UploadPairType }) {
   const { ledger } = pair;
   return (
     <div
-      className="flex flex-col justify-start items-start shrink-0 relative"
+      className="flex flex-col justify-start items-start shrink-0 relative card-bloom-in"
       style={{
         width: CARD_W,
         height: CARD_H,

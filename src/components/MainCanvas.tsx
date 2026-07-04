@@ -28,6 +28,7 @@ import { BulkUploadCard, type BankStatementState } from "./BulkUploadCard";
 import { BulkUploadOverlay } from "./BulkUploadOverlay";
 import { UploadPair } from "./UploadPair";
 import { PhaseCTA } from "./PhaseCTA";
+import { Button } from "./ui/Button";
 import { useSession } from "@/lib/session/SessionProvider";
 import {
   isLedgerUploaded,
@@ -220,28 +221,17 @@ function Header({
         </h1>
 
         {showReupload && !inLifecycle && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={onReupload}
-            className="inline-flex items-center transition"
-            style={{
-              height: 35,
-              padding: "8px 14px 8px 12px",
-              gap: 8,
-              background: "var(--surface-card)",
-              border: "1px solid rgba(157, 179, 197, 0.4)",
-              boxShadow: "var(--shadow-chip)",
-              borderRadius: 999,
-              fontSize: 13,
-              lineHeight: "16px",
-              color: "var(--text-1)",
-              cursor: "pointer",
-            }}
-            aria-label="Open bulk upload"
+            leftIcon={
+              <UploadCloud size={15} strokeWidth={1.75} color="#43484E" />
+            }
+            ariaLabel="Open bulk upload"
           >
-            <UploadCloud size={14} strokeWidth={1.5} color="#43484E" />
             Re-upload
-          </button>
+          </Button>
         )}
 
         <PhaseCTA />

@@ -1,5 +1,44 @@
 import { useId } from "react";
 
+/* Socket — the ringed port glyph rendered at each end of the inactive wire.
+ * Kept in its own fixed-size SVG (16×16) so it doesn't inherit the horizontal
+ * stretch that the dotted path relies on. Anchored to the vertical position
+ * where the path enters/exits the wire's viewBox on each side. */
+function Socket({ side }: { side: "left" | "right" }) {
+  const topPct = side === "left" ? "38.74%" : "55.15%";
+  const style: React.CSSProperties = {
+    position: "absolute",
+    top: topPct,
+    [side]: 0,
+    transform: "translate(0, -50%)",
+    width: 16,
+    height: 16,
+    pointerEvents: "none",
+  };
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={style}
+      aria-hidden
+    >
+      <circle
+        cx={8}
+        cy={8}
+        r={6}
+        fill="none"
+        stroke="rgba(98, 116, 131, 0.35)"
+        strokeWidth={1}
+      />
+      <circle cx={8} cy={8} r={2.2} fill="rgba(98, 116, 131, 0.55)" />
+    </svg>
+  );
+}
+
+
 /* Wire connector between bank statement card and ledger card.
  *
  * Inlines the Figma chrome cable SVG (was /wire.svg) so we can animate it:
@@ -40,59 +79,45 @@ export function WireConnector({
   if (inactive) {
     /* Blueprint mode.
      *
-     * The path itself is drawn with a small dash pattern (2 units on, 6 off)
-     * so the wire reads as a dotted line — "route present, current absent."
-     * Two sockets sit at the bank/ledger terminals: a hollow outer ring +
-     * inner filled dot. They mirror what an actual cable would plug into,
-     * making the unplugged state feel intentional rather than incomplete. */
+     * The dotted path stretches horizontally with the flex slot (viewBox has
+     * preserveAspectRatio="none"), but the socket circles are rendered in
+     * SEPARATE fixed-size SVGs positioned absolutely at each end — otherwise
+     * the same non-uniform scale that stretches the path would turn the
+     * circles into ellipses. The endpoints' vertical positions match where
+     * the path enters/exits the viewBox (101.5 / 262 ≈ 38.7% for the bank
+     * side; 144.5 / 262 ≈ 55.2% for the ledger side). */
     return (
-      <svg
-        width={width}
-        height={height}
-        viewBox="0 0 305 262"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        preserveAspectRatio="none"
+      <div
+        style={{
+          position: "relative",
+          width: typeof width === "number" ? `${width}px` : width,
+          height: typeof height === "number" ? `${height}px` : height,
+          pointerEvents: "none",
+          userSelect: "none",
+        }}
         aria-hidden
-        style={{ display: "block", pointerEvents: "none", userSelect: "none" }}
       >
-        <path
-          d="M9.17676 101.254C26.8406 101.138 73.3334 103.772 112.216 114.581C160.161 127.909 181.189 137.528 237.125 142.512C248.9 143.786 283.177 144.25 283.177 144.25"
-          stroke="rgba(98, 116, 131, 0.4)"
-          strokeWidth={1.25}
-          strokeLinecap="round"
-          strokeDasharray="1.5 5"
-        />
-        {/* Left socket (bank side) */}
-        <g>
-          <circle
-            cx={9.5}
-            cy={101.5}
-            r={6}
-            fill="none"
-            stroke="rgba(98, 116, 131, 0.35)"
-            strokeWidth={1}
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 305 262"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+          style={{ display: "block" }}
+        >
+          <path
+            d="M9.17676 101.254C26.8406 101.138 73.3334 103.772 112.216 114.581C160.161 127.909 181.189 137.528 237.125 142.512C248.9 143.786 283.177 144.25 283.177 144.25"
+            stroke="rgba(98, 116, 131, 0.4)"
+            strokeWidth={1.25}
+            strokeLinecap="round"
+            strokeDasharray="1.5 5"
+            vectorEffect="non-scaling-stroke"
           />
-          <circle cx={9.5} cy={101.5} r={2.2} fill="rgba(98, 116, 131, 0.55)" />
-        </g>
-        {/* Right socket (ledger side) */}
-        <g>
-          <circle
-            cx={283.5}
-            cy={144.5}
-            r={6}
-            fill="none"
-            stroke="rgba(98, 116, 131, 0.35)"
-            strokeWidth={1}
-          />
-          <circle
-            cx={283.5}
-            cy={144.5}
-            r={2.2}
-            fill="rgba(98, 116, 131, 0.55)"
-          />
-        </g>
-      </svg>
+        </svg>
+        <Socket side="left" />
+        <Socket side="right" />
+      </div>
     );
   }
 
@@ -109,17 +134,31 @@ export function WireConnector({
     capR: `${uid}-capR`,
   };
 
+  /* Active wire: the chrome path stretches to fill the slot (that's what
+   * makes the wire visually bridge the two cards). But the endpoint caps and
+   * shimmer glow blobs are decorative shapes that need to stay proportional —
+   * so we wrap in a positioned container, keep the stretchy paths in a full-
+   * bleed SVG, and render the caps as fixed-size anchored SVGs. */
   return (
+    <div
+      style={{
+        position: "relative",
+        width: typeof width === "number" ? `${width}px` : width,
+        height: typeof height === "number" ? `${height}px` : height,
+        pointerEvents: "none",
+        userSelect: "none",
+      }}
+      aria-hidden
+      className={uid}
+    >
     <svg
-      width={width}
-      height={height}
+      width="100%"
+      height="100%"
       viewBox="0 0 305 262"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       preserveAspectRatio="none"
-      aria-hidden
-      style={{ display: "block", pointerEvents: "none", userSelect: "none" }}
-      className={uid}
+      style={{ display: "block", position: "absolute", inset: 0 }}
     >
       <defs>
         <path
@@ -205,19 +244,6 @@ export function WireConnector({
         </g>
       )}
 
-      <g className="wc-cap wc-cap-l" filter={`url(#${ids.cap})`}>
-        <path
-          d="M8.96966 127C4.67905 113.708 5.80336 90.4615 7.59112 81C10.4515 97.0615 29.1786 102.5 37 102.962C19.48 103.885 10.1615 120.077 8.96966 127Z"
-          fill={`url(#${ids.capL})`}
-        />
-      </g>
-      <g className="wc-cap wc-cap-r" filter={`url(#${ids.cap})`}>
-        <path
-          d="M296.56 166.896C300.98 153.634 298.401 131.44 296.56 122C293.613 138.024 276.759 142.951 268.701 143.412C286.752 144.333 295.332 159.989 296.56 166.896Z"
-          fill={`url(#${ids.capR})`}
-        />
-      </g>
-
       <style>{`
         .${uid} .wc-cap { transform-box: fill-box; transform-origin: center; animation: ${uid}-capBreath 5.4s ease-in-out infinite; }
         .${uid} .wc-cap-r { animation-delay: -2.4s; }
@@ -233,6 +259,82 @@ export function WireConnector({
         @keyframes ${uid}-shimLR { from { stroke-dashoffset: 70; } to { stroke-dashoffset: -700; } }
         @keyframes ${uid}-shimRL { from { stroke-dashoffset: -700; } to { stroke-dashoffset: 70; } }
       `}</style>
+    </svg>
+      {/* Endpoint caps — decorative teardrop shapes that visually fuse the
+       * wire with the bank / ledger card edges. Pulled OUT of the stretchy
+       * SVG (which uses preserveAspectRatio="none" for the paths to reach
+       * across variable-width slots) so the caps stay proportional at any
+       * slot width. Anchored to the same left/right edge percentages as the
+       * inactive sockets — the wire visually enters/exits at these points. */}
+      <EndpointCap side="left" uid={uid} breathDelay="0s" />
+      <EndpointCap side="right" uid={uid} breathDelay="-2.4s" />
+    </div>
+  );
+}
+
+/* EndpointCap — fixed-size decorative teardrop rendered as its own SVG so
+ * it doesn't inherit the horizontal stretch that the wire's chrome path
+ * uses. Vertical position matches where the wire path enters/exits the
+ * viewBox on each side (~38.74% left, ~55.15% right). */
+function EndpointCap({
+  side,
+  uid,
+  breathDelay,
+}: {
+  side: "left" | "right";
+  uid: string;
+  breathDelay: string;
+}) {
+  const topPct = side === "left" ? "38.74%" : "55.15%";
+  const style: React.CSSProperties = {
+    position: "absolute",
+    top: topPct,
+    [side]: -3,
+    transform: "translateY(-50%)",
+    width: 32,
+    height: 48,
+    pointerEvents: "none",
+    animation: `${uid}-capBreath 5.4s ease-in-out infinite ${breathDelay}`,
+    transformBox: "fill-box",
+    transformOrigin: "center",
+  };
+  const gradId = `${uid}-cap-${side}-grad`;
+  return (
+    <svg
+      width={32}
+      height={48}
+      viewBox="0 0 32 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      style={style}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient
+          id={gradId}
+          x1={side === "left" ? 26 : 6}
+          y1="24"
+          x2={side === "left" ? 10 : 26}
+          y2="24"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#A5B0C0" />
+          <stop offset="1" stopColor="#FFFFFF" />
+        </linearGradient>
+      </defs>
+      {side === "left" ? (
+        <path
+          d="M4 46C-0.3 32.7 0.8 9.5 2.6 0C5.5 16.1 24.2 21.5 32 22C14.5 22.9 5.2 39.1 4 46Z"
+          fill={`url(#${gradId})`}
+          filter="blur(1.2px)"
+        />
+      ) : (
+        <path
+          d="M28 46C32.3 32.7 29.7 10.5 27.9 1C25 17 8.1 22 0 22.4C18.1 23.3 26.7 39 28 46Z"
+          fill={`url(#${gradId})`}
+          filter="blur(1.2px)"
+        />
+      )}
     </svg>
   );
 }

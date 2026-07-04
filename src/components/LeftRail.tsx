@@ -38,6 +38,13 @@ export function LeftRail({
         padding: "28px 20px",
         gap: 16,
         borderRight: "1px solid var(--line)",
+        /* Sticky so the rail is anchored to the viewport as the canvas scrolls
+         * underneath. alignSelf keeps it from stretching in the flex row. */
+        position: "sticky",
+        top: 0,
+        alignSelf: "flex-start",
+        height: "100vh",
+        zIndex: 20,
       }}
     >
       <div

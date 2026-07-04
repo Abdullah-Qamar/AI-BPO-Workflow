@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import Image from "next/image";
 import {
   ArrowLeft,
@@ -20,68 +20,140 @@ import {
   type RecordStatus,
 } from "@/lib/seed";
 
-/* The review canvas — destination of the Summary agent's "Review 68 records"
- * CTA. Shows the reconciled bucket in a scannable list with a quiet master/
- * detail expansion. Flagged is the default tab because that's where the
- * reviewer's attention belongs; approved sits one tab away as confirmation.
+/* Review canvas — destination of the Summary agent's "Review N records" CTA.
  *
- * Counts shown in the tab labels come from the canonical agent panel data
- * (52 approved · 16 flagged). The seeded list itself is illustrative — it
- * doesn't enumerate all 68 records, just enough to demonstrate the layout. */
+ * The canvas fades + slides in as it mounts (200ms ease-out) so the swap from
+ * the workspace/upload view is perceptibly a state change, not an instant
+ * teleport. The AgentsPanel simultaneously collapses to its sliver via a
+ * width transition — the two animations run in parallel and land together,
+ * giving the reviewer a clean "focus mode" gesture. */
 
 type FilterTab = "flagged" | "approved" | "all";
 type BankFilter = "all" | RecordBankId;
 
-const TAB_COUNT_OVERRIDES: Record<FilterTab, number> = {
-  // Match the agent panel's authoritative counts. The seeded record list is
-  // a smaller representative subset.
-  flagged: 16,
-  approved: 52,
-  all: 68,
+/* Per-record local action state so the design can demonstrate live
+ * interaction states without wiring back to the session reducer. Kept in
+ * component state; the reducer wiring is a follow-up. */
+type RecordOverride = {
+  status?: RecordStatus;
+  commented?: boolean;
 };
 
 export function ReviewCanvas({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<FilterTab>("flagged");
   const [bankFilter, setBankFilter] = useState<BankFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, RecordOverride>>({});
+  /* Just-moved ids so the row can flash a brief "moved" acknowledgement
+   * before settling into its new bucket. Cleared 900ms after the action. */
+  const [recentlyMoved, setRecentlyMoved] = useState<Set<string>>(new Set());
+
+  const toggleStatus = useCallback((r: RecordItem) => {
+    const currentStatus = r.status;
+    const nextStatus: RecordStatus =
+      currentStatus === "flagged" ? "approved" : "flagged";
+    setOverrides((prev) => ({
+      ...prev,
+      [r.id]: { ...prev[r.id], status: nextStatus },
+    }));
+    setRecentlyMoved((prev) => {
+      const next = new Set(prev);
+      next.add(r.id);
+      return next;
+    });
+    window.setTimeout(() => {
+      setRecentlyMoved((prev) => {
+        const next = new Set(prev);
+        next.delete(r.id);
+        return next;
+      });
+    }, 900);
+  }, []);
+
+  const toggleComment = useCallback((r: RecordItem) => {
+    setOverrides((prev) => ({
+      ...prev,
+      [r.id]: {
+        ...prev[r.id],
+        commented: !prev[r.id]?.commented,
+      },
+    }));
+  }, []);
+
+  const effective = useMemo(() => {
+    return reconciledRecords.map((r) => {
+      const ov = overrides[r.id];
+      return ov?.status
+        ? ({ ...r, status: ov.status } as RecordItem)
+        : r;
+    });
+  }, [overrides]);
+
+  const counts = useMemo(() => {
+    let flagged = 0;
+    let approved = 0;
+    for (const r of effective) {
+      if (r.status === "flagged") flagged++;
+      else approved++;
+    }
+    return { flagged, approved, all: effective.length };
+  }, [effective]);
 
   const visible = useMemo(() => {
-    return reconciledRecords.filter((r) => {
+    return effective.filter((r) => {
       if (tab !== "all" && r.status !== tab) return false;
       if (bankFilter !== "all" && r.bankId !== bankFilter) return false;
       return true;
     });
-  }, [tab, bankFilter]);
+  }, [effective, tab, bankFilter]);
 
   return (
     <main
-      className="flex flex-col items-start flex-1 min-w-0 relative overflow-auto scroll-thin canvas-pad"
+      className="flex flex-col items-start flex-1 min-w-0 relative overflow-auto scroll-thin canvas-pad review-canvas-enter"
       style={{ gap: 16, background: "var(--bg-grad)" }}
     >
       <Header onBack={onBack} />
-      <StatsBand />
-      <FilterTabs tab={tab} setTab={setTab} />
-      <BankFilterRow
+      <StatsBand counts={counts} />
+      <FiltersRow
+        tab={tab}
+        setTab={setTab}
         bankFilter={bankFilter}
         setBankFilter={setBankFilter}
+        counts={counts}
       />
       <RecordList
         records={visible}
         expandedId={expandedId}
         onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+        onToggleStatus={toggleStatus}
+        onToggleComment={toggleComment}
+        overrides={overrides}
+        recentlyMoved={recentlyMoved}
       />
+
+      <style jsx>{`
+        .review-canvas-enter {
+          animation: review-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes review-in {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </main>
   );
 }
 
 /* ---------- Header ---------- */
 
-/* Sub-page treatment: the workspace's giant property title is gone. A pill-
- * shaped Back affordance up top makes the navigation move explicit, and
- * "Review records" reads as the sub-page title — with property + cycle
- * relegated to a subtitle line so the user feels nested inside the run
- * rather than on a peer screen. */
 function Header({ onBack }: { onBack: () => void }) {
+  const [hover, setHover] = useState(false);
   return (
     <div
       className="flex flex-col items-start"
@@ -90,14 +162,16 @@ function Header({ onBack }: { onBack: () => void }) {
       <button
         type="button"
         onClick={onBack}
-        className="flex flex-row items-center"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="flex flex-row items-center transition"
         style={{
           gap: 6,
-          height: 30,
-          padding: "0 12px 0 10px",
-          background: "var(--surface-card-glow)",
+          height: 32,
+          padding: "0 14px 0 12px",
+          background: hover ? "#FFFFFF" : "var(--surface-card-glow)",
           border: "1px solid #FFFFFF",
-          boxShadow: "var(--shadow-chip)",
+          boxShadow: hover ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
           borderRadius: 999,
           fontSize: 12,
           lineHeight: "14px",
@@ -146,32 +220,37 @@ function Header({ onBack }: { onBack: () => void }) {
 
 /* ---------- Stats band ---------- */
 
-function StatsBand() {
+function StatsBand({
+  counts,
+}: {
+  counts: { flagged: number; approved: number; all: number };
+}) {
   return (
     <div
       className="flex flex-row items-center"
       style={{
         width: "100%",
-        padding: "12px 16px",
-        gap: 16,
+        padding: "20px 24px",
+        gap: 24,
         background: "var(--surface-card)",
+        backgroundImage: "var(--surface-card-glow)",
         border: "1px solid #FFFFFF",
         boxShadow: "var(--shadow-card)",
-        borderRadius: "var(--radius-card)",
+        borderRadius: 16,
       }}
     >
       <Stat label="Total records" value="68" />
       <Divider />
       <Stat
         label="Approved"
-        value="52"
+        value={String(counts.approved)}
         valueColor="#001AFF"
         dotColor="#001AFF"
       />
       <Divider />
       <Stat
         label="Flagged"
-        value="16"
+        value={String(counts.flagged)}
         valueColor="#FF0000"
         dotColor="#FF0000"
       />
@@ -194,10 +273,8 @@ function Stat({
   valueColor?: string;
   dotColor?: string;
 }) {
-  /* Sentence-case eyebrow at 13/16, value at 20/24 — matches the locked
-   * dashboard typography (no uppercase eyebrows anywhere on the canvas). */
   return (
-    <div className="flex flex-col items-start" style={{ gap: 3 }}>
+    <div className="flex flex-col items-start" style={{ gap: 6 }}>
       <span
         style={{
           fontSize: 13,
@@ -225,8 +302,8 @@ function Stat({
         <span
           className="tabular-nums"
           style={{
-            fontSize: 20,
-            lineHeight: "24px",
+            fontSize: 22,
+            lineHeight: "26px",
             color: valueColor || "var(--text-1)",
           }}
         >
@@ -241,95 +318,156 @@ function Divider() {
   return (
     <div
       aria-hidden
-      style={{ width: 1, height: 28, background: "var(--line-soft)" }}
+      style={{ width: 1, height: 36, background: "var(--line-soft)" }}
     />
   );
 }
 
-/* ---------- Filter tabs ---------- */
+/* ---------- Filters (tabs + bank logos) ---------- */
 
-function FilterTabs({
+const BANK_LOGO_OPTIONS: { key: RecordBankId; logoSrc: string; shortName: string }[] = [
+  { key: "bank-chase-op", logoSrc: "/logos/chase.png", shortName: "Chase Op" },
+  { key: "bank-wells-sd", logoSrc: "/logos/wells-fargo.png", shortName: "Wells SD" },
+  { key: "bank-boa-res", logoSrc: "/logos/boa.png", shortName: "BoA Res" },
+  { key: "bank-chase-escrow", logoSrc: "/logos/chase.png", shortName: "Chase Escrow" },
+];
+
+/* Filters row — tabs sit on white lifted chips so they read against the grey
+ * canvas (previous version was a mid-grey chip on a grey bg that failed a
+ * WCAG contrast check for the labels). Bank filter moved to the right edge as
+ * a logo cluster; clicking a logo toggles that bank filter — click again to
+ * clear. All banks selected == "all". */
+function FiltersRow({
   tab,
   setTab,
+  bankFilter,
+  setBankFilter,
+  counts,
 }: {
   tab: FilterTab;
   setTab: (t: FilterTab) => void;
+  bankFilter: BankFilter;
+  setBankFilter: (b: BankFilter) => void;
+  counts: { flagged: number; approved: number; all: number };
 }) {
-  const options: { key: FilterTab; label: string; dotColor?: string }[] = [
-    { key: "flagged", label: "Flagged", dotColor: "#FF0000" },
-    { key: "approved", label: "Approved", dotColor: "#001AFF" },
-    { key: "all", label: "All" },
+  const options: {
+    key: FilterTab;
+    label: string;
+    dotColor?: string;
+    count: number;
+  }[] = [
+    { key: "flagged", label: "Flagged", dotColor: "#FF0000", count: counts.flagged },
+    { key: "approved", label: "Approved", dotColor: "#001AFF", count: counts.approved },
+    { key: "all", label: "All", count: counts.all },
   ];
   return (
-    <div className="flex flex-row items-center" style={{ gap: 6 }}>
-      {options.map((o) => {
-        const active = o.key === tab;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => setTab(o.key)}
-            className="flex flex-row items-center"
-            style={{
-              padding: "8px 14px",
-              gap: 8,
-              background: active ? "var(--surface-tab-active)" : "transparent",
-              border: active
-                ? "1px solid #FFFFFF"
-                : "1px solid transparent",
-              boxShadow: active ? "var(--shadow-chip)" : "none",
-              borderRadius: 8,
-              cursor: "pointer",
-              fontSize: 14,
-              lineHeight: "17px",
-              color: active ? "var(--text-1)" : "var(--text-placeholder)",
-            }}
-          >
-            {o.dotColor && (
-              <span
-                aria-hidden
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: o.dotColor,
-                  border: "1px solid #FFFFFF",
-                  display: "inline-block",
-                }}
-              />
-            )}
-            <span>{o.label}</span>
-            <span
-              style={{
-                fontSize: 12,
-                lineHeight: "14px",
-                color: active ? "var(--text-2)" : "var(--text-4)",
-              }}
-            >
-              {TAB_COUNT_OVERRIDES[o.key]}
-            </span>
-          </button>
-        );
-      })}
+    <div
+      className="flex flex-row items-center"
+      style={{ width: "100%", gap: 8 }}
+    >
+      <div className="flex flex-row items-center" style={{ gap: 6 }}>
+        {options.map((o) => {
+          const active = o.key === tab;
+          return (
+            <TabButton
+              key={o.key}
+              active={active}
+              onClick={() => setTab(o.key)}
+              dotColor={o.dotColor}
+              label={o.label}
+              count={o.count}
+            />
+          );
+        })}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      <BankLogoCluster
+        bankFilter={bankFilter}
+        setBankFilter={setBankFilter}
+      />
     </div>
   );
 }
 
-/* ---------- Bank filter ---------- */
+function TabButton({
+  active,
+  onClick,
+  dotColor,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  dotColor?: string;
+  label: string;
+  count: number;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex flex-row items-center transition"
+      style={{
+        padding: "8px 14px",
+        gap: 8,
+        /* White surface for both resting and active states — the difference is
+         * shadow depth + border tint, not the background color. This keeps
+         * the labels legible against the canvas grey (previous version put
+         * the active tab on a mid-grey chip that muddied the label). */
+        background: active
+          ? "#FFFFFF"
+          : hover
+          ? "rgba(255, 255, 255, 0.8)"
+          : "rgba(255, 255, 255, 0.55)",
+        border: active
+          ? "1px solid rgba(0, 26, 255, 0.25)"
+          : "1px solid rgba(157, 179, 197, 0.35)",
+        boxShadow: active ? "var(--shadow-depth-2)" : "var(--shadow-chip)",
+        borderRadius: 999,
+        cursor: "pointer",
+        fontSize: 14,
+        lineHeight: "17px",
+        color: active ? "var(--text-1)" : "var(--text-2)",
+        fontFamily: "inherit",
+      }}
+    >
+      {dotColor && (
+        <span
+          aria-hidden
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 999,
+            background: dotColor,
+            border: "1px solid #FFFFFF",
+            display: "inline-block",
+          }}
+        />
+      )}
+      <span>{label}</span>
+      <span
+        className="tabular-nums"
+        style={{
+          fontSize: 12,
+          lineHeight: "14px",
+          color: active ? "var(--text-2)" : "var(--text-4)",
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
 
-const BANK_FILTER_OPTIONS: { key: BankFilter; label: string }[] = [
-  { key: "all", label: "All banks" },
-  { key: "bank-chase-op", label: "Chase Op" },
-  { key: "bank-wells-sd", label: "Wells SD" },
-  { key: "bank-boa-res", label: "BoA Res" },
-  { key: "bank-chase-escrow", label: "Chase Escrow" },
-];
-
-/* Bank filter is a scoping concern, NOT a parallel tab system. Rendered as
- * text-link chips with an underline+color shift on active — no lifted
- * surface, no shadow. This reads as a quieter "filter by" row beneath the
- * primary tabs so the two filter strata don't compete visually. */
-function BankFilterRow({
+/* Bank logo cluster — replaces the previous underlined-text bank filter row.
+ * "All banks" is the default with all logos rendered; clicking a logo isolates
+ * to just that bank, and clicking the same logo again returns to "all". */
+function BankLogoCluster({
   bankFilter,
   setBankFilter,
 }: {
@@ -338,46 +476,94 @@ function BankFilterRow({
 }) {
   return (
     <div
-      className="flex flex-row items-center flex-wrap"
-      style={{ gap: 14 }}
+      className="flex flex-row items-center"
+      style={{ gap: 4, padding: 4, background: "rgba(255,255,255,0.5)", border: "1px solid rgba(157,179,197,0.3)", borderRadius: 999 }}
     >
-      <span
-        style={{
-          fontSize: 13,
-          lineHeight: "16px",
-          color: "var(--text-2)",
-        }}
+      <BankLogoButton
+        active={bankFilter === "all"}
+        onClick={() => setBankFilter("all")}
+        ariaLabel="Show all banks"
       >
-        Filter by bank
-      </span>
-      {BANK_FILTER_OPTIONS.map((o) => {
-        const active = o.key === bankFilter;
-        return (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => setBankFilter(o.key)}
-            style={{
-              padding: 0,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 13,
-              lineHeight: "16px",
-              color: active ? "var(--text-1)" : "var(--text-2)",
-              textDecoration: active ? "underline" : "none",
-              textUnderlineOffset: 4,
-              textDecorationColor: active
-                ? "var(--text-1)"
-                : "transparent",
-              textDecorationThickness: 1.5,
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
+        <span
+          style={{
+            fontSize: 12,
+            lineHeight: "14px",
+            padding: "0 8px",
+            color:
+              bankFilter === "all" ? "var(--text-1)" : "var(--text-2)",
+          }}
+        >
+          All
+        </span>
+      </BankLogoButton>
+      {BANK_LOGO_OPTIONS.map((b) => (
+        <BankLogoButton
+          key={b.key}
+          active={bankFilter === b.key}
+          onClick={() =>
+            setBankFilter(bankFilter === b.key ? "all" : b.key)
+          }
+          ariaLabel={`Filter to ${b.shortName}`}
+          title={b.shortName}
+        >
+          <Image
+            src={b.logoSrc}
+            width={18}
+            height={18}
+            alt=""
+            style={{ objectFit: "contain" }}
+          />
+        </BankLogoButton>
+      ))}
     </div>
+  );
+}
+
+function BankLogoButton({
+  active,
+  onClick,
+  ariaLabel,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      title={title}
+      className="flex items-center justify-center transition"
+      style={{
+        height: 28,
+        minWidth: 28,
+        padding: 2,
+        background: active
+          ? "#FFFFFF"
+          : hover
+          ? "rgba(255,255,255,0.75)"
+          : "transparent",
+        border: active
+          ? "1px solid rgba(0, 26, 255, 0.35)"
+          : "1px solid transparent",
+        boxShadow: active ? "var(--shadow-chip)" : "none",
+        borderRadius: 999,
+        cursor: "pointer",
+        color: "var(--text-1)",
+        opacity: active || hover ? 1 : 0.75,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -387,10 +573,18 @@ function RecordList({
   records,
   expandedId,
   onToggle,
+  onToggleStatus,
+  onToggleComment,
+  overrides,
+  recentlyMoved,
 }: {
   records: RecordItem[];
   expandedId: string | null;
   onToggle: (id: string) => void;
+  onToggleStatus: (r: RecordItem) => void;
+  onToggleComment: (r: RecordItem) => void;
+  overrides: Record<string, RecordOverride>;
+  recentlyMoved: Set<string>;
 }) {
   if (records.length === 0) {
     return (
@@ -418,6 +612,10 @@ function RecordList({
           record={r}
           expanded={r.id === expandedId}
           onToggle={() => onToggle(r.id)}
+          onToggleStatus={() => onToggleStatus(r)}
+          onToggleComment={() => onToggleComment(r)}
+          commented={!!overrides[r.id]?.commented}
+          moved={recentlyMoved.has(r.id)}
         />
       ))}
     </div>
@@ -428,10 +626,18 @@ function RecordRow({
   record,
   expanded,
   onToggle,
+  onToggleStatus,
+  onToggleComment,
+  commented,
+  moved,
 }: {
   record: RecordItem;
   expanded: boolean;
   onToggle: () => void;
+  onToggleStatus: () => void;
+  onToggleComment: () => void;
+  commented: boolean;
+  moved: boolean;
 }) {
   const meta = getBankMeta(record.bankId);
   const dot = record.status === "flagged" ? "#FF0000" : "#001AFF";
@@ -439,10 +645,7 @@ function RecordRow({
   const isFlagged = record.status === "flagged";
   const [hover, setHover] = useState(false);
 
-  /* Resting rows are quiet hairlines on the canvas — stacked 60+ deep, full
-   * bento chrome reads as visual noise. Hover or expansion lifts the row to
-   * the card surface with the depth-2 shadow, signalling focus. */
-  const lifted = hover || expanded;
+  const lifted = hover || expanded || moved;
 
   return (
     <div
@@ -451,15 +654,21 @@ function RecordRow({
       className="flex flex-col items-start transition"
       style={{
         width: "100%",
-        background: lifted ? "var(--surface-card)" : "transparent",
+        background: moved
+          ? "rgba(226, 232, 255, 0.55)"
+          : lifted
+          ? "var(--surface-card)"
+          : "transparent",
         border: lifted
-          ? "1px solid #FFFFFF"
+          ? moved
+            ? "1px solid rgba(0, 26, 255, 0.35)"
+            : "1px solid #FFFFFF"
           : "1px solid rgba(157, 179, 197, 0.18)",
         boxShadow: lifted ? "var(--shadow-card)" : "none",
         borderRadius: "var(--radius-card)",
         overflow: "hidden",
         transition:
-          "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+          "background 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
       }}
     >
       <div
@@ -470,8 +679,6 @@ function RecordRow({
           gap: 14,
         }}
       >
-        {/* Main clickable region (everything except action icons) toggles the
-         * expanded detail. Actions on the right are their own buttons. */}
         <button
           type="button"
           onClick={onToggle}
@@ -569,36 +776,41 @@ function RecordRow({
             {formatAmount(record.amount)}
           </span>
         </button>
-        {/* Action icons — always present, top-right of the card. Tooltip via
-         * title. Move icon flips based on the record's current bucket. */}
         <div
           className="flex flex-row items-center shrink-0"
           style={{ gap: 4 }}
         >
-          <IconAction
+          <ActionButton
             label={isFlagged ? "Move to approved" : "Move to flagged"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleStatus();
+            }}
+            tone={isFlagged ? "approve" : "flag"}
             icon={
               isFlagged ? (
-                <Check size={14} strokeWidth={1.75} color="#001AFF" />
+                <Check size={14} strokeWidth={1.75} />
               ) : (
-                <Flag size={14} strokeWidth={1.75} color="#FF0000" />
+                <Flag size={14} strokeWidth={1.75} />
               )
             }
           />
-          <IconAction
-            label="Add comment"
+          <ActionButton
+            label={commented ? "Comment added" : "Add comment"}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleComment();
+            }}
+            tone="comment"
+            active={commented}
             icon={
-              <MessageSquarePlus
-                size={14}
-                strokeWidth={1.75}
-                color="var(--text-1)"
-              />
+              <MessageSquarePlus size={14} strokeWidth={1.75} />
             }
           />
           <button
             type="button"
             onClick={onToggle}
-            className="shrink-0 flex items-center justify-center"
+            className="shrink-0 flex items-center justify-center transition"
             style={{
               width: 28,
               height: 28,
@@ -620,30 +832,85 @@ function RecordRow({
   );
 }
 
-/* Icon-only action button. The accessible label is supplied via `title` so
- * the native tooltip surfaces what the icon means — keeps the card visually
- * tight without sacrificing discoverability. */
-function IconAction({
+/* Action button with full interaction state matrix.
+ *
+ *   default  — subtle lifted chip, muted icon
+ *   hover    — brighter surface, tone-tinted icon
+ *   focus    — same as hover, plus focus ring (browser native + custom outline)
+ *   pressed  — depth compresses, background darkens for 90ms
+ *   active   — for the comment toggle: tone-tinted persistent bg once acted
+ *
+ * Each tone (approve / flag / comment) carries its own hover tint so the
+ * user knows what the click is going to do BEFORE they click. */
+function ActionButton({
   label,
+  onClick,
+  tone,
   icon,
+  active,
 }: {
   label: string;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  tone: "approve" | "flag" | "comment";
   icon: React.ReactNode;
+  active?: boolean;
 }) {
+  const [hover, setHover] = useState(false);
+  const [press, setPress] = useState(false);
+  const palette =
+    tone === "approve"
+      ? { color: "#001AFF", hoverBg: "#E8EBFF", hoverBorder: "rgba(0,26,255,0.35)" }
+      : tone === "flag"
+      ? { color: "#FF0000", hoverBg: "#FFEDED", hoverBorder: "rgba(255,0,0,0.35)" }
+      : { color: "var(--text-1)", hoverBg: "#F1EBFF", hoverBorder: "rgba(124,77,255,0.35)" };
+
+  const activeVisual = active
+    ? {
+        background: palette.hoverBg,
+        border: `1px solid ${palette.hoverBorder}`,
+        boxShadow: "var(--shadow-chip)",
+      }
+    : hover
+    ? {
+        background: palette.hoverBg,
+        border: `1px solid ${palette.hoverBorder}`,
+        boxShadow: press ? "var(--shadow-depth-1)" : "var(--shadow-depth-2)",
+      }
+    : {
+        background: "var(--surface-card-glow)",
+        border: "1px solid #FFFFFF",
+        boxShadow: "var(--shadow-chip)",
+      };
+
+  const iconColor = hover || active ? palette.color : "var(--text-2)";
+
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
-      className="shrink-0 flex items-center justify-center"
+      aria-pressed={active}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => {
+        setHover(false);
+        setPress(false);
+      }}
+      onMouseDown={() => setPress(true)}
+      onMouseUp={() => setPress(false)}
+      className="shrink-0 flex items-center justify-center transition"
       style={{
         width: 28,
         height: 28,
-        background: "var(--surface-card-glow)",
-        border: "1px solid #FFFFFF",
-        boxShadow: "var(--shadow-chip)",
+        background: activeVisual.background,
+        border: activeVisual.border,
+        boxShadow: activeVisual.boxShadow,
         borderRadius: 999,
         cursor: "pointer",
+        color: iconColor,
+        transform: press ? "translateY(1px)" : "translateY(0)",
+        transition:
+          "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 90ms ease, color 120ms ease",
       }}
     >
       {icon}
@@ -652,10 +919,6 @@ function IconAction({
 }
 
 function ConfidenceChip({ value }: { value: number }) {
-  /* Neutral chip surface + a colored tier dot. The earlier near-invisible
-   * 8% color tints read as washed-out; pulling the color signal into a
-   * single 6px dot keeps the % the readable focal point and lets a glance
-   * skim the column for low-confidence outliers. */
   let dot: string;
   if (value >= 80) dot = "#001AFF";
   else if (value >= 50) dot = "var(--text-2)";
@@ -767,7 +1030,6 @@ function DetailColumn({
 /* ---------- Utilities ---------- */
 
 function formatDate(iso: string): string {
-  // "2026-05-12" → "May 12"
   const [, m, d] = iso.split("-");
   const months = [
     "Jan",

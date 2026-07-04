@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   ArrowRight,
-  ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  Download,
   FileText,
   Landmark,
+  RotateCcw,
   SquareChevronLeft,
   SquareChevronRight,
 } from "lucide-react";
+import { ConfirmPopoverButton } from "./ui/ConfirmPopoverButton";
 import {
   agents as seedAgents,
   type AgentAction,
@@ -79,10 +81,20 @@ export function AgentsPanel({
       <aside
         className="flex flex-col items-start shrink-0"
         style={{
-          width: 80,
-          padding: "28px 20px",
+          /* Sticky sliver — same 12px gutter around the collapsed rail so the
+           * transition to expanded feels continuous. */
+          position: "sticky",
+          top: 12,
+          alignSelf: "flex-start",
+          height: "calc(100vh - 24px)",
+          margin: "12px 12px 12px 0",
+          width: 68,
+          padding: "20px 12px",
           gap: 16,
           background: "var(--bg-side)",
+          borderRadius: 20,
+          boxShadow: "var(--shadow-depth-1)",
+          transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
         <button
@@ -111,44 +123,88 @@ export function AgentsPanel({
     <aside
       className="flex flex-row items-stretch shrink-0"
       style={{
+        /* Sticky, floating: the outer bg-side gutter now has equal top / right
+         * / bottom breathing room, so the root gradient shows around it and the
+         * whole panel reads as a lifted rounded container in the viewport. */
+        position: "sticky",
+        top: 12,
+        alignSelf: "flex-start",
+        height: "calc(100vh - 24px)",
+        margin: "12px 12px 12px 0",
         width: 400,
         padding: 12,
         gap: 10,
         background: "var(--bg-side)",
+        borderRadius: 20,
+        boxShadow: "var(--shadow-depth-1)",
+        /* Smooth width transition so the collapse triggered by opening the
+         * review canvas reads as one connected animation with the canvas
+         * fade-in. Cubic-bezier tuned to match the review-in keyframe. */
+        transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
       }}
     >
       <div
-        className="flex flex-col items-start flex-1"
+        className="flex flex-col items-start flex-1 relative overflow-hidden"
         style={{
           padding: "12px 16px 12px 12px",
-          gap: 24,
+          gap: 16,
           background: "var(--surface-card)",
           boxShadow: "var(--shadow-card)",
           borderRadius: "var(--radius-panel)",
         }}
       >
+        {/* Collapse chevron — absolutely positioned so it stays at the exact
+         * same top-right pin regardless of what renders in the header row
+         * (tab strip, empty, error, whatever). Previously nested in a flex
+         * row and drifted when the row grew. */}
+        <button
+          onClick={onToggle}
+          className="flex items-center justify-center transition"
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 14,
+            width: 28,
+            height: 28,
+            padding: 4,
+            borderRadius: 8,
+            background: "transparent",
+            border: "1px solid transparent",
+            color: "var(--text-2)",
+            cursor: "pointer",
+            zIndex: 5,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "rgba(255,255,255,0.7)";
+            e.currentTarget.style.borderColor = "rgba(157,179,197,0.35)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = "transparent";
+          }}
+          aria-label="Collapse agents"
+          title="Collapse agents"
+        >
+          <SquareChevronRight size={18} strokeWidth={1.75} />
+        </button>
+
+        {/* Header row — tab strip only. Leaves 32 px of clearance for the
+         * pinned chevron on the right. */}
         <div
           className="flex flex-row items-center"
-          style={{ width: "100%", gap: 8 }}
+          style={{ width: "100%", paddingRight: 32 }}
         >
           <TabRow tab={tab} setTab={setTab} />
-          <div className="flex-1" />
-          <button
-            onClick={onToggle}
-            className="flex items-center justify-center"
-            style={{
-              width: 24,
-              height: 24,
-              color: "var(--text-2)",
-              cursor: "pointer",
-            }}
-            aria-label="Collapse agents"
-            title="Collapse agents"
-          >
-            <SquareChevronRight size={20} strokeWidth={2} />
-          </button>
         </div>
-        {tab === "agents" ? <AgentList onInspect={onInspect} /> : <KnowledgePanel />}
+
+        {/* Scrollable body so the CTAs at the bottom of Summary don't push
+         * the whole panel taller than the viewport. */}
+        <div
+          className="flex flex-col items-start flex-1 overflow-y-auto scroll-thin"
+          style={{ width: "100%", minHeight: 0, paddingRight: 4 }}
+        >
+          {tab === "agents" ? <AgentList onInspect={onInspect} /> : <KnowledgePanel />}
+        </div>
       </div>
     </aside>
   );
@@ -209,9 +265,29 @@ function AgentList({ onInspect }: { onInspect?: () => void }) {
    * the same — what changes is each agent's lifecycle (idle / working / done)
    * and what timeline events / counts are surfaced based on the current run
    * state. The seed's full snapshot becomes the resting state once the cycle
-   * has reached review. */
+   * has reached review.
+   *
+   * Demo hook: the URL hash `#demo=error` flips Intake into the error state so
+   * the design of that fourth lifecycle branch is observable in the running
+   * app without wiring a real failure path. Set the hash in the address bar
+   * to see it; remove or change it to return to normal behavior. */
   const { state } = useSession();
-  const derived = useMemo(() => deriveAgents(state.runState, state), [state]);
+  const [demoState, setDemoState] = useState<string>("");
+  useEffect(() => {
+    const read = () => {
+      if (typeof window === "undefined") return;
+      const h = window.location.hash;
+      const m = h.match(/demo=(\w+)/);
+      setDemoState(m ? m[1] : "");
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+  const derived = useMemo(
+    () => deriveAgents(state.runState, state, demoState),
+    [state, demoState]
+  );
   return (
     <div
       className="flex flex-col items-start"
@@ -226,9 +302,48 @@ function AgentList({ onInspect }: { onInspect?: () => void }) {
 
 function deriveAgents(
   runState: RunState,
-  state: ReturnType<typeof useSession>["state"]
+  state: ReturnType<typeof useSession>["state"],
+  demoState: string = ""
 ): AgentSectionData[] {
   const [intakeSeed, reconSeed, summarySeed] = seedAgents;
+
+  /* Demo hook — visible via URL hash `#demo=error` (or `#demo=intake-error`).
+   * Overrides the naturally-derived Intake lifecycle so the error state's
+   * design (red-tinted avatar, red status text, inline error card + Retry
+   * chip) is observable in the running app. Real error handling would be
+   * wired to intake pipeline failures. */
+  const forceIntakeError = demoState === "error" || demoState === "intake-error";
+  const intakeError: AgentSectionData["error"] = {
+    title: "Ledger import stalled",
+    body: "Yardi API returned a 503 while fetching the Wells Fargo ledger. Retrying could resolve if it was a transient outage.",
+    retryLabel: "Retry import",
+  };
+  if (forceIntakeError) {
+    // Short-circuit: return the demo error configuration for Intake and idle
+    // for the other two — the design is what matters here.
+    return [
+      {
+        ...intakeSeed,
+        state: "error",
+        error: intakeError,
+        collapsedLine: undefined,
+        timeline: [],
+      },
+      { ...reconSeed, state: "idle", collapsedLine: undefined, timeline: [] },
+      {
+        ...summarySeed,
+        state: "idle",
+        collapsedLine: undefined,
+        timeline: [],
+        insight: undefined,
+        artifact: undefined,
+        primaryAction: undefined,
+        inspectAction: undefined,
+        secondaryAction: undefined,
+      },
+    ];
+  }
+
   const approved = totalApproved(state);
   const exceptions = totalExceptions(state);
   const reconciledBankCount = state.bankOrder.filter(
@@ -324,14 +439,15 @@ function deriveAgents(
   }
 
   if (runState === "review") {
-    /* During review the canvas's PhaseCTA "Post to Yardi" is the single
-     * commit surface. Summary's primaryAction is suppressed here so the user
-     * isn't presented with two dark pills for the same action. The Summary
-     * panel keeps the insight + Review + utility row — narration only. */
+    /* Post to Yardi has moved into Summary's CTA ladder — Review records is
+     * the dark primary and Post to Yardi renders below as the outline
+     * secondary commit. The canvas header goes quiet (see PhaseCTA's review
+     * branch — a muted "Ready for review" status label) so the two dark
+     * pills no longer compete for the same commit. */
     return [
       { ...intakeSeed, state: "done" },
       withLiveReconTimeline(reconSeed, "done", state),
-      { ...withLiveSummary(summarySeed, state), primaryAction: undefined },
+      withLiveSummary(summarySeed, state),
     ];
   }
 
@@ -525,10 +641,12 @@ function AgentSection({
 
   const isIdle = data.state === "idle";
   const isWorking = data.state === "working";
+  const isError = data.state === "error";
 
   /* The entire header is a click target when the body has content to toggle
    * — easier ergonomics than the small chevron-in-dot affordance below. */
-  const canToggle = !isIdle && (!!data.collapsedLine || data.timeline.length > 0);
+  const canToggle =
+    !isIdle && (!!data.collapsedLine || data.timeline.length > 0);
 
   return (
     <div
@@ -553,34 +671,66 @@ function AgentSection({
         className="flex flex-row items-center text-left transition"
         style={{
           width: "100%",
-          paddingLeft: 4,
+          paddingLeft: 2,
           gap: 12,
-          height: 28,
+          minHeight: 44,
           background: "transparent",
           border: "none",
           cursor: canToggle ? "pointer" : "default",
         }}
       >
-        <AgentAvatar agentId={data.id} idle={isIdle} />
-        <span
-          className="flex-1"
-          style={{
-            fontSize: 16,
-            lineHeight: "19px",
-            color: isIdle ? "var(--text-4)" : "var(--text-1)",
-          }}
-        >
-          {data.name}
-        </span>
+        <AgentAvatar agentId={data.id} agentState={data.state} />
+        <div className="flex flex-col items-start flex-1" style={{ gap: 2 }}>
+          <span
+            style={{
+              fontSize: 16,
+              lineHeight: "19px",
+              color: isIdle
+                ? "var(--text-4)"
+                : isError
+                ? "#A32626"
+                : "var(--text-1)",
+            }}
+          >
+            {data.name}
+          </span>
+          {/* Sub-line under the name — a stable state indicator so the reader
+           * knows at a glance what mode each agent is in. Reads regardless of
+           * whether the body is expanded/collapsed. */}
+          <span
+            style={{
+              fontSize: 11,
+              lineHeight: "13px",
+              color: isError
+                ? "#A32626"
+                : isIdle
+                ? "var(--text-4)"
+                : isWorking
+                ? "var(--dot-active)"
+                : "var(--text-3)",
+              letterSpacing: "0.02em",
+            }}
+          >
+            {isError
+              ? "Needs attention"
+              : isIdle
+              ? "Waiting"
+              : isWorking
+              ? "Working…"
+              : "Done"}
+          </span>
+        </div>
       </button>
 
       {/* Idle body — a single muted line so the agent stays visually present
-       * in grey instead of collapsing to a bare header. Shows what the agent
-       * is waiting on; no shimmer, no actions, no chips. */}
+       * in grey instead of collapsing to a bare header. */}
       {isIdle && data.idleHint && <IdleBody hint={data.idleHint} />}
 
+      {/* Error body — inline error card + Retry chip. */}
+      {isError && data.error && <ErrorBody error={data.error} />}
+
       {/* Working / done body. */}
-      {!isIdle && (
+      {!isIdle && !isError && (
         <>
           {expanded ? (
             <TimelineBody
@@ -600,20 +750,24 @@ function AgentSection({
             )
           )}
           {/* Deliverable surfaces — only Summary (in its done state) populates
-           * these today. Hierarchy is three tiers so the eye knows where to go:
-           *   tier 1 (information) — insight callout
-           *   tier 2 (secondary)   — Review (recommended pre-commit step)
-           *   tier 3 (primary)     — Post to Yardi (the commit)
-           *   tier 4 (utility)     — Rerun + Download collapsed into one
-           *                          quiet middot-separated row
-           * Earlier iteration had 4 equal-weight CTAs which forced the user
-           * to triage instead of act — the utility row fixes that. */}
+           * these today. CTA ladder rebuilt:
+           *   tier 1 — insight paragraph (the read-out)
+           *   tier 2 — Review records   (PRIMARY dark pill — first CTA a
+           *                              reviewer should reach for)
+           *   tier 3 — Post to Yardi    (outline secondary — the terminal
+           *                              commit, still visible & one click
+           *                              away but doesn't out-shout Review)
+           *   tier 4 — Utility chips    (Rerun · Download PDF as small
+           *                              lifted chips, not underlines) */}
           {data.insight && <InsightCard insight={data.insight} />}
           {data.inspectAction && (
-            <InspectButton action={data.inspectAction} onClick={onInspect} />
+            <ReviewPrimaryButton
+              action={data.inspectAction}
+              onClick={onInspect}
+            />
           )}
           {data.primaryAction && (
-            <PrimaryCommitButton action={data.primaryAction} />
+            <PostToYardiSecondary action={data.primaryAction} />
           )}
           {(data.secondaryAction || data.artifact) && (
             <UtilityRow
@@ -623,6 +777,72 @@ function AgentSection({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/* Error body — sits in the same body column as idle/collapsed lines so the
+ * indent aligns. Two-part: a soft red-tinted card with title + explanation,
+ * then a Retry chip. Uses --chip-failed tokens so no new color values enter
+ * the system. */
+function ErrorBody({ error }: { error: NonNullable<AgentSectionData["error"]> }) {
+  return (
+    <div
+      className="flex flex-col items-start"
+      style={{ width: "100%", paddingLeft: 56, gap: 10 }}
+    >
+      <div
+        className="flex flex-col items-start"
+        style={{
+          width: "100%",
+          padding: "10px 12px",
+          gap: 4,
+          background: "var(--chip-failed-bg)",
+          border: "1px solid var(--chip-failed-border)",
+          borderRadius: 10,
+          boxShadow: "var(--shadow-chip)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 13,
+            lineHeight: "16px",
+            color: "#A32626",
+            fontWeight: 500,
+          }}
+        >
+          {error.title}
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            lineHeight: "16px",
+            color: "var(--text-2)",
+          }}
+        >
+          {error.body}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="inline-flex items-center transition"
+        style={{
+          height: 30,
+          padding: "0 12px",
+          gap: 6,
+          background: "var(--surface-card-glow)",
+          border: "1px solid #FFFFFF",
+          boxShadow: "var(--shadow-chip)",
+          borderRadius: 999,
+          cursor: "pointer",
+          color: "var(--text-1)",
+          fontSize: 12,
+          lineHeight: "14px",
+        }}
+      >
+        <RotateCcw size={12} strokeWidth={1.75} />
+        {error.retryLabel ?? "Retry"}
+      </button>
     </div>
   );
 }
@@ -637,7 +857,7 @@ function IdleBody({ hint }: { hint: string }) {
   return (
     <div
       className="flex flex-row items-start"
-      style={{ width: "100%", paddingLeft: 42, gap: 6 }}
+      style={{ width: "100%", paddingLeft: 56, gap: 6 }}
     >
       <div className="shrink-0 flex items-center justify-center" style={{ width: 14, height: 14 }}>
         <span
@@ -689,7 +909,7 @@ function CollapsedBody({
   return (
     <div
       className="flex flex-row items-start"
-      style={{ width: "100%", paddingLeft: 42, gap: 6 }}
+      style={{ width: "100%", paddingLeft: 56, gap: 6 }}
     >
       <LeadingIndicator
         dotState={line.dotState}
@@ -745,7 +965,7 @@ function TimelineBody({
           <div
             key={line.id}
             className="flex flex-row items-start"
-            style={{ width: "100%", paddingLeft: 42, gap: 6 }}
+            style={{ width: "100%", paddingLeft: 56, gap: 6 }}
           >
             <LeadingIndicator
               dotState={line.dotState}
@@ -1029,39 +1249,54 @@ function FileChip({ file }: { file: AgentFile }) {
 
 function AgentAvatar({
   agentId,
-  idle,
+  agentState,
 }: {
   agentId: AgentSectionData["id"];
-  idle: boolean;
+  agentState: AgentSectionData["state"];
 }) {
   const visual = AGENT_VISUAL[agentId];
-  /* Active runs the pattern at full contrast (#1a1a1a on #F7F8FA) so the
-   * hex dot field reads crisply at the small 26px avatar size. Idle pauses
-   * at t=0 and dampens to a mid-grey — the signature shape holds a static
-   * pose while carrying no motion signal. Tuned constants below are scaled
-   * from the reference index.html (originally 520px canvas) down to 26px:
-   * tighter spacing, smaller radii, smaller amplitude. */
+  const idle = agentState === "idle";
+  const error = agentState === "error";
+  /* Sized up from 26 → 44 so each pattern's silhouette (stars / pulse /
+   * summary curve) is clearly readable — at 26 px the fields shrunk faster
+   * than the eye could parse. Spacing / baseRadius / amp are scaled from the
+   * originals by ~1.7× to keep pattern density proportional to canvas size.
+   *
+   * State palette:
+   *   working — full contrast (#1a1a1a on card surface)
+   *   done    — same contrast, motion continues (agents keep breathing)
+   *   idle    — paused at t=0, muted mid-grey
+   *   error   — paused at t=0, muted red so the signature shape holds a
+   *             failed-tone signal even before you read the status line */
+  const dotColor = error
+    ? "#B84545"
+    : idle
+    ? "#A8A9AD"
+    : "#1a1a1a";
   return (
     <div
       className="shrink-0 overflow-hidden"
       style={{
-        width: 26,
-        height: 26,
-        borderRadius: 6,
-        background: "#F7F8FA",
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        background: error ? "#FFF6F6" : "#F7F8FA",
+        border: error
+          ? "1px solid rgba(255, 0, 0, 0.18)"
+          : "1px solid transparent",
       }}
     >
       <DotGridAvatar
-        size={26}
+        size={44}
         pattern={visual.pattern}
-        paused={idle}
-        spacing={2.4}
-        baseRadius={0.28}
-        amp={0.85}
-        baseAlpha={idle ? 0.18 : 0.24}
-        peakAlpha={idle ? 0.5 : 1.0}
-        edgeFadeFrac={0.1}
-        dotColor={idle ? "#A8A9AD" : "#1a1a1a"}
+        paused={idle || error}
+        spacing={4}
+        baseRadius={0.42}
+        amp={1.35}
+        baseAlpha={idle || error ? 0.2 : 0.26}
+        peakAlpha={idle || error ? 0.55 : 1.0}
+        edgeFadeFrac={0.09}
+        dotColor={dotColor}
       />
     </div>
   );
@@ -1089,7 +1324,7 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
       className="flex flex-col items-start"
       style={{
         width: "100%",
-        paddingLeft: 42,
+        paddingLeft: 56,
         paddingTop: 2,
         paddingBottom: 2,
       }}
@@ -1109,178 +1344,53 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
   );
 }
 
-/* Inspect — chip-style button that hands off to the canvas detail view.
- * Sits between insight and download because reviewing the records is the
- * natural next step after reading the headline. */
-function InspectButton({
+/* Review records — PRIMARY CTA in the Summary agent. Dark pill: this is the
+ * first action a reviewer should reach for once reconciliation completes.
+ * Sits above the outline Post-to-Yardi commit so the ladder reads
+ * "review, then commit" left-to-right in the eye's expected order. */
+function ReviewPrimaryButton({
   action,
   onClick,
 }: {
   action: AgentAction;
   onClick?: () => void;
 }) {
+  const [hover, setHover] = useState(false);
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", paddingLeft: 42 }}
+      style={{ width: "100%", paddingLeft: 56 }}
     >
       <button
         type="button"
         onClick={onClick}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
         className="flex flex-row items-center justify-between transition"
         style={{
           width: "100%",
-          padding: "9px 16px",
-          gap: 8,
-          background: "var(--surface-card-glow)",
-          border: "1px solid #FFFFFF",
-          boxShadow: "var(--shadow-chip)",
-          borderRadius: 999,
-          cursor: "pointer",
-        }}
-        aria-label={action.label}
-      >
-        <span
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "var(--text-1)",
-          }}
-        >
-          {action.label}
-        </span>
-        <ArrowUpRight
-          size={14}
-          strokeWidth={1.5}
-          color="#43484E"
-          className="shrink-0"
-        />
-      </button>
-    </div>
-  );
-}
-
-/* Utility row — collapses rerun + download into one quiet middot-separated
- * line beneath the primary CTA. Reads as "you can also do these" without
- * competing for attention with the dark pill above. Both links are visually
- * identical so neither outranks the other; the user picks by need. */
-function UtilityRow({
-  secondaryAction,
-  artifact,
-}: {
-  secondaryAction?: AgentAction;
-  artifact?: AgentArtifact;
-}) {
-  const items: { key: string; label: string; title?: string }[] = [];
-  if (secondaryAction) {
-    items.push({ key: "rerun", label: secondaryAction.label });
-  }
-  if (artifact) {
-    items.push({
-      key: "download",
-      label: "Download PDF",
-      title: `${artifact.filename} · ${artifact.meta}`,
-    });
-  }
-  return (
-    <div
-      className="flex flex-row items-center justify-center"
-      style={{ width: "100%", paddingLeft: 42, gap: 8, height: 16 }}
-    >
-      {items.map((it, i) => (
-        <span
-          key={it.key}
-          className="flex flex-row items-center"
-          style={{ gap: 8 }}
-        >
-          {i > 0 && (
-            <span
-              aria-hidden
-              style={{
-                width: 2,
-                height: 2,
-                borderRadius: 999,
-                background: "var(--text-2)",
-                opacity: 0.5,
-                display: "inline-block",
-              }}
-            />
-          )}
-          <button
-            type="button"
-            title={it.title}
-            aria-label={it.label}
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: 0,
-              fontSize: 12,
-              lineHeight: "14px",
-              color: "var(--text-2)",
-              cursor: "pointer",
-              textDecoration: "underline",
-              textUnderlineOffset: 3,
-              textDecorationColor: "rgba(98,116,131,0.35)",
-            }}
-          >
-            {it.label}
-          </button>
-        </span>
-      ))}
-    </div>
-  );
-}
-
-/* Primary commit — the dark pill that posts the run to Yardi. Sits at the
- * same 42 px indent as the rest of Summary's body so the dot column stays
- * the visual spine, but uses --action-primary to dominate the surface area.
- * Two-line label: action up top, scope ("52 approved · 16 flagged") below. */
-function PrimaryCommitButton({ action }: { action: AgentAction }) {
-  const { startYardiUpdate } = useSession();
-  return (
-    <div
-      className="flex flex-col items-start"
-      style={{ width: "100%", paddingLeft: 42 }}
-    >
-      <button
-        type="button"
-        onClick={startYardiUpdate}
-        className="flex flex-row items-center justify-between transition"
-        style={{
-          width: "100%",
-          padding: action.sublabel ? "10px 18px" : "12px 18px",
+          padding: "12px 18px",
           gap: 10,
-          background: "var(--action-primary)",
+          background: hover
+            ? "var(--action-primary-hover)"
+            : "var(--action-primary)",
           border: "1px solid var(--action-primary)",
-          boxShadow: "var(--shadow-chip)",
+          boxShadow: hover ? "var(--shadow-depth-2)" : "var(--shadow-chip)",
           borderRadius: 999,
           cursor: "pointer",
           color: "var(--action-on-primary)",
         }}
         aria-label={action.label}
       >
-        <div className="flex flex-col items-start" style={{ gap: 2 }}>
-          <span
-            style={{
-              fontSize: 14,
-              lineHeight: "17px",
-              color: "var(--action-on-primary)",
-            }}
-          >
-            {action.label}
-          </span>
-          {action.sublabel && (
-            <span
-              style={{
-                fontSize: 11,
-                lineHeight: "13px",
-                color: "rgba(255,255,255,0.65)",
-              }}
-            >
-              {action.sublabel}
-            </span>
-          )}
-        </div>
+        <span
+          style={{
+            fontSize: 14,
+            lineHeight: "17px",
+            color: "var(--action-on-primary)",
+          }}
+        >
+          {action.label}
+        </span>
         <ArrowRight
           size={16}
           strokeWidth={1.75}
@@ -1289,6 +1399,125 @@ function PrimaryCommitButton({ action }: { action: AgentAction }) {
         />
       </button>
     </div>
+  );
+}
+
+/* Post to Yardi — SECONDARY CTA. Outline pill so it's clearly a commit
+ * surface (matches the ladder) but doesn't out-shout Review records above.
+ * Wraps the ConfirmPopoverButton so the "are you sure?" gesture stays. */
+function PostToYardiSecondary({ action }: { action: AgentAction }) {
+  const { startYardiUpdate } = useSession();
+  return (
+    <div
+      className="flex flex-col items-start"
+      style={{ width: "100%", paddingLeft: 56 }}
+    >
+      <ConfirmPopoverButton
+        label={action.label}
+        sublabel={action.sublabel}
+        variant="secondary"
+        size="md"
+        fullWidth
+        rightIcon={<ArrowRight size={15} strokeWidth={1.75} />}
+        confirmTitle="Post approved records to Yardi?"
+        confirmBody={
+          <>
+            You&apos;re committing the approved records and flagging exceptions.
+            Posting writes to Yardi and can&apos;t be undone.
+          </>
+        }
+        confirmLabel="Post to Yardi"
+        onConfirm={startYardiUpdate}
+        align="left"
+      />
+    </div>
+  );
+}
+
+/* Utility row — Rerun + Download are now small lifted chips instead of the
+ * previous underlined middot-separated text. Chips read as tappable, sit
+ * side-by-side, and match the rest of the system's chip vocabulary. Each
+ * carries icon + label so the affordance is unambiguous. */
+function UtilityRow({
+  secondaryAction,
+  artifact,
+}: {
+  secondaryAction?: AgentAction;
+  artifact?: AgentArtifact;
+}) {
+  const items: {
+    key: string;
+    label: string;
+    title?: string;
+    icon: React.ReactNode;
+  }[] = [];
+  if (secondaryAction) {
+    items.push({
+      key: "rerun",
+      label: secondaryAction.label,
+      icon: <RotateCcw size={12} strokeWidth={1.75} />,
+    });
+  }
+  if (artifact) {
+    items.push({
+      key: "download",
+      label: "Download PDF",
+      title: `${artifact.filename} · ${artifact.meta}`,
+      icon: <Download size={12} strokeWidth={1.75} />,
+    });
+  }
+  return (
+    <div
+      className="flex flex-row items-center"
+      style={{ width: "100%", paddingLeft: 56, gap: 8, paddingTop: 2 }}
+    >
+      {items.map((it) => (
+        <UtilityChip
+          key={it.key}
+          label={it.label}
+          title={it.title}
+          icon={it.icon}
+        />
+      ))}
+    </div>
+  );
+}
+
+function UtilityChip({
+  label,
+  title,
+  icon,
+}: {
+  label: string;
+  title?: string;
+  icon: React.ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={label}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="inline-flex items-center transition"
+      style={{
+        height: 28,
+        padding: "0 12px",
+        gap: 6,
+        background: hover ? "#FFFFFF" : "var(--surface-card-glow)",
+        border: "1px solid #FFFFFF",
+        boxShadow: hover ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
+        borderRadius: 999,
+        cursor: "pointer",
+        color: "var(--text-1)",
+        fontSize: 12,
+        lineHeight: "14px",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

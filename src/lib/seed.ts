@@ -143,8 +143,20 @@ export interface AgentStatusLine {
  *           rendered in greyscale.
  * working = agent is actively progressing. The bottom-most status line gets
  *           the shimmer treatment; avatar runs full color.
- * done    = agent finished its phase. All lines visible, no shimmer. */
-export type AgentLifecycle = "idle" | "working" | "done";
+ * done    = agent finished its phase. All lines visible, no shimmer.
+ * error   = agent surfaced a problem it couldn't recover from. Avatar tints
+ *           red, status line uses the failed gradient, a Retry chip surfaces
+ *           in the CTA slot. */
+export type AgentLifecycle = "idle" | "working" | "done" | "error";
+
+/* Optional error surface — only meaningful when the agent's state is "error".
+ * Carries a one-line human summary and the Retry label. Kept structural so
+ * different agents can present tailored copy. */
+export interface AgentError {
+  title: string; // e.g. "Ledger import stalled"
+  body: string; // one-line explanation
+  retryLabel?: string; // defaults to "Retry"
+}
 
 /* Summary's deliverables — only meaningful in the done state.
  *
@@ -204,6 +216,10 @@ export interface AgentSectionData {
    * present (in grey) instead of collapsing to header-only — the user can see
    * what the agent is waiting on before it activates. */
   idleHint?: string;
+  /* Error payload — populated when `state` is "error". Enables the AgentsPanel
+   * to render an inline error card + Retry chip without the caller having to
+   * synthesize copy each time. */
+  error?: AgentError;
 }
 
 // ---- Anchor property and its session list ----
@@ -677,7 +693,12 @@ export const agents: AgentSectionData[] = [
     ],
     defaultExpanded: false,
     insight: {
-      body: "Match rate 76% — 6 pts below April. Two new BoA fee codes drove 11 of the 16 exceptions; worth mapping them in property setup.",
+      /* Written to read as an actual summary, not a headline: what was
+       * reconciled, where the risk sits, and what the reviewer should
+       * focus on before posting. Three sentences, plain English, no
+       * jargon. Numbers reference the live 52/16 split so it stays in
+       * sync with the count chips above. */
+      body: "Reconciled 68 transactions across 4 accounts; 52 auto-approved and 16 flagged for review. Two new BoA fee codes account for 11 of the 16 exceptions — mapping them in property setup will remove them from future cycles. Match rate is 76%, 6 pts below April, driven entirely by the unmapped fees.",
     },
     artifact: {
       filename: "1849-westlake-may-2026.pdf",
