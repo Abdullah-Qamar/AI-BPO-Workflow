@@ -85,10 +85,10 @@ export function LeftRail({
                 border: active ? "1px solid #FFFFFF" : "1px solid transparent",
                 // Spec for the selected button is bg + border only — no shadow.
                 boxShadow: "none",
-                // Unselected icons are spec'd as white (they sit on the cool
-                // grey-blue root). Selected icon is slate to read on the lifted
-                // light chip.
-                color: active ? "#7C8C9A" : "#FFFFFF",
+                // Root is now the light --bg-grad (unified with the workspace
+                // canvas). Both states use the same slate tone; the chip
+                // background on the active button carries the selection cue.
+                color: active ? "#303B45" : "#7C8C9A",
                 cursor: "pointer",
               }}
             >

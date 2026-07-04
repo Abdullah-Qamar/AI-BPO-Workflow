@@ -77,10 +77,11 @@
 
 html,
 body {
-  /* Root container background — cool grey-blue vertical gradient. Shows through
-   * the transparent LeftRail + WorkspaceNav, making the lighter MainCanvas and
-   * the rounded AgentsPanel inner card read as lifted surfaces above it. */
-  background: linear-gradient(180deg, #c4c9d4 0%, #a7b9c8 100%);
+  /* Root container background — same grey used by the workspace canvas so the
+   * areas that show body through (LeftRail, WorkspaceNav, and the 12px margin
+   * around the AgentsPanel) match the reconciliation canvas rather than
+   * reading as a second, cooler grey layer behind it. */
+  background: var(--bg-grad);
   background-attachment: fixed;
   color: var(--text-1);
   /* Kill the rubber-band overscroll — otherwise scrolling past the top or
