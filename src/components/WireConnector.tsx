@@ -2,14 +2,22 @@ import { useId } from "react";
 
 /* Socket — the ringed port glyph rendered at each end of the inactive wire.
  * Kept in its own fixed-size SVG (16×16) so it doesn't inherit the horizontal
- * stretch that the dotted path relies on. Anchored to the vertical position
- * where the path enters/exits the wire's viewBox on each side. */
+ * stretch that the dotted path relies on. Anchored to the wire path's actual
+ * endpoint x-percentage (9/305 ≈ 2.95% left, 283/305 ≈ 92.79% right) so the
+ * socket's center coincides with where the wire terminates at any slot
+ * width — otherwise the socket sits at the container edge while the wire
+ * endpoint drifts inward at wider slots. Socket center-x is 8px inside its
+ * 16×16 SVG, so we shift left by that half-width. */
 function Socket({ side }: { side: "left" | "right" }) {
   const topPct = side === "left" ? "38.74%" : "55.15%";
+  const horiz =
+    side === "left"
+      ? { left: "calc(2.95% - 8px)" }
+      : { right: "calc(7.21% - 8px)" };
   const style: React.CSSProperties = {
     position: "absolute",
     top: topPct,
-    [side]: 0,
+    ...horiz,
     transform: "translate(0, -50%)",
     width: 16,
     height: 16,
@@ -275,7 +283,12 @@ export function WireConnector({
 /* EndpointCap — fixed-size decorative teardrop rendered as its own SVG so
  * it doesn't inherit the horizontal stretch that the wire's chrome path
  * uses. Vertical position matches where the wire path enters/exits the
- * viewBox on each side (~38.74% left, ~55.15% right). */
+ * viewBox on each side (~38.74% left, ~55.15% right). Horizontal position
+ * matches the wire path's start/end x-coordinate percentage (9/305 ≈ 2.95%
+ * on the left, 283/305 ≈ 92.79% on the right) so the cap's inner edge stays
+ * aligned with where the wire terminates at ANY slot width — otherwise the
+ * cap stays pinned to the container edge while the wire endpoint drifts
+ * inward, opening a visible gap in wider slots. */
 function EndpointCap({
   side,
   uid,
@@ -286,10 +299,20 @@ function EndpointCap({
   breathDelay: string;
 }) {
   const topPct = side === "left" ? "38.74%" : "55.15%";
+  /* Left cap's "socket" (where the wire enters) is its right edge (viewBox
+   * x=32); place cap.right at container 2.95%, i.e. cap.left = 2.95% - 32px.
+   * Right cap's socket is its left edge (viewBox x=0); place cap.left at
+   * container 92.79%, i.e. cap.right = 7.21% - 0px (with 32px width offset
+   * flipped: cap.right = 7.21% relative to container's right edge minus
+   * cap width so the LEFT edge lands at 92.79%). */
+  const horiz =
+    side === "left"
+      ? { left: "calc(2.95% - 32px)" }
+      : { right: "calc(7.21% - 32px)" };
   const style: React.CSSProperties = {
     position: "absolute",
     top: topPct,
-    [side]: -3,
+    ...horiz,
     transform: "translateY(-50%)",
     width: 32,
     height: 48,
