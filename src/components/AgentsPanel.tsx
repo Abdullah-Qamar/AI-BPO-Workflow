@@ -81,19 +81,17 @@ export function AgentsPanel({
       <aside
         className="flex flex-col items-start shrink-0"
         style={{
-          /* Sticky sliver — same surface as the expanded panel so collapsing
-           * doesn't reveal a second underlying container. Panel surface tone
-           * mirrors the workspace canvas (--bg-grad) so the panel reads as an
-           * extension of that grey rather than a warmer off-white "card". */
+          /* Collapsed sliver — the collapse button is the only content, so
+           * the aside can hug it. Same surface as the expanded panel. */
           position: "sticky",
           top: 12,
           alignSelf: "flex-start",
-          height: "calc(100vh - 24px)",
+          maxHeight: "calc(100vh - 24px)",
           margin: "12px 12px 12px 0",
           width: 68,
           padding: "20px 12px",
           gap: 16,
-          background: "var(--bg-grad)",
+          background: "var(--surface-card)",
           borderRadius: 20,
           boxShadow: "var(--shadow-card)",
           transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
@@ -125,19 +123,20 @@ export function AgentsPanel({
     <aside
       className="flex flex-col items-stretch shrink-0 relative overflow-hidden"
       style={{
-        /* Single-surface panel. Panel surface uses --bg-grad so it reads as
-         * a continuation of the reconciliation canvas grey — the panel is a
-         * lifted rounded window onto the same tonal family as the workspace,
-         * not a warmer off-white card sitting on top of it. */
+        /* White single-surface panel. Height hugs content (via max-height,
+         * not fixed height) so short states — like the idle three-agent view
+         * — don't render a large empty rectangle beneath the last agent.
+         * When content exceeds the viewport, the inner scroll container
+         * takes over and the outer stays clamped at the viewport height. */
         position: "sticky",
         top: 12,
         alignSelf: "flex-start",
-        height: "calc(100vh - 24px)",
+        maxHeight: "calc(100vh - 24px)",
         margin: "12px 12px 12px 0",
         width: 400,
         padding: "20px 16px 20px 20px",
         gap: 16,
-        background: "var(--bg-grad)",
+        background: "var(--surface-card)",
         borderRadius: 20,
         boxShadow: "var(--shadow-card)",
         transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
