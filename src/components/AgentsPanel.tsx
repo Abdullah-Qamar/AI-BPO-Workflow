@@ -82,7 +82,9 @@ export function AgentsPanel({
         className="flex flex-col items-start shrink-0"
         style={{
           /* Sticky sliver — same surface as the expanded panel so collapsing
-           * doesn't reveal a second underlying container. One card, resized. */
+           * doesn't reveal a second underlying container. Panel surface tone
+           * mirrors the workspace canvas (--bg-grad) so the panel reads as an
+           * extension of that grey rather than a warmer off-white "card". */
           position: "sticky",
           top: 12,
           alignSelf: "flex-start",
@@ -91,7 +93,7 @@ export function AgentsPanel({
           width: 68,
           padding: "20px 12px",
           gap: 16,
-          background: "var(--surface-card)",
+          background: "var(--bg-grad)",
           borderRadius: 20,
           boxShadow: "var(--shadow-card)",
           transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
@@ -123,10 +125,10 @@ export function AgentsPanel({
     <aside
       className="flex flex-col items-stretch shrink-0 relative overflow-hidden"
       style={{
-        /* Single-surface panel. Previously the aside had a bg-side "gutter"
-         * and the inner card sat inside — two nested backgrounds read as an
-         * extra container. Now the aside IS the panel: one surface, one
-         * shadow, one radius. Padding replaces the old gutter. */
+        /* Single-surface panel. Panel surface uses --bg-grad so it reads as
+         * a continuation of the reconciliation canvas grey — the panel is a
+         * lifted rounded window onto the same tonal family as the workspace,
+         * not a warmer off-white card sitting on top of it. */
         position: "sticky",
         top: 12,
         alignSelf: "flex-start",
@@ -135,7 +137,7 @@ export function AgentsPanel({
         width: 400,
         padding: "20px 16px 20px 20px",
         gap: 16,
-        background: "var(--surface-card)",
+        background: "var(--bg-grad)",
         borderRadius: 20,
         boxShadow: "var(--shadow-card)",
         transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
