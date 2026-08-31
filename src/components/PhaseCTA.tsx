@@ -1,18 +1,20 @@
 "use client";
 
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, RotateCcw } from "lucide-react";
 import { Button } from "./ui/Button";
 import { ConfirmPopoverButton } from "./ui/ConfirmPopoverButton";
+import { StatusDot } from "./ui/Status";
 import { useSession } from "@/lib/session/SessionProvider";
 import { hasAnyPairReady } from "@/lib/session/reducer";
 
-/* Header CTA. Owns the actions that belong at the workspace altitude:
+/* Header CTA. Owns the actions that belong at the session's altitude:
  *
  *   draft           → Run reconciliation
  *   running         → Importing ledgers…   (disabled, loader)
  *   reconciling     → Reconciling…         (disabled, loader)
  *   review          → (none — Summary agent owns Review + Post)
  *   updating-yardi  → Posting to Yardi…    (disabled, loader — ambient status)
+ *   failed          → Retry run
  *   complete        → Start next cycle
  *
  * Post to Yardi has moved into the Summary agent panel where it lives beside
@@ -20,8 +22,24 @@ import { hasAnyPairReady } from "@/lib/session/reducer";
  * once the reviewer's attention needs to shift right. */
 
 export function PhaseCTA() {
-  const { state, startRun, startNextCycle } = useSession();
+  const { state, startRun, startNextCycle, retryRun } = useSession();
   const { runState } = state;
+
+  /* A broken run's only useful header action is to run it again. Before this
+   * branch existed a failed session fell through to the draft CTA and offered
+   * "Run reconciliation" as though nothing had happened. */
+  if (runState === "failed") {
+    return (
+      <Button
+        variant="primary"
+        size="md"
+        onClick={retryRun}
+        leftIcon={<RotateCcw size={14} strokeWidth={1.75} />}
+      >
+        Retry run
+      </Button>
+    );
+  }
 
   if (runState === "draft") {
     const ready = hasAnyPairReady(state);
@@ -31,7 +49,7 @@ export function PhaseCTA() {
         size="md"
         disabled={!ready}
         onClick={startRun}
-        rightIcon={<ArrowRight size={16} strokeWidth={1.75} />}
+        rightIcon={<ArrowRight size={16} strokeWidth={1.5} />}
       >
         Run reconciliation
       </Button>
@@ -47,7 +65,11 @@ export function PhaseCTA() {
   }
 
   if (runState === "review") {
-    return <QuietStatus label="Ready for review · see Summary →" />;
+    /* No arrow. This is a status, not a control — it reports where the run has
+     * got to and the Summary agent beside it carries the action. An arrow
+     * inside something that cannot be clicked is the same broken promise as a
+     * chevron on a menu that does not open. */
+    return <QuietStatus label="Ready for review" />;
   }
 
   if (runState === "updating-yardi") {
@@ -94,35 +116,30 @@ function BusyButton({ label }: { label: string }) {
 
 /* Quiet header-anchored status label. Non-actionable pill that reads as an
  * ambient hint rather than a call to action — because the actual action has
- * moved to the Summary agent. Kept at button-height so the header row
- * doesn't reflow when the run enters review. */
+ * moved to the Summary agent.
+ *
+ * On --control-lg, which is where it belongs: it sits in a header row beside a
+ * 28px button and a 32px chip, and at its old 40px it was both the tallest
+ * thing in that row and the only height in the app off the control scale. */
 function QuietStatus({ label }: { label: string }) {
   return (
     <span
       className="inline-flex items-center"
       style={{
-        height: 40,
-        padding: "0 16px",
-        gap: 8,
-        background: "rgba(255,255,255,0.55)",
-        border: "1px solid rgba(157, 179, 197, 0.35)",
+        height: "var(--control-lg)",
+        padding: "0 12px",
+        gap: "var(--space-3)",
+        background: "var(--surface-control)",
+        border: "1px solid #FFFFFF",
+        boxShadow: "var(--shadow-chip)",
         borderRadius: 999,
-        fontSize: 13,
-        lineHeight: "16px",
-        color: "var(--text-2)",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        color: "var(--ink-secondary)",
         whiteSpace: "nowrap",
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: 999,
-          background: "var(--dot-active)",
-          display: "inline-block",
-        }}
-      />
+      <StatusDot status="review" />
       {label}
     </span>
   );

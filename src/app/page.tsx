@@ -1,18 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LeftRail } from "@/components/LeftRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { MainCanvas } from "@/components/MainCanvas";
 import { ReviewCanvas } from "@/components/ReviewCanvas";
 import { AgentsPanel } from "@/components/AgentsPanel";
 import { DashboardCanvas } from "@/components/DashboardCanvas";
+import { AIQualityDetail } from "@/components/AIQualityDetail";
 import { PropertiesCanvas } from "@/components/PropertiesCanvas";
-import { propertyBanks, selectedMonth } from "@/lib/seed";
+import { EmptyWorkspace } from "@/components/EmptyWorkspace";
+import {
+  CURRENT_CYCLE,
+  banksFor,
+  findSession,
+  propertyById,
+  type PropertyRecord,
+} from "@/lib/seed";
 import { useResponsiveLayout } from "@/lib/useResponsiveLayout";
 import { SessionProvider } from "@/lib/session/SessionProvider";
 
-type Route = "dashboard" | "workspace" | "properties";
+type Route = "dashboard" | "workspace" | "properties" | "observability";
 /* The canvas has two surfaces within the workspace route:
  *   upload — bank statement intake (default, hosts the live lifecycle)
  *   review — reconciled records, opened from Summary agent's inspect CTA */
@@ -20,6 +28,11 @@ type CanvasView = "upload" | "review";
 
 export default function Page() {
   const [route, setRoute] = useState<Route>("dashboard");
+  /* Properties owns its own list/detail state internally. Clicking Properties
+   * in the rail while already sitting inside a property detail was a no-op —
+   * the route never changed, so nothing reset. Bumping this key on every
+   * navigation to the route remounts the canvas back to the roster. */
+  const [propertiesKey, setPropertiesKey] = useState(0);
   const [canvasView, setCanvasView] = useState<CanvasView>("upload");
   /* null = no session opened yet — the workspace renders an empty canvas
    * placeholder and hides the agents panel until the user picks a session.
@@ -28,6 +41,14 @@ export default function Page() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     null
   );
+  /* Set when a property is opened that has no session in the current cycle —
+   * "Start a session" on a Not started property. The workspace then mounts a
+   * fresh draft against that property rather than dead-ending. */
+  const [draftPropertyId, setDraftPropertyId] = useState<string | null>(null);
+  /* The cycle a draft was started for. A property picked for a cycle it has
+   * never been run in opens a draft IN that cycle, so its statements carry that
+   * period rather than the current one. */
+  const [draftCycle, setDraftCycle] = useState(CURRENT_CYCLE);
   const {
     navCollapsed,
     setNavCollapsed,
@@ -35,17 +56,87 @@ export default function Page() {
     setAgentsCollapsed,
   } = useResponsiveLayout();
 
+  /* Resolve whatever is open into one property + one session id.
+   *
+   * The two used to be resolved separately and against different keys — the
+   * new-session modal handed up a property *id* and the host looked it up by
+   * *code*, so the Dashboard's primary action matched nothing and landed on
+   * the empty canvas every single time. There is one resolution now and every
+   * entry point feeds it a property id. */
+  const open = useMemo(() => {
+    const found = findSession(selectedSessionId);
+    if (found) {
+      return {
+        property: found.property,
+        sessionId: found.session.id,
+        /* The session's own cycle, not "now" — a Feb 2026 session has to show
+         * February's statements and ledger export dates. */
+        cycle: found.session.cycle,
+      };
+    }
+    const property = draftPropertyId ? propertyById[draftPropertyId] : null;
+    if (property) {
+      /* A property with no session this cycle still opens: the canvas is that
+       * session, in its draft state, waiting for documents. */
+      return {
+        property,
+        sessionId: `draft-${property.id}-${draftCycle}`,
+        cycle: draftCycle,
+      };
+    }
+    return null;
+  }, [selectedSessionId, draftPropertyId, draftCycle]);
+
+  /* Opens a property in the workspace: its live session where it has one,
+   * otherwise a fresh draft. */
+  const openProperty = (
+    propertyId: string,
+    sessionId?: string,
+    cycle?: string
+  ) => {
+    const property: PropertyRecord | undefined = propertyById[propertyId];
+    setRoute("workspace");
+    setCanvasView("upload");
+    if (sessionId) {
+      setSelectedSessionId(sessionId);
+      setDraftPropertyId(null);
+      return;
+    }
+    /* A cycle without a session id comes from the new-session picker: open that
+     * property's session in that cycle if it has one, and a draft if it does
+     * not. Without this the picker's cycle was accepted and then ignored. */
+    const live = cycle
+      ? property?.sessions.find((x) => x.cycle === cycle)
+      : property?.currentSession ?? property?.sessions[0];
+    setSelectedSessionId(live?.id ?? null);
+    setDraftPropertyId(live ? null : propertyId);
+    setDraftCycle(cycle ?? CURRENT_CYCLE);
+  };
+
   return (
     <div
       className="flex flex-row items-stretch"
       style={{ minHeight: "100vh", background: "transparent" }}
     >
-      <LeftRail route={route} onNavigate={setRoute} />
+      <LeftRail
+        route={route}
+        onNavigate={(next) => {
+          if (next === "properties") setPropertiesKey((k) => k + 1);
+          setRoute(next);
+        }}
+      />
+      {route === "observability" && (
+        /* A top-level destination now, not a view nested inside the Dashboard.
+         * It was reachable only by a link on one screen, which made a whole page
+         * of the product hard to find and impossible to return to directly. */
+        <AIQualityDetail />
+      )}
       {route === "dashboard" && (
         <DashboardCanvas
-          onStartSession={() => {
-            setRoute("workspace");
-          }}
+          onOpenObservability={() => setRoute("observability")}
+          onOpenSession={(propertyId, sessionId, cycle) =>
+            openProperty(propertyId, sessionId, cycle)
+          }
         />
       )}
       {route === "workspace" && (
@@ -56,68 +147,68 @@ export default function Page() {
               // Every session selection re-mounts the provider (keyed by id)
               // so each session starts on its own clean lifecycle.
               setSelectedSessionId(id);
+              setDraftPropertyId(null);
               setCanvasView("upload");
             }}
+            onStartSession={(propertyId) => openProperty(propertyId)}
             collapsed={navCollapsed}
             onToggle={() => setNavCollapsed(!navCollapsed)}
           />
-          {selectedSessionId === null ? (
+          {open === null ? (
             <EmptyWorkspace />
           ) : (
             <SessionProvider
-              key={selectedSessionId}
-              bankIds={propertyBanks.map((b) => b.id)}
-              cycle={selectedMonth}
-              selectedSessionId={selectedSessionId}
+              key={open.sessionId}
+              property={open.property}
+              bankIds={banksFor(open.property).map((b) => b.id)}
+              cycle={open.cycle}
+              selectedSessionId={open.sessionId}
             >
-              {canvasView === "upload" && <MainCanvas />}
-              {canvasView === "review" && (
-                <ReviewCanvas onBack={() => setCanvasView("upload")} />
-              )}
-              {/* Review is a focus mode — the agents panel collapses to its
-               * sliver so the user stays on the records. The upload view
-               * keeps the panel at the user-controlled size. */}
-              <AgentsPanel
-                collapsed={canvasView === "review" ? true : agentsCollapsed}
-                onToggle={() => setAgentsCollapsed(!agentsCollapsed)}
-                onInspect={() => setCanvasView("review")}
-              />
+              {/* Canvas + agents share one continuous surface so the strip
+               * around the AgentsPanel (top + right gap) reads as the same
+               * light workspace gradient the canvas uses, rather than the
+               * darker root gradient shown behind the rails. */}
+              <div
+                className="flex flex-row items-stretch flex-1 min-w-0"
+                style={{ background: "var(--bg-grad)" }}
+              >
+                {canvasView === "upload" && (
+                  <MainCanvas
+                    onSelectSession={(id) => {
+                      setSelectedSessionId(id);
+                      setDraftPropertyId(null);
+                    }}
+                  />
+                )}
+                {canvasView === "review" && (
+                  <ReviewCanvas onBack={() => setCanvasView("upload")} />
+                )}
+                {/* Review is a focus mode — opening it auto-collapses the
+                 * agents panel to its sliver so the user lands on the records.
+                 * The collapse is a starting point, not a lock: the expand
+                 * chevron still drives `agentsCollapsed` so the user can pull
+                 * the panel back open while reviewing. */}
+                <AgentsPanel
+                  collapsed={agentsCollapsed}
+                  onToggle={() => setAgentsCollapsed(!agentsCollapsed)}
+                  onInspect={() => {
+                    setCanvasView("review");
+                    setAgentsCollapsed(true);
+                  }}
+                />
+              </div>
             </SessionProvider>
           )}
         </>
       )}
       {route === "properties" && (
         <PropertiesCanvas
-          onStartSession={() => {
-            setRoute("workspace");
-          }}
+          key={propertiesKey}
+          onStartSession={(propertyId, sessionId) =>
+            openProperty(propertyId, sessionId)
+          }
         />
       )}
     </div>
   );
 }
-
-/* Empty workspace placeholder — shown when the user is on the Reconciliation
- * route but hasn't opened a session yet. Minimal and quiet: a single muted
- * line, centered. The workspace nav on the left already has all the entry
- * points; the canvas should not duplicate them or hard-sell a "resume" CTA. */
-function EmptyWorkspace() {
-  return (
-    <main
-      className="flex flex-col items-center justify-center flex-1 min-w-0"
-      style={{ background: "var(--bg-grad)" }}
-    >
-      <p
-        style={{
-          fontSize: 13,
-          lineHeight: "18px",
-          color: "var(--text-2)",
-          letterSpacing: "0.01em",
-        }}
-      >
-        Open a session from the workspaces list to begin.
-      </p>
-    </main>
-  );
-}
-

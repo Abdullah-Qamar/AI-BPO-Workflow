@@ -3,13 +3,21 @@
 /* SlotChip — the atomic upload affordance used twice per bank (statement +
  * ledger). Two visual states:
  *
- *   empty:  dashed slate border, upload icon + slot label.
- *   filled: solid border, success tint, check icon + filename (truncated).
+ *   empty:  quiet lifted control fill, FileUp glyph + slot label and hint.
+ *   filled: success tint, check mark + filename (truncated).
+ *
+ * The empty slot used to carry a 1.5px dashed stroke, which decisions.md §3
+ * bans outright. "Empty and droppable" is now carried by fill and ink instead:
+ * the slot sits on --surface-control with tertiary ink and an open FileUp
+ * glyph, one step quieter than the filled chip beside it, and its stroke only
+ * appears on hover (--line) or drag-over (--dot-active). A dashed rectangle was
+ * never doing the work anyway — the contrast between a tinted, named, filled
+ * slot and an untinted empty one is what a reader actually sees.
  *
  * The chip is the click target; clicking opens the file picker (mocked in the
  * prototype — onPick fires immediately). */
 
-import { Check, Upload } from "lucide-react";
+import { Check, FileUp } from "lucide-react";
 import { useState } from "react";
 import type { BankFile } from "@/lib/seed";
 
@@ -46,45 +54,37 @@ export function SlotChip({
         style={{
           width: width ?? "100%",
           minWidth: 0,
-          padding: "8px 12px",
-          gap: 10,
-          background: hover ? "#DCF4E5" : "#E8F8EE",
-          border: "1px solid #C5EBD2",
-          borderRadius: 10,
+          padding: "var(--space-4) var(--space-5)",
+          gap: "var(--space-4)",
+          background: "var(--status-ok-bg)",
+          border: `1px solid ${hover ? "var(--line)" : "transparent"}`,
+          borderRadius: "var(--radius-sheet)",
           cursor: "pointer",
         }}
-        title={`${file.filename} · ${file.sizeLabel}`}
+        data-hint={`${file.filename} · ${file.sizeLabel}`}
       >
         <span
           className="flex items-center justify-center shrink-0"
           style={{
-            width: 22,
-            height: 22,
+            width: "var(--control-sm)",
+            height: "var(--control-sm)",
             borderRadius: 999,
-            background: "#1EFF00",
-            color: "#0F7A3D",
+            background: "var(--status-ok)",
+            color: "#FFFFFF",
           }}
         >
-          <Check size={14} strokeWidth={2} color="#0F4D26" />
+          <Check size={14} strokeWidth={1.75} />
         </span>
         <span className="flex flex-col min-w-0">
           <span
-            className="truncate"
-            style={{
-              fontSize: 13,
-              lineHeight: "16px",
-              color: "#0F4D26",
-            }}
+            className="truncate t-body"
+            style={{ color: "var(--status-ok-ink)" }}
           >
             {file.filename}
           </span>
           <span
-            className="truncate"
-            style={{
-              fontSize: 11,
-              lineHeight: "14px",
-              color: "#2E7A4D",
-            }}
+            className="truncate t-meta"
+            style={{ color: "var(--status-ok-ink)" }}
           >
             {file.sizeLabel} · {copy.label}
           </span>
@@ -103,53 +103,43 @@ export function SlotChip({
       style={{
         width: width ?? "100%",
         minWidth: 0,
-        padding: "8px 12px",
-        gap: 10,
-        background: hover ? "#FAFBFD" : "transparent",
-        border: `1.5px dashed ${hover ? "#7C8C9A" : "#9DB3C5"}`,
-        borderRadius: 10,
+        padding: "var(--space-4) var(--space-5)",
+        gap: "var(--space-4)",
+        background: hover
+          ? "var(--surface-control-hover)"
+          : "var(--surface-control)",
+        border: `1px solid ${hover ? "var(--line)" : "transparent"}`,
+        borderRadius: "var(--radius-sheet)",
         cursor: "pointer",
       }}
     >
+      {/* The slot receives a file rather than sending one, so the glyph is
+        * FileUp; `Upload` is the action glyph and belongs on buttons. */}
       <span
         className="flex items-center justify-center shrink-0"
         style={{
-          width: 22,
-          height: 22,
+          width: "var(--control-sm)",
+          height: "var(--control-sm)",
           borderRadius: 999,
-          background: hover ? "#EFF3F8" : "#F2F4FB",
-          color: "#43484E",
+          background: "#FFFFFF",
+          border: "1px solid var(--line-menu)",
+          color: "var(--ink-secondary)",
         }}
       >
-        <Upload size={12} strokeWidth={1.75} />
+        <FileUp size={14} strokeWidth={1.75} />
       </span>
       <span className="flex flex-col min-w-0">
-        <span
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "var(--text-1)",
-          }}
-        >
-          {copy.label}
-        </span>
-        <span
-          style={{
-            fontSize: 11,
-            lineHeight: "14px",
-            color: "var(--text-2)",
-          }}
-        >
-          {copy.hint}
-        </span>
+        <span className="t-body ink-secondary">{copy.label}</span>
+        <span className="t-meta ink-tertiary">{copy.hint}</span>
       </span>
     </button>
   );
 }
 
-/* Thin connector between the two slots. Dashed grey when at least one slot
- * is empty; solid soft-glow (mirrors the Wire.svg metaphor) when both are
- * filled. */
+/* Thin connector between the two slots. Solid throughout — dashed strokes are
+ * banned — with the state carried by colour and weight instead: --line while
+ * either slot is still empty, --status-ok once the pair is whole, which is the
+ * same green the filled slot beside it uses. */
 export function SlotConnector({ complete }: { complete: boolean }) {
   return (
     <span
@@ -157,14 +147,17 @@ export function SlotConnector({ complete }: { complete: boolean }) {
       className="shrink-0 inline-flex items-center justify-center"
       style={{ width: 36, height: 32 }}
     >
+      {/* Two named lines rather than one line at two opacities: --line-hair is
+        * the app's "barely there" rule and is what the account grid's seam uses
+        * for the same "this half is still empty" state, so the two layouts
+        * draw an untied pair the same weight. */}
       <span
         style={{
           width: "100%",
           height: 0,
-          borderTop: complete
-            ? "1.5px solid #1F7FFF"
-            : "1.5px dashed #9DB3C5",
-          opacity: complete ? 0.9 : 0.7,
+          borderTop: `1px solid ${
+            complete ? "var(--status-ok)" : "var(--line-hair)"
+          }`,
         }}
       />
     </span>

@@ -94,8 +94,8 @@ export function ConfirmPopoverButton({
             <span>{label}</span>
             <span
               style={{
-                fontSize: 11,
-                lineHeight: "13px",
+                fontSize: "var(--type-meta)",
+                lineHeight: "var(--leading-ui)",
                 opacity: 0.7,
               }}
             >
@@ -111,36 +111,33 @@ export function ConfirmPopoverButton({
           role="dialog"
           aria-modal="false"
           aria-label={confirmTitle}
+          className="glass"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
             [align]: 0,
             zIndex: 30,
             width: 320,
-            padding: 16,
-            background: "var(--surface-card)",
-            border: "1px solid #FFFFFF",
-            boxShadow: "var(--shadow-depth-3)",
-            borderRadius: 12,
-            backgroundImage: "var(--surface-card-glow)",
+            padding: "var(--pad-card)",
+            borderRadius: "var(--radius-sheet)",
           }}
         >
           <div
             style={{
-              fontSize: 14,
-              lineHeight: "18px",
-              color: "var(--text-1)",
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-ui)",
+              color: "var(--ink-primary)",
               marginBottom: 6,
-              fontWeight: 500,
+              fontWeight: "var(--weight-medium)",
             }}
           >
             {confirmTitle}
           </div>
           <div
             style={{
-              fontSize: 13,
-              lineHeight: "18px",
-              color: "var(--text-2)",
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-ui)",
+              color: "var(--ink-secondary)",
               marginBottom: 14,
             }}
           >

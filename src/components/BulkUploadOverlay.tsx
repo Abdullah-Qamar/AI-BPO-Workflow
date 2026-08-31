@@ -2,20 +2,24 @@
 
 /* BulkUploadOverlay — focused modal for bulk statement + ledger upload.
  *
- * Shell mirrors NewSessionModal so the app has ONE modal chrome vocabulary:
- * cool horizontal gradient outer, 28px radius, 12px padding; a header with
- * title + subtitle + close X on the right; a white card inside that hosts
- * the actual work surface. This overlay's card is the BulkUploadCard, which
- * already carries the drop zone + associated-bank chips — now with more
- * breathing room around them because the modal is bigger. */
+ * Built on ui/Overlay + ui/OverlayCard, which is the app's one modal chrome:
+ * the shared scrim, --radius-panel, --shadow-depth-4. It used to hand-roll a
+ * backdrop and a gradient gutter of its own, which meant two modals opening
+ * over the same canvas dimmed it by different amounts.
+ *
+ * Inside the card the layout is unchanged: a header carrying title, subtitle
+ * and close, then a bright inner sheet hosting the BulkUploadCard — which
+ * already carries the drop zone and the associated-account chips, here with
+ * more breathing room around them because the modal is bigger. */
 
-import { useEffect } from "react";
 import { X } from "lucide-react";
 import {
   BulkUploadCard,
   type BankStatementState,
 } from "./BulkUploadCard";
 import type { PropertyBank } from "@/lib/seed";
+import { Overlay, OverlayCard } from "./ui/Overlay";
+import { IconButton } from "./ui/Button";
 
 export function BulkUploadOverlay({
   open,
@@ -32,150 +36,89 @@ export function BulkUploadOverlay({
   onBrowseAll?: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
+  /* Escape and backdrop-click both live in Overlay now. */
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-        padding: 24,
-        animation: "bulk-overlay-fade 160ms cubic-bezier(0.22, 1, 0.36, 1) both",
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Upload bank statements and ledgers"
-    >
-      {/* Backdrop — same tone as NewSessionModal so both modals feel unified. */}
-      <div
-        onClick={onClose}
+    <Overlay open={open} onDismiss={onClose}>
+      <OverlayCard
+        width={780}
         style={{
-          position: "absolute",
-          inset: 0,
-          background: "rgba(48, 59, 69, 0.42)",
-          backdropFilter: "blur(2px)",
-          WebkitBackdropFilter: "blur(2px)",
-        }}
-      />
-
-      {/* Modal shell — gradient gutter mirrors NewSessionModal. */}
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          width: 780,
-          maxWidth: "calc(100vw - 32px)",
-          maxHeight: "calc(100vh - 48px)",
-          padding: 12,
-          background:
-            "linear-gradient(90deg, #C9D6E3 0%, #D6E0EA 50%, #BFC9D8 100%)",
-          borderRadius: 28,
-          boxShadow:
-            "0 32px 64px rgba(20, 28, 38, 0.28), 0 12px 28px rgba(20, 28, 38, 0.16)",
           display: "flex",
           flexDirection: "column",
           animation:
             "bulk-overlay-rise 200ms cubic-bezier(0.22, 1, 0.36, 1) both",
         }}
       >
-        <Header onClose={onClose} />
-        <Card>
-          <BulkUploadCard
-            banks={banks}
-            uploads={uploads}
-            onUploadStatement={onUploadStatement}
-            onBrowseAll={onBrowseAll}
-            flat
-          />
-        </Card>
-        <div style={{ height: 4, flexShrink: 0 }} />
-      </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Upload bank statements and ledgers"
+          className="flex flex-col"
+          style={{ flex: 1, minHeight: 0, padding: "16px 12px 12px" }}
+        >
+          <Header onClose={onClose} />
+          <Sheet>
+            <BulkUploadCard
+              banks={banks}
+              uploads={uploads}
+              onUploadStatement={onUploadStatement}
+              onBrowseAll={onBrowseAll}
+              flat
+            />
+          </Sheet>
+        </div>
 
-      <style>{`
-        @keyframes bulk-overlay-fade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes bulk-overlay-rise {
-          from { opacity: 0; transform: translateY(8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-    </div>
+        <style>{`
+          @keyframes bulk-overlay-rise {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
+      </OverlayCard>
+    </Overlay>
   );
 }
 
 function Header({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="flex flex-row justify-between items-center"
+      className="flex flex-row justify-between items-start"
       style={{
         width: "100%",
-        padding: "8px 16px 16px",
+        padding: "0 4px 12px 8px",
+        gap: 12,
         flexShrink: 0,
       }}
     >
       <div className="flex flex-col" style={{ gap: 2 }}>
-        <span
-          style={{
-            fontSize: 20,
-            lineHeight: "24px",
-            fontWeight: 600,
-            color: "#111827",
-          }}
-        >
+        <span className="t-heading ink-primary">
           Upload statements &amp; ledgers
         </span>
-        <span
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "#6B7280",
-          }}
-        >
-          Drop files and we'll route each one to its associated bank
+        {/* Account, not bank. A file is routed to one of this property's
+          * accounts — two of them can sit at the same bank, which is exactly
+          * the case the routing has to get right. §1 keeps the two words
+          * apart, and the card below this line already says "account". */}
+        <span className="t-body ink-secondary">
+          Drop files and we&apos;ll route each one to its associated account
         </span>
       </div>
 
-      <button
+      <IconButton
+        variant="secondary"
+        size="md"
         onClick={onClose}
-        aria-label="Close"
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 999,
-          background: "rgba(255,255,255,0.55)",
-          border: "1px solid rgba(255,255,255,0.7)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          color: "#43484E",
-        }}
+        ariaLabel="Close"
+        style={{ color: "var(--ink-secondary)" }}
       >
-        <X size={14} strokeWidth={3} />
-      </button>
+        <X size={14} strokeWidth={1.75} />
+      </IconButton>
     </div>
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  /* White inner card mirrors NewSessionModal's Card — but sized to breathe
-   * for the upload flow. The BulkUploadCard renders its own hero + chip strip
-   * inside; the modal adds a bigger canvas around it. */
+function Sheet({ children }: { children: React.ReactNode }) {
+  /* The bright inner sheet nested inside the modal card — the same one step of
+   * nesting every listing in the app uses, so "the controls" and "the work
+   * surface" stay visually separate. */
   return (
     <div
       className="flex flex-col"
@@ -183,10 +126,9 @@ function Card({ children }: { children: React.ReactNode }) {
         width: "100%",
         flex: 1,
         minHeight: 0,
-        background: "#FFFFFF",
-        border: "1px solid #ECEDEF",
-        boxShadow: "0 0 4px rgba(0, 0, 0, 0.06)",
-        borderRadius: 20,
+        background: "var(--surface-list)",
+        boxShadow: "var(--shadow-depth-1)",
+        borderRadius: "var(--radius-sheet)",
         overflow: "hidden",
       }}
     >
@@ -194,7 +136,7 @@ function Card({ children }: { children: React.ReactNode }) {
         className="flex flex-col overflow-y-auto scroll-thin"
         style={{
           width: "100%",
-          padding: 18,
+          padding: 8,
           flex: 1,
           minHeight: 0,
         }}

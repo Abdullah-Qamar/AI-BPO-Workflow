@@ -30,9 +30,9 @@ export function Overlay({
       className="fixed inset-0 flex items-center justify-center"
       style={{
         zIndex: 100,
-        background: "rgba(48, 59, 69, 0.32)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
+        background: "var(--scrim)",
+        backdropFilter: "blur(var(--scrim-blur))",
+        WebkitBackdropFilter: "blur(var(--scrim-blur))",
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onDismiss?.();
@@ -60,7 +60,7 @@ export function OverlayCard({
         maxHeight: "calc(100vh - 48px)",
         background: "var(--surface-card-glow)",
         boxShadow: "var(--shadow-depth-4)",
-        borderRadius: 20,
+        borderRadius: "var(--radius-panel)",
         overflow: "hidden",
         ...style,
       }}

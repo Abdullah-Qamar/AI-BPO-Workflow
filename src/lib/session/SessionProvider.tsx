@@ -20,33 +20,16 @@ import type {
   SessionAction,
   SessionState,
 } from "./types";
-import { reconciledRecords } from "@/lib/seed";
-
-/* Pre-compute per-bank approved/exception counts from the canonical seed.
- * The seed's BankProgressRow has total matched per bank (14/18/22/14) but
- * doesn't split approved vs. flagged per bank — we infer the split from the
- * filterable record list and pad approved to round-trip to the bank's known
- * matched total. */
-const COUNTS_BY_BANK: Record<string, { approved: number; exceptions: number }> =
-  (() => {
-    /* Bank-row totals from seed's reconBankRows. Kept in sync manually
-     * because that array isn't exported. */
-    const totals: Record<string, number> = {
-      "bank-chase-op": 14,
-      "bank-wells-sd": 18,
-      "bank-boa-res": 22,
-      "bank-chase-escrow": 14,
-    };
-    const out: Record<string, { approved: number; exceptions: number }> = {};
-    for (const [id, total] of Object.entries(totals)) {
-      const flagged = reconciledRecords.filter(
-        (r) => r.bankId === id && r.status === "flagged"
-      ).length;
-      const approved = Math.max(0, total - flagged);
-      out[id] = { approved, exceptions: flagged };
-    }
-    return out;
-  })();
+import {
+  bankCountsForSession,
+  banksFor,
+  findSession,
+  recordsForSession,
+  type PropertyBank,
+  type PropertyRecord,
+  type PropertySession,
+  type RecordItem,
+} from "@/lib/seed";
 
 /* SessionProvider wraps the app with the live lifecycle state machine.
  *
@@ -69,27 +52,66 @@ const REVIEW_AUTO_GATE_MS = 400; // small pause before review screen settles
 interface SessionContextValue {
   state: SessionState;
   dispatch: React.Dispatch<SessionAction>;
+  /* Who this session belongs to. Every canvas used to read the module-level
+   * `activeProperty` and so rendered 1849 Westlake's address, accounts and
+   * ledger identity no matter which session was open. */
+  property: PropertyRecord;
+  session: PropertySession | null;
+  /* The property's accounts, in their two-slot upload form. */
+  banks: PropertyBank[];
+  /* This session's records — what the review canvas lists. */
+  records: RecordItem[];
+  retryRun: () => void;
   uploadStatement: (bankId: string) => void;
   uploadLedger: (bankId: string) => void;
   startRun: () => void;
+  startReconciliation: () => void;
   startYardiUpdate: () => void;
   startNextCycle: () => void;
   openReview: (bankId: string) => void;
   closeReview: () => void;
   markBankReviewed: (bankId: string) => void;
+  moveRecord: (
+    recordId: string,
+    bankId: string,
+    to: "approved" | "flagged"
+  ) => void;
+  setRecordComment: (recordId: string, text?: string) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({
+  property,
   bankIds,
   cycle,
   selectedSessionId,
+  gateReconciliation = false,
+  parallelReconciliation = false,
   children,
 }: {
+  /* The property whose session this is. */
+  property: PropertyRecord;
   bankIds: string[];
   cycle: string;
   selectedSessionId: string;
+  /* When true the controller stops after intake instead of auto-advancing into
+   * reconciliation, parking the session at `runState: "running"` with no active
+   * agent. The host then calls `startReconciliation()` on a user gesture.
+   *
+   * V1 leaves this off and keeps its uninterrupted run. V2's core hands the
+   * user an explicit "Start reconciliation" CTA at the intake boundary, so it
+   * opts in. */
+  gateReconciliation?: boolean;
+  /* Reconcile every bank at once instead of one after another. Four accounts
+   * have no dependency on each other, so sequential matching was an artefact of
+   * the controller rather than a description of the work — and it made the
+   * canvas claim three banks were idle while one ran.
+   *
+   * V1's AgentsPanel narrates a single active bank at a time, so it stays on the
+   * sequential walk; V2's hub lights every comparing strand independently and
+   * opts in. */
+  parallelReconciliation?: boolean;
   children: ReactNode;
 }) {
   const [state, dispatch] = useReducer(
@@ -140,6 +162,12 @@ export function SessionProvider({
     }
     walkBanks(ids, ["scanning", "parsing", "normalizing", "normalized"], () => {
       dispatch({ type: "setActiveBank", bankId: null });
+      if (gateReconciliation) {
+        /* Park at running/no-agent. `isAwaitingReconciliation` reads this pair
+         * as the intake-complete gate. */
+        dispatch({ type: "setActiveAgent", agent: null });
+        return;
+      }
       timerRef.current = setTimeout(() => {
         dispatch({ type: "advanceRunState", to: "reconciling" });
         dispatch({ type: "setActiveAgent", agent: "reconciliation" });
@@ -156,7 +184,65 @@ export function SessionProvider({
       dispatch({ type: "advanceRunState", to: "review" });
       return;
     }
+    if (parallelReconciliation) {
+      compareAllBanks(ids);
+      return;
+    }
     compareBanks(ids, 0);
+
+    /* All banks comparing at once. Each gets a different number of ticks so
+     * they don't finish in lockstep — four accounts of different sizes would
+     * never complete simultaneously, and a synchronised finish reads as fake. */
+    function compareAllBanks(queue: string[]) {
+      const ticksFor: Record<string, number> = {};
+      queue.forEach((id, i) => {
+        ticksFor[id] = COMPARE_TICKS + i * 4;
+      });
+      const done = new Set<string>();
+
+      for (const id of queue) {
+        dispatch({ type: "setBankStage", bankId: id, stage: "comparing" });
+        dispatch({ type: "setComparingProgress", bankId: id, progress: 0 });
+      }
+      /* No single active bank while parallel — V2's strands derive "working"
+       * from each bank's own stage, so nothing needs the pointer. */
+      dispatch({ type: "setActiveBank", bankId: null });
+
+      let tick = 0;
+      const step = () => {
+        timerRef.current = setTimeout(() => {
+          tick += 1;
+          for (const id of queue) {
+            if (done.has(id)) continue;
+            const progress = Math.min(1, tick / ticksFor[id]);
+            dispatch({ type: "setComparingProgress", bankId: id, progress });
+            if (progress >= 1) {
+              done.add(id);
+              const counts = bankCountsForSession(selectedSessionId)[id] ?? {
+                approved: 0,
+                exceptions: 0,
+              };
+              dispatch({
+                type: "setBankCounts",
+                bankId: id,
+                approved: counts.approved,
+                exceptions: counts.exceptions,
+              });
+              dispatch({ type: "setBankStage", bankId: id, stage: "reconciled" });
+            }
+          }
+          if (done.size < queue.length) {
+            step();
+            return;
+          }
+          timerRef.current = setTimeout(() => {
+            dispatch({ type: "advanceRunState", to: "review" });
+            dispatch({ type: "setActiveAgent", agent: null });
+          }, REVIEW_AUTO_GATE_MS);
+        }, COMPARE_TICK_MS);
+      };
+      step();
+    }
 
     function compareBanks(queue: string[], idx: number) {
       if (idx >= queue.length) {
@@ -187,7 +273,10 @@ export function SessionProvider({
           stepCompareProgress(bankId, tick + 1, queue, idx);
         } else {
           // Seed the records once comparing finishes.
-          const counts = COUNTS_BY_BANK[bankId] ?? { approved: 0, exceptions: 0 };
+          const counts = bankCountsForSession(selectedSessionId)[bankId] ?? {
+            approved: 0,
+            exceptions: 0,
+          };
           dispatch({
             type: "setBankCounts",
             bankId,
@@ -261,6 +350,11 @@ export function SessionProvider({
     []
   );
   const startRun = useCallback(() => dispatch({ type: "startRun" }), []);
+  /* Releases the `gateReconciliation` hold. No-op unless intake has parked. */
+  const startReconciliation = useCallback(() => {
+    dispatch({ type: "advanceRunState", to: "reconciling" });
+    dispatch({ type: "setActiveAgent", agent: "reconciliation" });
+  }, []);
   const startYardiUpdate = useCallback(
     () => dispatch({ type: "startYardiUpdate" }),
     []
@@ -269,6 +363,7 @@ export function SessionProvider({
     () => dispatch({ type: "startNextCycle" }),
     []
   );
+  const retryRun = useCallback(() => dispatch({ type: "retryRun" }), []);
   const openReview = useCallback(
     (bankId: string) => dispatch({ type: "openReview", bankId }),
     []
@@ -278,30 +373,66 @@ export function SessionProvider({
     (bankId: string) => dispatch({ type: "markBankReviewed", bankId }),
     []
   );
+  const moveRecord = useCallback(
+    (recordId: string, bankId: string, to: "approved" | "flagged") =>
+      dispatch({ type: "moveRecord", recordId, bankId, to }),
+    []
+  );
+  const setRecordComment = useCallback(
+    (recordId: string, text?: string) =>
+      dispatch({ type: "setRecordComment", recordId, text }),
+    []
+  );
+
+  const found = findSession(selectedSessionId);
+  const banks = useMemo(
+    () => banksFor(property, cycle),
+    [property, cycle]
+  );
+  const records = useMemo(
+    () => recordsForSession(selectedSessionId),
+    [selectedSessionId]
+  );
 
   const value = useMemo<SessionContextValue>(
     () => ({
       state,
       dispatch,
+      property,
+      session: found?.session ?? null,
+      banks,
+      records,
+      retryRun,
       uploadStatement,
       uploadLedger,
       startRun,
+      startReconciliation,
       startYardiUpdate,
       startNextCycle,
       openReview,
       closeReview,
       markBankReviewed,
+      moveRecord,
+      setRecordComment,
     }),
     [
       state,
+      property,
+      found?.session,
+      banks,
+      records,
+      retryRun,
       uploadStatement,
       uploadLedger,
       startRun,
+      startReconciliation,
       startYardiUpdate,
       startNextCycle,
       openReview,
       closeReview,
       markBankReviewed,
+      moveRecord,
+      setRecordComment,
     ]
   );
 

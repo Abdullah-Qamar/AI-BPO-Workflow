@@ -3,60 +3,51 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import {
-  activeProperty,
-  otherWorkspaces,
-  selectedMonth,
+  CURRENT_CYCLE,
+  cycleOptions,
+  workspaces,
   type PropertyWorkspace,
+  type StatusKey,
 } from "@/lib/seed";
+import { Overlay, OverlayCard } from "./ui/Overlay";
+import { IconButton } from "./ui/Button";
+import { CyclePicker } from "./ui/CyclePicker";
+import { StatusChip } from "./ui/Status";
 
 interface NewSessionModalProps {
   open: boolean;
   onClose: () => void;
+  /* The host resolves the property by id. */
   onSelect: (propertyId: string, cycle: string) => void;
 }
 
-const STATUS_RANK: Record<string, number> = {
+/* What wants a person, first. Same ordering as the Reconciliation nav, so a
+ * reader who has just come from there finds the list in the order they left it. */
+const STATE_RANK: Record<StatusKey, number> = {
   failed: 0,
-  active: 1,
-  none: 2,
-  complete: 3,
+  review: 1,
+  active: 2,
+  "not-started": 3,
+  completed: 4,
 };
-
-function rankFor(status: PropertyWorkspace["status"]) {
-  if (status === null) return STATUS_RANK.none;
-  return STATUS_RANK[status] ?? 99;
-}
-
-function statusLabel(status: PropertyWorkspace["status"]) {
-  if (status === "active") return "Active";
-  if (status === "failed") return "Failed";
-  if (status === "complete") return "Closed";
-  return "Pending";
-}
 
 export function NewSessionModal({ open, onClose, onSelect }: NewSessionModalProps) {
   const [query, setQuery] = useState("");
+  /* The cycle the session will be started in. It used to be pinned to the
+   * current one and handed up regardless, which made a modal whose whole job is
+   * "start a session" unable to say which period it was starting. */
+  const [cycle, setCycle] = useState(CURRENT_CYCLE);
 
   useEffect(() => {
     if (!open) {
       setQuery("");
-      return;
+      setCycle(CURRENT_CYCLE);
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  const properties = useMemo(
-    () => [activeProperty, ...otherWorkspaces],
-    []
-  );
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return properties
+    return workspaces
       .filter((p) => {
         if (!q) return true;
         return (
@@ -66,151 +57,97 @@ export function NewSessionModal({ open, onClose, onSelect }: NewSessionModalProp
           p.cityState.toLowerCase().includes(q)
         );
       })
-      .sort((a, b) => rankFor(a.status) - rankFor(b.status));
-  }, [properties, query]);
-
-  if (!open) return null;
-
-  const handlePick = (propertyId: string) => {
-    onSelect(propertyId, selectedMonth);
-  };
+      .sort((a, b) => STATE_RANK[a.state] - STATE_RANK[b.state]);
+  }, [query]);
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 100,
-      }}
-    >
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
+    <Overlay open={open} onDismiss={onClose}>
+      <OverlayCard
+        width={704}
         style={{
-          position: "absolute",
-          inset: 0,
-          background: "rgba(48, 59, 69, 0.42)",
-          backdropFilter: "blur(2px)",
-        }}
-      />
-
-      {/* Modal */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        style={{
-          position: "relative",
-          width: 704,
-          maxWidth: "calc(100vw - 32px)",
-          height: "min(489px, calc(100vh - 48px))",
-          padding: 12,
-          background:
-            "linear-gradient(90deg, #C9D6E3 0%, #D6E0EA 50%, #BFC9D8 100%)",
-          borderRadius: 28,
-          boxShadow:
-            "0 32px 64px rgba(20, 28, 38, 0.28), 0 12px 28px rgba(20, 28, 38, 0.16)",
+          height: "min(520px, calc(100vh - 48px))",
+          borderRadius: "var(--radius-panel)",
           display: "flex",
           flexDirection: "column",
+          padding: "var(--pad-panel)",
+          gap: "var(--space-5)",
         }}
       >
-        <Header onClose={onClose} />
-        <Card>
-          <SearchBar value={query} onChange={setQuery} />
-          <List
-            properties={filtered}
-            onPick={handlePick}
-            emptyQuery={query.trim().length === 0}
-          />
-        </Card>
-        <div style={{ height: 4, flexShrink: 0 }} />
-      </div>
-    </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Select a property"
+          className="flex flex-col"
+          style={{ flex: 1, minHeight: 0, gap: "var(--space-5)" }}
+        >
+          <Header cycle={cycle} onCycleChange={setCycle} onClose={onClose} />
+
+          <div
+            className="flex flex-col"
+            style={{
+              flex: 1,
+              minHeight: 0,
+              gap: "var(--space-4)",
+              padding: "var(--space-4)",
+              background: "var(--surface-list)",
+              borderRadius: "var(--radius-sheet)",
+              boxShadow: "var(--shadow-depth-1)",
+            }}
+          >
+            <SearchBar value={query} onChange={setQuery} />
+            <List
+              properties={filtered}
+              onPick={(id) => onSelect(id, cycle)}
+              emptyQuery={query.trim().length === 0}
+            />
+          </div>
+        </div>
+      </OverlayCard>
+    </Overlay>
   );
 }
 
-function Header({ onClose }: { onClose: () => void }) {
+function Header({
+  cycle,
+  onCycleChange,
+  onClose,
+}: {
+  cycle: string;
+  onCycleChange: (c: string) => void;
+  onClose: () => void;
+}) {
   return (
     <div
-      className="flex flex-row justify-between items-center"
-      style={{
-        width: "100%",
-        padding: "8px 16px 16px",
-        flexShrink: 0,
-      }}
+      className="flex flex-row justify-between items-start"
+      style={{ width: "100%", flexShrink: 0, gap: "var(--space-5)" }}
     >
       <div className="flex flex-col" style={{ gap: 2 }}>
-        <span
-          style={{
-            fontSize: 20,
-            lineHeight: "24px",
-            fontWeight: 600,
-            color: "#111827",
-          }}
-        >
+        <span className="t-heading" style={{ color: "var(--ink-primary)" }}>
           Select a property
         </span>
         <span
           style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "#6B7280",
+            fontSize: "var(--type-body)",
+            lineHeight: "var(--leading-ui)",
+            color: "var(--ink-secondary)",
           }}
         >
-          Start a new reconciliation run
+          Start a new reconciliation session
         </span>
       </div>
 
-      <button
-        onClick={onClose}
-        aria-label="Close"
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 999,
-          background: "rgba(255,255,255,0.55)",
-          border: "1px solid rgba(255,255,255,0.7)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          color: "#43484E",
-        }}
-      >
-        <X size={14} strokeWidth={3} />
-      </button>
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="flex flex-col"
-      style={{
-        width: "100%",
-        flex: 1,
-        minHeight: 0,
-        background: "#FFFFFF",
-        border: "1px solid #ECEDEF",
-        boxShadow: "0 0 4px rgba(0, 0, 0, 0.06)",
-        borderRadius: 20,
-        overflow: "hidden",
-      }}
-    >
       <div
-        className="flex flex-col"
-        style={{
-          width: "100%",
-          padding: 18,
-          gap: 5,
-          flex: 1,
-          minHeight: 0,
-        }}
+        className="flex flex-row items-center shrink-0"
+        style={{ gap: "var(--space-4)" }}
       >
-        {children}
+        <CyclePicker
+          value={cycle}
+          options={cycleOptions}
+          onChange={onCycleChange}
+        />
+        <IconButton variant="ghost" size="md" onClick={onClose} ariaLabel="Close">
+          <X size={16} strokeWidth={1.5} />
+        </IconButton>
       </div>
     </div>
   );
@@ -223,33 +160,48 @@ function SearchBar({
   value: string;
   onChange: (v: string) => void;
 }) {
+  /* The ring belongs on the shell, not on the input: the input is a bare
+   * transparent child, so a ring drawn on it would circle the text run alone
+   * and collide with the search glyph beside it. `outline: none` below was
+   * beating the app's global focus rule and leaving the field with no
+   * indicator at all — the same 2px accent and offset are restored here.
+   * React state rather than :focus-within because this surface is styled
+   * inline. */
+  const [focused, setFocused] = useState(false);
   return (
     <div
       className="flex flex-row items-center"
       style={{
         width: "100%",
-        padding: "12px 8px 12px 12px",
-        gap: 10,
-        background: "#F2F3FA",
-        border: "1px solid #EEEFEF",
-        borderRadius: 8,
+        height: "var(--control-lg)",
+        padding: "0 12px",
+        gap: "var(--space-4)",
+        background: "var(--surface-input)",
+        border: "1px solid var(--line-inner-white)",
+        borderRadius: "var(--radius-control)",
         flexShrink: 0,
+        ...(focused
+          ? { outline: "2px solid var(--dot-active)", outlineOffset: 2 }
+          : {}),
       }}
     >
-      <Search size={15} strokeWidth={2} color="#929BA3" />
+      <Search size={14} strokeWidth={1.75} color="var(--ink-tertiary)" />
       <input
         autoFocus
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search Properties"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder="Search properties"
         style={{
           flex: 1,
+          minWidth: 0,
           background: "transparent",
           border: "none",
           outline: "none",
-          fontSize: 16,
-          lineHeight: "19px",
-          color: "#111827",
+          fontSize: "var(--type-body)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-primary)",
           fontFamily: "inherit",
         }}
       />
@@ -274,19 +226,25 @@ function List({
           flex: 1,
           minHeight: 0,
           padding: 24,
-          fontSize: 14,
-          lineHeight: "17px",
-          color: "#6B7280",
+          fontSize: "var(--type-body)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-secondary)",
           textAlign: "center",
           gap: 4,
         }}
       >
-        <span style={{ fontSize: 15, fontWeight: 500, color: "#111827" }}>
+        <span
+          style={{
+            fontSize: "var(--type-body)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--ink-primary)",
+          }}
+        >
           No properties match
         </span>
         <span>
           {emptyQuery
-            ? "Add a property in the Properties workspace."
+            ? "Add a property in Properties."
             : "Try a different name, code, or city."}
         </span>
       </div>
@@ -298,19 +256,8 @@ function List({
       className="flex flex-col overflow-y-auto scroll-thin"
       style={{ flex: 1, minHeight: 0 }}
     >
-      {properties.map((p, i) => (
-        <div key={p.id} className="flex flex-col" style={{ flexShrink: 0 }}>
-          <PropertyRow property={p} onPick={() => onPick(p.id)} />
-          {i < properties.length - 1 && (
-            <div
-              style={{
-                width: "100%",
-                height: 0,
-                borderTop: "1px solid #F3F4F6",
-              }}
-            />
-          )}
-        </div>
+      {properties.map((p) => (
+        <PropertyRow key={p.id} property={p} onPick={() => onPick(p.id)} />
       ))}
     </div>
   );
@@ -330,34 +277,40 @@ function PropertyRow({
       onClick={onPick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="flex flex-row justify-between items-center text-left"
+      className="list-row flex flex-row justify-between items-center text-left shrink-0"
       style={{
         width: "100%",
-        height: 74,
-        padding: 16,
-        background: hover ? "#F8FAFC" : "transparent",
-        border: "none",
+        height: "var(--row-lg)",
+        padding: "0 8px",
+        gap: "var(--space-5)",
+        /* The one listing-row hover: lift to white on a hairline, no fill
+         * change loud enough to flash. Resting border is transparent so the row
+         * does not shift under the pointer. */
+        background: hover ? "#FFFFFF" : "transparent",
+        border: hover
+          ? "1px solid var(--line-row-hover)"
+          : "1px solid transparent",
+        boxShadow: hover ? "var(--shadow-chip)" : "none",
+        borderRadius: "var(--radius-row)",
         cursor: "pointer",
-        transition: "background 140ms ease",
+        transition: "background 140ms ease, border-color 140ms ease",
         fontFamily: "inherit",
       }}
     >
-      <div className="flex flex-col" style={{ gap: 6, minWidth: 0 }}>
+      <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
         <span
-          style={{
-            fontSize: 16,
-            lineHeight: "19px",
-            fontWeight: 600,
-            color: "#111827",
-          }}
+          className="t-title truncate"
+          style={{ color: "var(--ink-primary)" }}
         >
           {property.shortAddress}
         </span>
         <span
+          className="truncate"
           style={{
-            fontSize: 14,
-            lineHeight: "17px",
-            color: "#818893",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-meta)",
+            color: "var(--ink-tertiary)",
           }}
         >
           {property.code} · {property.cityState}
@@ -366,28 +319,20 @@ function PropertyRow({
 
       <div
         className="flex flex-col items-end"
-        style={{ gap: 6, flexShrink: 0 }}
+        style={{ gap: 4, flexShrink: 0 }}
       >
+        <StatusChip status={property.state} />
         <span
           style={{
-            fontSize: 12,
-            lineHeight: "14px",
-            color: "#818893",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-meta)",
+            color: "var(--ink-tertiary)",
             textAlign: "right",
+            whiteSpace: "nowrap",
           }}
         >
-          Last closed {property.lastClosed}
-        </span>
-        <span
-          style={{
-            fontSize: 14,
-            lineHeight: "17px",
-            fontWeight: 600,
-            color: "#111827",
-            textAlign: "right",
-          }}
-        >
-          {statusLabel(property.status)}
+          {property.meta} · Last closed {property.lastClosed}
         </span>
       </div>
     </button>

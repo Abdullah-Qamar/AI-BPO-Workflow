@@ -6,7 +6,7 @@
  *   • Bank statement (PDF/CSV from the bank)
  *   • Yardi ledger export (CSV/XLSX from the tenant)
  *
- * The two slots are connected by a thin dashed wire that mirrors the
+ * The two slots are connected by a thin solid wire that mirrors the
  * post-upload pair-card's wire connector — the metaphor stays consistent
  * from "needs to come together" through "is together". */
 
@@ -39,28 +39,14 @@ export function BankUploadList({
       <div
         className="flex flex-row items-center"
         style={{
-          padding: "14px 20px",
-          borderBottom: "1px solid var(--line)",
+          padding: "8px 16px",
+          borderBottom: "1px solid var(--line-hair)",
         }}
       >
-        <span
-          className="flex-1"
-          style={{
-            fontSize: 14,
-            lineHeight: "17px",
-            color: "var(--text-1)",
-          }}
-        >
-          Or upload by bank
-        </span>
-        <span
-          style={{
-            fontSize: 12,
-            lineHeight: "14px",
-            color: "var(--text-2)",
-          }}
-        >
-          {filledSlots} of {totalSlots} files · {banks.length} banks
+        <span className="flex-1 t-body ink-primary">Or upload by account</span>
+        <span className="nums t-meta ink-tertiary">
+          {filledSlots} of {totalSlots} files · {banks.length}{" "}
+          {banks.length === 1 ? "account" : "accounts"}
         </span>
       </div>
 
@@ -96,9 +82,9 @@ function BankSlotRow({
       className="flex flex-col"
       style={{
         width: "100%",
-        padding: "16px 20px",
+        padding: "12px 16px",
         gap: 12,
-        borderBottom: isLast ? "none" : "1px solid var(--line)",
+        borderBottom: isLast ? "none" : "1px solid var(--line-hair)",
       }}
     >
       {/* Identity row */}
@@ -119,26 +105,13 @@ function BankSlotRow({
           />
         </div>
         <div className="flex flex-col flex-1 min-w-0" style={{ gap: 2 }}>
-          <div
-            className="truncate"
-            style={{
-              fontSize: 15,
-              lineHeight: "18px",
-              color: "var(--text-1)",
-            }}
-          >
+          <div className="truncate t-body ink-primary">
             {bank.name}{" "}
-            <span style={{ color: "var(--text-2)" }}>· {bank.type}</span>
+            <span className="ink-tertiary">· {bank.type}</span>
           </div>
-          <div
-            className="truncate"
-            style={{
-              fontSize: 12,
-              lineHeight: "14px",
-              color: "var(--text-2)",
-            }}
-          >
-            {formatAccount(bank.accountNumber)} · {bank.ledgerCashAccount}
+          <div className="truncate t-meta ink-tertiary">
+            <span className="nums">{formatAccount(bank.accountNumber)}</span> ·{" "}
+            {bank.ledgerCashAccount}
           </div>
         </div>
         <SlotProgress filled={filled} />
@@ -170,7 +143,9 @@ function BankSlotRow({
 }
 
 function SlotProgress({ filled }: { filled: 0 | 1 | 2 }) {
-  // Two dots that fill as slots complete; small numeric counter on the right.
+  /* Two dots that fill as slots complete; small numeric counter on the right.
+   * The pair is a status: half-filled is in flight, both filled is done, and
+   * an unfilled dot is an absence rather than an event, so it takes --line. */
   const dot = (i: number) => ({
     width: 6,
     height: 6,
@@ -178,9 +153,9 @@ function SlotProgress({ filled }: { filled: 0 | 1 | 2 }) {
     background:
       i < filled
         ? filled === 2
-          ? "#1EFF00"
-          : "#001AFF"
-        : "#DDDFE6",
+          ? "var(--status-ok)"
+          : "var(--status-info)"
+        : "var(--line)",
   });
   return (
     <div className="flex items-center shrink-0" style={{ gap: 8 }}>
@@ -188,16 +163,7 @@ function SlotProgress({ filled }: { filled: 0 | 1 | 2 }) {
         <span style={dot(0)} />
         <span style={dot(1)} />
       </span>
-      <span
-        style={{
-          fontSize: 11,
-          lineHeight: "14px",
-          color: "var(--text-2)",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {filled} of 2
-      </span>
+      <span className="nums t-meta ink-tertiary">{filled} of 2</span>
     </div>
   );
 }

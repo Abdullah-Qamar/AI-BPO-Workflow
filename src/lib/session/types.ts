@@ -14,7 +14,12 @@ export type RunState =
   | "reconciling"
   | "review"
   | "updating-yardi"
-  | "complete";
+  | "complete"
+  /* The run broke and stopped. Reached by opening a session the seed records
+   * as failed — before this existed, opening one showed an empty upload canvas
+   * identical to a session that had never been started, so the app contradicted
+   * the "Failed" badge the row it was opened from was wearing. */
+  | "failed";
 
 export type BankStage =
   | "empty"             // no files uploaded yet
@@ -37,9 +42,16 @@ export interface BankRuntime {
   comparingProgress: number;     // 0..1 during `comparing`
   /* approvedCount / exceptionCount populate during the `reconciled` step;
    * the actual record content lives in the seed (reconciledRecords) and is
-   * joined in by selectors so we don't duplicate it. */
+   * joined in by selectors so we don't duplicate it. They are LIVE counts:
+   * reviewer decisions (moveRecord) adjust them, so bank rows and the
+   * summary band track the review as it happens. */
   approvedCount: number;
   exceptionCount: number;
+  /* The agent's original verdict, frozen at `reconciled`. "Settled on its
+   * own" is a claim about the agent, not about where the review ended up —
+   * it must not improve because a human approved the leftovers. */
+  agentApprovedCount: number;
+  agentExceptionCount: number;
   reviewed: boolean;
 }
 
@@ -52,6 +64,14 @@ export interface SessionState {
   activeAgent: ActiveAgent;
   activeBankId: string | null;
   reviewOpenBankId: string | null;
+  /* Why the run failed. Only set when runState is "failed". */
+  failureNote?: string;
+  /* Reviewer decisions, keyed by record id. They live here — not in the
+   * review surface's component state — because the drawer unmounts on close
+   * and a decision that evaporates when the drawer does is not a decision.
+   * Only deviations from the seeded status are stored. */
+  recordStatusOverrides: Record<string, "approved" | "flagged">;
+  recordComments: Record<string, string>;
 }
 
 export type SessionAction =
@@ -72,5 +92,16 @@ export type SessionAction =
   | { type: "openReview"; bankId: string }
   | { type: "closeReview" }
   | { type: "markBankReviewed"; bankId: string }
+  /* Reviewer moved one record between buckets during review. */
+  | {
+      type: "moveRecord";
+      recordId: string;
+      bankId: string;
+      to: "approved" | "flagged";
+    }
+  /* Reviewer note on a record. Empty/undefined text clears it. */
+  | { type: "setRecordComment"; recordId: string; text?: string }
   | { type: "startYardiUpdate" }
-  | { type: "startNextCycle" };
+  | { type: "startNextCycle" }
+  /* Clears a failed run back to draft so the files can be re-uploaded. */
+  | { type: "retryRun" };

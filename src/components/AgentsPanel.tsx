@@ -1,38 +1,51 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import {
   ArrowRight,
+  Check,
   ChevronDown,
   ChevronRight,
   Download,
   FileText,
   Landmark,
   RotateCcw,
-  SquareChevronLeft,
-  SquareChevronRight,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
+import { Button, IconButton } from "./ui/Button";
+import { Tooltip } from "./ui/Tooltip";
 import { ConfirmPopoverButton } from "./ui/ConfirmPopoverButton";
 import {
+  STATUS_META,
   agents as seedAgents,
+  bankCountsForSession,
+  getBankMeta,
   type AgentAction,
   type AgentArtifact,
   type AgentFile,
   type AgentInsight,
   type AgentSectionData,
+  type AgentSignoff,
   type AgentStatusLine,
   type BankProgressRow,
   type DotState,
-  type StatusRun,
+  type PropertyBank,
+  type PropertyRecord,
+  type PropertySession,
+  type RecordItem,
+  type StatusKey,
   type StatusTone,
 } from "@/lib/seed";
 import { useSession } from "@/lib/session/SessionProvider";
 import {
+  allBanksReviewed,
+  totalAgentApproved,
   totalApproved,
   totalExceptions,
 } from "@/lib/session/reducer";
-import type { RunState } from "@/lib/session/types";
+import type { SessionState } from "@/lib/session/types";
 import { DotGridAvatar, type DotGridPattern } from "./DotGridAvatar";
 import { KnowledgePanel } from "./KnowledgePanel";
 
@@ -55,13 +68,55 @@ const AGENT_VISUAL: Record<
   summary: { pattern: "summary" },
 };
 
+/* Leading dot on a timeline line. These are MARKS, so they come off the mark
+ * aliases rather than the inks: `neutral` stays deliberately grey because a
+ * cleanly-completed step is not an "ok" event worth colouring, only a step
+ * that has happened. */
 const DOT_COLOR: Record<DotState, string> = {
-  pending: "#DDDFE6",
-  neutral: "#A8A9AD",
-  failed: "#FF0000",
+  pending: "var(--line)",
+  neutral: "var(--ink-tertiary)",
+  failed: "var(--status-danger)",
 };
 
 type Tab = "agents" | "knowledge";
+
+/* Identity colour per agent — which one, never how it is doing. */
+const AGENT_IDENTITY: Record<DerivedAgent["id"], string> = {
+  intake: "var(--agent-intake)",
+  reconciliation: "var(--agent-reconciliation)",
+  summary: "var(--agent-summary)",
+};
+
+/* ---------- Derived shapes ----------
+ *
+ * The panel renders the seed's agent shape but never its numbers: every count
+ * below is interpolated from the live session. Two fields are carried that the
+ * seed type has no room for, both optional so a seed value still satisfies the
+ * type:
+ *
+ *   statusKey  — which STATUS_META row the agent's sub-line names. Only set
+ *                where the lifecycle alone would say the wrong thing, i.e. a
+ *                run that stopped.
+ *   bankId /
+ *   reviewed   — a per-account progress row's link back to the account it
+ *                counts, so the row can open the review filtered to it. */
+type ReconBankRow = BankProgressRow & {
+  bankId?: string;
+  reviewed?: boolean;
+  /* Held apart from the name so the name is what truncates. A masked account
+   * number cut off mid-mask identifies nothing. */
+  account?: string;
+};
+
+type DerivedLine = Omit<AgentStatusLine, "bankRows"> & {
+  bankRows?: ReconBankRow[];
+};
+
+type DerivedAgent = Omit<AgentSectionData, "timeline" | "collapsedLine"> & {
+  statusKey?: StatusKey;
+  timeline: DerivedLine[];
+  collapsedLine?: DerivedLine;
+};
 
 export function AgentsPanel({
   collapsed = false,
@@ -70,74 +125,33 @@ export function AgentsPanel({
 }: {
   collapsed?: boolean;
   onToggle?: () => void;
-  /* Called when the user clicks Summary's "Review N records" inspect CTA.
-   * The host (page.tsx) responds by swapping the canvas to ReviewCanvas. */
+  /* Called when the user clicks Summary's "Review N records" inspect CTA, or
+   * one of Reconciliation's per-account rows. The host (page.tsx) responds by
+   * swapping the canvas to ReviewCanvas. */
   onInspect?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("agents");
 
-  if (collapsed) {
-    return (
-      <aside
-        className="flex flex-col items-start shrink-0"
-        style={{
-          /* Collapsed sliver — the collapse button is the only content, so
-           * the aside can hug it. Same surface as the expanded panel. */
-          position: "sticky",
-          top: 12,
-          alignSelf: "flex-start",
-          maxHeight: "calc(100vh - 24px)",
-          margin: "12px 12px 12px 0",
-          width: 68,
-          padding: "20px 12px",
-          gap: 16,
-          background: "var(--surface-card)",
-          borderRadius: 20,
-          boxShadow: "var(--shadow-card)",
-          transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
-        }}
-      >
-        <button
-          onClick={onToggle}
-          className="flex items-center justify-center transition"
-          style={{
-            width: 36,
-            height: 36,
-            padding: 8,
-            borderRadius: 8,
-            background: "transparent",
-            border: "1px solid transparent",
-            color: "var(--text-1)",
-            cursor: "pointer",
-          }}
-          aria-label="Expand agents"
-          title="Expand agents"
-        >
-          <SquareChevronLeft size={20} strokeWidth={2} />
-        </button>
-      </aside>
-    );
-  }
+  if (collapsed) return <CollapsedAgentsRail onToggle={onToggle} />;
 
   return (
     <aside
       className="flex flex-col items-stretch shrink-0 relative overflow-hidden"
       style={{
-        /* White single-surface panel. Height hugs content (via max-height,
-         * not fixed height) so short states — like the idle three-agent view
-         * — don't render a large empty rectangle beneath the last agent.
-         * When content exceeds the viewport, the inner scroll container
-         * takes over and the outer stays clamped at the viewport height. */
+        /* White single-surface panel. Full viewport height with a matching
+         * 12 px gap on top, right, and bottom; butts flush to MainCanvas on
+         * the left. Inner scroll container handles overflow when the agent
+         * list runs long. */
         position: "sticky",
         top: 12,
         alignSelf: "flex-start",
-        maxHeight: "calc(100vh - 24px)",
+        height: "calc(100vh - 24px)",
         margin: "12px 12px 12px 0",
-        width: 400,
+        width: 360,
         padding: "20px 16px 20px 20px",
         gap: 16,
         background: "var(--surface-card)",
-        borderRadius: 20,
+        borderRadius: "var(--radius-panel)",
         boxShadow: "var(--shadow-card)",
         transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
       }}
@@ -154,36 +168,16 @@ export function AgentsPanel({
          * same top-right pin regardless of what renders in the header row
          * (tab strip, empty, error, whatever). Previously nested in a flex
          * row and drifted when the row grew. */}
-        <button
-          onClick={onToggle}
-          className="flex items-center justify-center transition"
-          style={{
-            position: "absolute",
-            top: 14,
-            right: 14,
-            width: 28,
-            height: 28,
-            padding: 4,
-            borderRadius: 8,
-            background: "transparent",
-            border: "1px solid transparent",
-            color: "var(--text-2)",
-            cursor: "pointer",
-            zIndex: 5,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.7)";
-            e.currentTarget.style.borderColor = "rgba(157,179,197,0.35)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.borderColor = "transparent";
-          }}
-          aria-label="Collapse agents"
-          title="Collapse agents"
-        >
-          <SquareChevronRight size={18} strokeWidth={1.75} />
-        </button>
+        <div style={{ position: "absolute", top: 12, right: 12, zIndex: 5 }}>
+          <IconButton
+            variant="ghost"
+            size="md"
+            onClick={onToggle}
+            ariaLabel="Collapse agents"
+          >
+            <PanelRightClose size={16} strokeWidth={1.5} />
+          </IconButton>
+        </div>
 
         {/* Header row — tab strip only. Leaves 32 px of clearance for the
          * pinned chevron on the right. */}
@@ -195,10 +189,25 @@ export function AgentsPanel({
         </div>
 
         {/* Scrollable body so the CTAs at the bottom of Summary don't push
-         * the whole panel taller than the viewport. */}
+         * the whole panel taller than the viewport.
+         *
+         * The padding and the matching negative margin are for the focus ring,
+         * not for the content: a scroll container clips at its padding box, and
+         * every row in here is full-width, so a 2px ring at 2px offset on the
+         * agent headers and the guidance cards was being sliced off on the left
+         * (and on the top, for whatever sat first). The pair cancels out — the
+         * content column stays exactly where it was — and only the clip
+         * rectangle grows. */}
         <div
           className="flex flex-col items-start flex-1 overflow-y-auto scroll-thin"
-          style={{ width: "100%", minHeight: 0, paddingRight: 4 }}
+          style={{
+            /* Wider than its parent by exactly the padding it gains, so the
+             * content column keeps the width it had. */
+            width: "calc(100% + 8px)",
+            minHeight: 0,
+            padding: "4px 8px 4px 4px",
+            margin: "-4px -4px 0",
+          }}
         >
           {tab === "agents" ? <AgentList onInspect={onInspect} /> : <KnowledgePanel />}
         </div>
@@ -207,68 +216,81 @@ export function AgentsPanel({
   );
 }
 
+/* The app's one tab recipe: --control-md tall, --radius-control, --type-body.
+ * This strip used to be the only one at --type-title in a 35px pill, which is
+ * both off the control scale and a size larger than every other tab in the
+ * app. Spec: docs/design-system/decisions.md §2. */
 function TabRow({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   return (
-    <div
-      className="flex flex-row justify-center items-center"
-      style={{ height: 35 }}
-    >
-      <button
+    <div className="flex flex-row items-center" style={{ gap: 2 }}>
+      <TabButton
+        active={tab === "agents"}
         onClick={() => setTab("agents")}
-        className="flex justify-center items-center"
-        style={{
-          padding: "8px 16px",
-          gap: 10,
-          background:
-            tab === "agents" ? "var(--surface-tab-active)" : "transparent",
-          border: tab === "agents" ? "1px solid #FFFFFF" : "1px solid transparent",
-          boxShadow: tab === "agents" ? "var(--shadow-chip)" : "none",
-          borderRadius: 8,
-          fontSize: 16,
-          lineHeight: "19px",
-          color: tab === "agents" ? "var(--text-1)" : "var(--text-placeholder)",
-          cursor: "pointer",
-        }}
-      >
-        Agents
-      </button>
-      <button
+        label="Agents"
+      />
+      <TabButton
+        active={tab === "knowledge"}
         onClick={() => setTab("knowledge")}
-        className="flex justify-center items-center"
-        style={{
-          padding: "8px 16px",
-          gap: 10,
-          background:
-            tab === "knowledge" ? "var(--surface-tab-active)" : "transparent",
-          border:
-            tab === "knowledge" ? "1px solid #FFFFFF" : "1px solid transparent",
-          boxShadow: tab === "knowledge" ? "var(--shadow-chip)" : "none",
-          borderRadius: 8,
-          fontSize: 16,
-          lineHeight: "19px",
-          color:
-            tab === "knowledge" ? "var(--text-1)" : "var(--text-placeholder)",
-          cursor: "pointer",
-        }}
-      >
-        Knowledge
-      </button>
+        label="Knowledge"
+      />
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex justify-center items-center transition"
+      style={{
+        height: "var(--control-md)",
+        padding: "0 12px",
+        background: active ? "var(--surface-tab-active)" : "transparent",
+        border: active ? "1px solid #FFFFFF" : "1px solid transparent",
+        boxShadow: active ? "var(--shadow-chip)" : "none",
+        borderRadius: "var(--radius-control)",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        letterSpacing: "var(--tracking-body)",
+        fontWeight: active ? "var(--weight-medium)" : "var(--weight-regular)",
+        color: active ? "var(--ink-primary)" : "var(--ink-tertiary)",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
 function AgentList({ onInspect }: { onInspect?: () => void }) {
   /* Live agents derived from session state. The seed's three-agent shape stays
-   * the same — what changes is each agent's lifecycle (idle / working / done)
-   * and what timeline events / counts are surfaced based on the current run
-   * state. The seed's full snapshot becomes the resting state once the cycle
-   * has reached review.
+   * the same — what changes is each agent's lifecycle (idle / working / done /
+   * error) and every figure it quotes, all of which is interpolated from the
+   * open session rather than read off the seed's frozen snapshot.
    *
    * Demo hook: the URL hash `#demo=error` flips Intake into the error state so
-   * the design of that fourth lifecycle branch is observable in the running
-   * app without wiring a real failure path. Set the hash in the address bar
-   * to see it; remove or change it to return to normal behavior. */
-  const { state } = useSession();
+   * the design of that lifecycle branch is observable in the running app
+   * without wiring a real failure path. Set the hash in the address bar to see
+   * it; remove or change it to return to normal behavior. */
+  const {
+    state,
+    property,
+    session,
+    banks,
+    records,
+    retryRun,
+    openReview,
+    markBankReviewed,
+  } = useSession();
   const [demoState, setDemoState] = useState<string>("");
   useEffect(() => {
     const read = () => {
@@ -281,171 +303,255 @@ function AgentList({ onInspect }: { onInspect?: () => void }) {
     window.addEventListener("hashchange", read);
     return () => window.removeEventListener("hashchange", read);
   }, []);
+
   const derived = useMemo(
-    () => deriveAgents(state.runState, state, demoState),
-    [state, demoState]
+    () => deriveAgents({ state, property, session, banks, records, demoState }),
+    [state, property, session, banks, records, demoState]
   );
+
+  /* Records still waiting on a person, counted off the same list the review
+   * canvas renders — so the collapsed badge and the panel's own figures cannot
+   * disagree. */
+  const openCount = useMemo(
+    () => records.filter((r) => r.status === "flagged").length,
+    [records]
+  );
+
+  /* The one place the review flow is entered per account. `openReview` records
+   * which account the review is scoped to, `markBankReviewed` remembers that
+   * the reviewer has been through it, and `onInspect` is what actually swaps
+   * the canvas. */
+  const handleOpenBank = useCallback(
+    (bankId: string) => {
+      openReview(bankId);
+      markBankReviewed(bankId);
+      onInspect?.();
+    },
+    [openReview, markBankReviewed, onInspect]
+  );
+
+  const handleDownload = useCallback(() => {
+    downloadSessionReport({ state, property, session, records });
+  }, [state, property, session, records]);
+
   return (
     <div
       className="flex flex-col items-start"
       style={{ width: "100%", gap: 24 }}
     >
       {derived.map((a) => (
-        <AgentSection key={a.id} data={a} onInspect={onInspect} />
+        <AgentSection
+          key={a.id}
+          data={a}
+          onInspect={onInspect}
+          onOpenBank={handleOpenBank}
+          onRetry={retryRun}
+          onDownload={handleDownload}
+          downloadTitle={`${reportFileName(property, session, state)} · ${
+            records.length
+          } records`}
+        />
       ))}
     </div>
   );
 }
 
-function deriveAgents(
-  runState: RunState,
-  state: ReturnType<typeof useSession>["state"],
-  demoState: string = ""
-): AgentSectionData[] {
+/* ---------- Deriving the three agents from the live session ---------- */
+
+function isReconciledStage(stage: string | undefined): boolean {
+  return stage === "reconciled" || stage === "posting" || stage === "posted";
+}
+
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+function deriveAgents({
+  state,
+  property,
+  session,
+  banks,
+  records,
+  demoState,
+}: {
+  state: SessionState;
+  property: PropertyRecord;
+  session: PropertySession | null;
+  banks: PropertyBank[];
+  records: RecordItem[];
+  demoState: string;
+}): DerivedAgent[] {
   const [intakeSeed, reconSeed, summarySeed] = seedAgents;
+  const bankCount = banks.length;
+
+  const idleRecon = (hint?: string): DerivedAgent => ({
+    ...reconSeed,
+    state: "idle",
+    idleHint: hint ?? reconSeed.idleHint,
+    collapsedLine: undefined,
+    timeline: [],
+  });
+  const idleSummary = (hint?: string): DerivedAgent => ({
+    ...summarySeed,
+    state: "idle",
+    idleHint: hint ?? summarySeed.idleHint,
+    collapsedLine: undefined,
+    timeline: [],
+    insight: undefined,
+    artifact: undefined,
+    primaryAction: undefined,
+    inspectAction: undefined,
+    secondaryAction: undefined,
+  });
 
   /* Demo hook — visible via URL hash `#demo=error` (or `#demo=intake-error`).
    * Overrides the naturally-derived Intake lifecycle so the error state's
-   * design (red-tinted avatar, red status text, inline error card + Retry
-   * chip) is observable in the running app. Real error handling would be
-   * wired to intake pipeline failures. */
-  const forceIntakeError = demoState === "error" || demoState === "intake-error";
-  const intakeError: AgentSectionData["error"] = {
-    title: "Ledger import stalled",
-    body: "Yardi API returned a 503 while fetching the Wells Fargo ledger. Retrying could resolve if it was a transient outage.",
-    retryLabel: "Retry import",
-  };
-  if (forceIntakeError) {
-    // Short-circuit: return the demo error configuration for Intake and idle
-    // for the other two — the design is what matters here.
+   * design (red-tinted avatar, danger status text, inline error card + Retry)
+   * is observable in the running app. */
+  if (demoState === "error" || demoState === "intake-error") {
     return [
       {
         ...intakeSeed,
         state: "error",
-        error: intakeError,
+        error: {
+          title: "Ledger import stalled",
+          body: "Yardi API returned a 503 while fetching the Wells Fargo ledger. Retrying could resolve if it was a transient outage.",
+          retryLabel: "Retry import",
+        },
         collapsedLine: undefined,
         timeline: [],
       },
-      { ...reconSeed, state: "idle", collapsedLine: undefined, timeline: [] },
+      idleRecon(),
+      idleSummary(),
+    ];
+  }
+
+  const runState = state.runState;
+
+  /* The run broke and stopped. Without this branch a failed session fell
+   * through to the "complete" return and rendered three finished agents with
+   * zero counts, contradicting the Failed badge on the row it was opened
+   * from. */
+  if (runState === "failed") {
+    return [
       {
-        ...summarySeed,
-        state: "idle",
+        ...intakeSeed,
+        state: "error",
+        statusKey: "failed",
+        error: {
+          title: "Run stopped",
+          body:
+            state.failureNote ??
+            "The run stopped before intake could hand off. Nothing was reconciled.",
+          retryLabel: "Retry run",
+        },
         collapsedLine: undefined,
         timeline: [],
-        insight: undefined,
-        artifact: undefined,
-        primaryAction: undefined,
-        inspectAction: undefined,
-        secondaryAction: undefined,
       },
+      /* Not "Waiting": nothing is coming. The run stopped upstream of them. */
+      { ...idleRecon("Did not run"), statusKey: "not-started" },
+      { ...idleSummary("Did not run"), statusKey: "not-started" },
+    ];
+  }
+
+  if (runState === "draft") {
+    return [
+      { ...intakeSeed, state: "idle", collapsedLine: undefined, timeline: [] },
+      idleRecon(),
+      idleSummary(),
     ];
   }
 
   const approved = totalApproved(state);
   const exceptions = totalExceptions(state);
-  const reconciledBankCount = state.bankOrder.filter(
-    (id) =>
-      state.banks[id]?.stage === "reconciled" ||
-      state.banks[id]?.stage === "posting" ||
-      state.banks[id]?.stage === "posted"
-  ).length;
-
-  /* Helper: live recon line replacing the seed's hard-coded "52/16". */
-  const liveReconCounts = (label: string): AgentStatusLine => ({
-    id: "recon-live",
-    runs: [
-      { text: label + " · ", tone: "neutral" as StatusTone },
-      { text: `${approved} approved`, tone: "approved" as StatusTone },
-      { text: " · ", tone: "neutral" as StatusTone },
-      { text: `${exceptions} flagged`, tone: "failed" as StatusTone },
-    ],
-    dotState: "neutral" as DotState,
-  });
-
-  // --- Phase-specific overrides ---
-
-  if (runState === "draft") {
-    return [
-      { ...intakeSeed, state: "idle", collapsedLine: undefined, timeline: [] },
-      { ...reconSeed, state: "idle", collapsedLine: undefined, timeline: [] },
-      {
-        ...summarySeed,
-        state: "idle",
-        collapsedLine: undefined,
-        timeline: [],
-        insight: undefined,
-        artifact: undefined,
-        primaryAction: undefined,
-        inspectAction: undefined,
-        secondaryAction: undefined,
-      },
-    ];
-  }
+  const reconciledBanks = banks.filter((b) =>
+    isReconciledStage(state.banks[b.id]?.stage)
+  );
 
   if (runState === "running") {
+    /* Slim the timeline to what is plausibly known mid-run. */
+    const intakeLines = liveIntakeTimeline(intakeSeed, bankCount);
     return [
       {
         ...intakeSeed,
         state: "working",
-        // Slim the timeline to what's plausibly known mid-run.
-        timeline: intakeSeed.timeline.slice(0, Math.min(4, intakeSeed.timeline.length)),
+        collapsedLine: intakeLines[0],
+        timeline: intakeLines.slice(0, 4),
       },
-      { ...reconSeed, state: "idle", collapsedLine: undefined, timeline: [] },
-      {
-        ...summarySeed,
-        state: "idle",
-        collapsedLine: undefined,
-        timeline: [],
-        insight: undefined,
-        artifact: undefined,
-        primaryAction: undefined,
-        inspectAction: undefined,
-        secondaryAction: undefined,
-      },
+      idleRecon(),
+      idleSummary(),
     ];
   }
 
+  const doneIntake: DerivedAgent = {
+    ...intakeSeed,
+    state: "done",
+    collapsedLine: liveIntakeCollapsed(intakeSeed, bankCount),
+    timeline: liveIntakeTimeline(intakeSeed, bankCount),
+  };
+
   if (runState === "reconciling") {
+    const progressLine: DerivedLine = {
+      id: "recon-live",
+      runs: [
+        {
+          text: `Matching… ${reconciledBanks.length} of ${bankCount} ${plural(
+            bankCount,
+            "account",
+            "accounts"
+          )} · `,
+          tone: "neutral",
+        },
+        { text: `${approved} matched`, tone: "approved" },
+        { text: " · ", tone: "neutral" },
+        { text: `${exceptions} open`, tone: "failed" },
+      ],
+      dotState: "neutral",
+    };
     return [
-      { ...intakeSeed, state: "done" },
+      doneIntake,
       {
         ...reconSeed,
         state: "working",
-        collapsedLine: liveReconCounts(
-          `Matching… ${reconciledBankCount} of ${state.bankOrder.length} banks`
-        ),
+        collapsedLine: progressLine,
         timeline: [
-          reconSeed.timeline[0],
-          liveReconCounts(
-            `Matching… ${reconciledBankCount} of ${state.bankOrder.length} banks`
-          ),
+          {
+            id: "recon-started",
+            runs: [
+              {
+                text: `Reconciling ${bankCount} ${plural(
+                  bankCount,
+                  "account",
+                  "accounts"
+                )}`,
+                tone: "neutral",
+              },
+            ],
+            dotState: "neutral",
+          },
+          progressLine,
         ],
       },
-      {
-        ...summarySeed,
-        state: "idle",
-        collapsedLine: undefined,
-        timeline: [],
-        insight: undefined,
-        artifact: undefined,
-        primaryAction: undefined,
-        inspectAction: undefined,
-        secondaryAction: undefined,
-      },
+      idleSummary(),
     ];
   }
 
+  const doneRecon = withLiveReconTimeline(reconSeed, "done", state, banks);
+  const liveSummary = withLiveSummary(
+    summarySeed,
+    state,
+    property,
+    session,
+    records,
+    bankCount
+  );
+
   if (runState === "review") {
-    /* Post to Yardi has moved into Summary's CTA ladder — Review records is
-     * the dark primary and Post to Yardi renders below as the outline
-     * secondary commit. The canvas header goes quiet (see PhaseCTA's review
-     * branch — a muted "Ready for review" status label) so the two dark
-     * pills no longer compete for the same commit. */
-    return [
-      { ...intakeSeed, state: "done" },
-      withLiveReconTimeline(reconSeed, "done", state),
-      withLiveSummary(summarySeed, state),
-    ];
+    /* Post to Yardi lives in Summary's CTA ladder — Review records is the dark
+     * primary and Post to Yardi renders below as the outline secondary commit.
+     * The canvas header goes quiet (see PhaseCTA's review branch) so the two
+     * dark pills no longer compete for the same commit. */
+    return [doneIntake, doneRecon, liveSummary];
   }
 
   if (runState === "updating-yardi") {
@@ -453,17 +559,21 @@ function deriveAgents(
       (id) => state.banks[id]?.stage === "posted"
     ).length;
     return [
-      { ...intakeSeed, state: "done" },
-      withLiveReconTimeline(reconSeed, "done", state),
+      doneIntake,
+      doneRecon,
       {
-        ...withLiveSummary(summarySeed, state),
+        ...liveSummary,
         state: "working",
         primaryAction: undefined,
         collapsedLine: {
           id: "summary-posting",
           runs: [
             {
-              text: `Posting to Yardi · ${postedCount} of ${state.bankOrder.length} banks`,
+              text: `Posting to Yardi · ${postedCount} of ${bankCount} ${plural(
+                bankCount,
+                "account",
+                "accounts"
+              )}`,
               tone: "neutral" as StatusTone,
             },
           ],
@@ -475,18 +585,22 @@ function deriveAgents(
 
   // complete
   return [
-    { ...intakeSeed, state: "done" },
-    withLiveReconTimeline(reconSeed, "done", state),
+    doneIntake,
+    doneRecon,
     {
-      ...withLiveSummary(summarySeed, state),
+      ...liveSummary,
       primaryAction: undefined,
+      signoff:
+        session && session.finishedOn !== "In progress"
+          ? { by: session.ranBy, at: session.finishedOn }
+          : summarySeed.signoff,
       collapsedLine: {
         id: "summary-complete",
         runs: [
           { text: "Posted · ", tone: "neutral" as StatusTone },
           { text: `${approved} records`, tone: "approved" as StatusTone },
           { text: " posted · ", tone: "neutral" as StatusTone },
-          { text: `${exceptions} flagged`, tone: "failed" as StatusTone },
+          { text: `${exceptions} open`, tone: "failed" as StatusTone },
         ],
         dotState: "neutral" as DotState,
       },
@@ -494,85 +608,153 @@ function deriveAgents(
   ];
 }
 
+/* Intake's timeline, counted off the property's own accounts.
+ *
+ * The seed asserted "8 received, 6 classified, 2 failed, 4 pairs ready", which
+ * cannot all be true at once — six classified files make three pairs, not
+ * four. The pairs are the fixed quantity (two slots per account), so received
+ * is the pairs plus whatever failed to classify, and the arithmetic closes.
+ * Which files failed is real seed content and stays; only the counts move. */
+function liveIntakeTimeline(
+  intakeSeed: AgentSectionData,
+  bankCount: number
+): DerivedLine[] {
+  const chips: AgentFile[] =
+    intakeSeed.timeline.find((l) => l.id === "intake-failed")?.chips ?? [];
+  const classified = bankCount * 2;
+  const received = classified + chips.length;
+  const pairs = `${bankCount} account ${plural(bankCount, "pair", "pairs")}`;
+
+  const lines: DerivedLine[] = [
+    {
+      id: "intake-received",
+      runs: [{ text: `Received · ${received} files`, tone: "neutral" }],
+      dotState: "neutral",
+    },
+    {
+      id: "intake-classified",
+      runs: [
+        {
+          text: `Classified · ${classified} statements and ledgers matched`,
+          tone: "neutral",
+        },
+      ],
+      dotState: "neutral",
+    },
+  ];
+  if (chips.length > 0) {
+    lines.push({
+      id: "intake-failed",
+      runs: [
+        {
+          text: `Could not classify ${chips.length} ${plural(
+            chips.length,
+            "file",
+            "files"
+          )}`,
+          tone: "failed",
+        },
+      ],
+      dotState: "failed",
+      chips,
+    });
+  }
+  lines.push(
+    {
+      id: "intake-yardi",
+      runs: [
+        {
+          text: `Checked ledger totals against Yardi · ${bankCount} of ${bankCount} ${plural(
+            bankCount,
+            "account",
+            "accounts"
+          )}`,
+          tone: "neutral",
+        },
+      ],
+      dotState: "neutral",
+    },
+    {
+      id: "intake-normalized",
+      runs: [{ text: `Normalized · ${pairs} ready`, tone: "neutral" }],
+      dotState: "neutral",
+    },
+    {
+      id: "intake-handoff",
+      runs: [{ text: "Handed off to Reconciliation", tone: "neutral" }],
+      dotState: "neutral",
+    }
+  );
+  return lines;
+}
+
+function liveIntakeCollapsed(
+  intakeSeed: AgentSectionData,
+  bankCount: number
+): DerivedLine {
+  const chips: AgentFile[] =
+    intakeSeed.timeline.find((l) => l.id === "intake-failed")?.chips ?? [];
+  const pairs = `${bankCount} account ${plural(bankCount, "pair", "pairs")}`;
+  const runs: DerivedLine["runs"] = [
+    { text: `Handed off · ${pairs}`, tone: "neutral" },
+  ];
+  if (chips.length > 0) {
+    runs.push(
+      { text: " · ", tone: "neutral" },
+      /* "Unclassified", not "flagged". A flagged EXCEPTION is a record the
+       * agent could not settle; these are files it could not identify at all,
+       * which is a different failure and happens a stage earlier. */
+      {
+        text: `${chips.length} ${
+          chips.length === 1 ? "file" : "files"
+        } unclassified`,
+        tone: "failed",
+      }
+    );
+  }
+  return { id: "intake-collapsed", runs, dotState: "neutral", chips };
+}
+
 /* For the Reconciliation agent: replace the seed's static timeline & counts
- * with values derived from the live session — only the banks that actually
+ * with values derived from the live session — only the accounts that actually
  * went through reconciliation appear in the bankRows strip, and the headline
- * counts mirror the canvas banner. */
+ * counts mirror the canvas banner.
+ *
+ * The account rows used to come from a hardcoded map of 1849 Westlake's four
+ * accounts, so every other property in the portfolio reconciled zero rows. */
 function withLiveReconTimeline(
   reconSeed: AgentSectionData,
   agentState: AgentSectionData["state"],
-  state: ReturnType<typeof useSession>["state"]
-): AgentSectionData {
-  const reconciledIds = state.bankOrder.filter((id) => {
-    const stage = state.banks[id]?.stage;
-    return stage === "reconciled" || stage === "posting" || stage === "posted";
-  });
+  state: SessionState,
+  banks: PropertyBank[]
+): DerivedAgent {
   const approved = totalApproved(state);
   const exceptions = totalExceptions(state);
   const total = approved + exceptions;
+  const expected = bankCountsForSession(state.selectedSessionId);
 
-  // Bank rows ⇄ session bank ids. Mapping inferred from seed-shortName tokens.
-  const bankRowFor = (bankId: string): BankProgressRow | null => {
-    const meta: Record<string, { logoSrc: string; shortName: string }> = {
-      "bank-chase-op": {
-        logoSrc: "/logos/chase.png",
-        shortName: "Chase Operating ******3421",
-      },
-      "bank-wells-sd": {
-        logoSrc: "/logos/wells-fargo.png",
-        shortName: "Wells Fargo SD ******7782",
-      },
-      "bank-boa-res": {
-        logoSrc: "/logos/boa.png",
-        shortName: "BoA Reserves ******9034",
-      },
-      "bank-chase-escrow": {
-        logoSrc: "/logos/chase.png",
-        shortName: "Chase Escrow ******8856",
-      },
-    };
-    const m = meta[bankId];
-    if (!m) return null;
-    const bank = state.banks[bankId];
-    const matched = (bank?.approvedCount ?? 0) + (bank?.exceptionCount ?? 0);
-    return {
-      id: `recon-${bankId}`,
-      logoSrc: m.logoSrc,
-      shortName: m.shortName,
-      matched,
-      total: matched,
-    };
-  };
+  const liveBankRows: ReconBankRow[] = banks
+    .filter((b) => isReconciledStage(state.banks[b.id]?.stage))
+    .map((b) => {
+      const meta = getBankMeta(b.id);
+      const runtime = state.banks[b.id];
+      const counted = expected[b.id] ?? { approved: 0, exceptions: 0 };
+      return {
+        id: `recon-${b.id}`,
+        bankId: b.id,
+        logoSrc: meta.logoSrc,
+        shortName: meta.shortName,
+        account: meta.account,
+        /* How much of this account settled, over everything the session's
+         * records say it holds. Matched is live, so the bar fills as a
+         * reviewer works through the open items. */
+        matched: runtime?.approvedCount ?? 0,
+        total: counted.approved + counted.exceptions,
+        reviewed: runtime?.reviewed ?? false,
+      };
+    });
 
-  const liveBankRows = reconciledIds
-    .map(bankRowFor)
-    .filter((r): r is BankProgressRow => !!r);
-
-  const liveTimeline: AgentStatusLine[] = [
-    {
-      id: "recon-started",
-      runs: [
-        {
-          text: `Reconciling ${reconciledIds.length} bank ${
-            reconciledIds.length === 1 ? "account" : "accounts"
-          }`,
-          tone: "neutral" as StatusTone,
-        },
-      ],
-      dotState: "neutral" as DotState,
-    },
-    {
-      id: "recon-matching",
-      runs: [
-        { text: `Matched ${total} transactions · `, tone: "neutral" as StatusTone },
-        { text: `${approved} approved`, tone: "approved" as StatusTone },
-        { text: " · ", tone: "neutral" as StatusTone },
-        { text: `${exceptions} flagged`, tone: "failed" as StatusTone },
-      ],
-      dotState: "neutral" as DotState,
-      bankRows: liveBankRows,
-    },
-  ];
+  const reconciledCount = liveBankRows.length;
 
   return {
     ...reconSeed,
@@ -580,58 +762,530 @@ function withLiveReconTimeline(
     collapsedLine: {
       id: "recon-collapsed",
       runs: [
-        { text: `Reconciled ${total} records · `, tone: "neutral" as StatusTone },
-        { text: `${approved} approved`, tone: "approved" as StatusTone },
-        { text: " · ", tone: "neutral" as StatusTone },
-        { text: `${exceptions} flagged`, tone: "failed" as StatusTone },
+        { text: `Reconciled ${total} records · `, tone: "neutral" },
+        { text: `${approved} matched`, tone: "approved" },
+        { text: " · ", tone: "neutral" },
+        { text: `${exceptions} open`, tone: "failed" },
       ],
-      dotState: "neutral" as DotState,
+      dotState: "neutral",
     },
-    timeline: liveTimeline,
+    timeline: [
+      {
+        id: "recon-started",
+        runs: [
+          {
+            text: `Reconciling ${reconciledCount} ${plural(
+              reconciledCount,
+              "account",
+              "accounts"
+            )}`,
+            tone: "neutral",
+          },
+        ],
+        dotState: "neutral",
+      },
+      {
+        id: "recon-matching",
+        runs: [
+          { text: `Matched ${total} records · `, tone: "neutral" },
+          { text: `${approved} matched`, tone: "approved" },
+          { text: " · ", tone: "neutral" },
+          { text: `${exceptions} open`, tone: "failed" },
+        ],
+        dotState: "neutral",
+        bankRows: liveBankRows,
+      },
+    ],
   };
 }
 
-/* For the Summary agent: keep the seed's insight/artifact/secondary actions
- * (those are static deliverables) but rewrite the headline counts + Post-to-
- * Yardi sublabel to match the live session totals. */
+/* For the Summary agent: the seed's deliverable shape stays, every figure in
+ * it is rewritten from the live session — timeline, insight paragraph, CTA
+ * labels and the Post-to-Yardi sublabel all count the same records. */
 function withLiveSummary(
   summarySeed: AgentSectionData,
-  state: ReturnType<typeof useSession>["state"]
-): AgentSectionData {
+  state: SessionState,
+  property: PropertyRecord,
+  session: PropertySession | null,
+  records: RecordItem[],
+  bankCount: number
+): DerivedAgent {
   const approved = totalApproved(state);
   const exceptions = totalExceptions(state);
   const total = approved + exceptions;
+
   return {
     ...summarySeed,
     state: "done",
     collapsedLine: {
       id: "summary-collapsed",
       runs: [
-        { text: "Ready to post · ", tone: "neutral" as StatusTone },
-        { text: `${approved} approved`, tone: "approved" as StatusTone },
-        { text: " · ", tone: "neutral" as StatusTone },
-        { text: `${exceptions} flagged`, tone: "failed" as StatusTone },
+        { text: "Ready to post · ", tone: "neutral" },
+        { text: `${approved} matched`, tone: "approved" },
+        { text: " · ", tone: "neutral" },
+        { text: `${exceptions} open`, tone: "failed" },
       ],
-      dotState: "neutral" as DotState,
+      dotState: "neutral",
     },
+    timeline: [
+      {
+        id: "summary-compiled",
+        runs: [{ text: "Compiled review summary", tone: "neutral" }],
+        dotState: "neutral",
+      },
+      {
+        id: "summary-verified",
+        runs: [
+          {
+            text: `Verified ${total} target records in Yardi`,
+            tone: "neutral",
+          },
+        ],
+        dotState: "neutral",
+      },
+      {
+        id: "summary-prepared-approved",
+        runs: [
+          { text: "Prepared · ", tone: "neutral" },
+          { text: `${approved} records`, tone: "approved" },
+          { text: " ready to post", tone: "neutral" },
+        ],
+        dotState: "neutral",
+      },
+      {
+        id: "summary-prepared-flagged",
+        runs: [
+          { text: "Prepared · ", tone: "neutral" },
+          { text: `${exceptions} exceptions`, tone: "failed" },
+          { text: " to flag in Yardi", tone: "neutral" },
+        ],
+        dotState: "neutral",
+      },
+      {
+        id: "summary-report",
+        runs: [{ text: "Drafted reconciliation report", tone: "neutral" }],
+        dotState: "neutral",
+      },
+    ],
+    insight: liveInsight(state, property, session, records, bankCount),
+    /* The sign-off is an audit line about a run that has been closed, so it is
+     * withheld until the session actually posts. The complete branch adds it
+     * back with this session's own runner and finish time. */
+    signoff: undefined,
     inspectAction: summarySeed.inspectAction
       ? { ...summarySeed.inspectAction, label: `Review ${total} records` }
       : undefined,
     primaryAction: summarySeed.primaryAction
       ? {
           ...summarySeed.primaryAction,
-          sublabel: `${approved} approved · ${exceptions} flagged`,
+          sublabel: `${approved} matched · ${exceptions} open`,
         }
       : undefined,
   };
 }
 
+/* Summary's read-out. Same three beats the seed authored — what was
+ * reconciled, where the exceptions cluster, how the match rate compares to
+ * last cycle — but each beat is counted off this session's records and this
+ * property's own history rather than quoting 1849 Westlake's May figures at
+ * every property in the portfolio. A beat whose evidence is missing (no
+ * repeated cause, no earlier closed cycle) is dropped rather than guessed. */
+function liveInsight(
+  state: SessionState,
+  property: PropertyRecord,
+  session: PropertySession | null,
+  records: RecordItem[],
+  bankCount: number
+): AgentInsight | undefined {
+  const total = totalApproved(state) + totalExceptions(state);
+  if (total === 0) return undefined;
+
+  /* The agent's own verdict, not the review's running total: this paragraph
+   * describes what the run produced, and it must not improve because a
+   * reviewer approved some of the leftovers. */
+  const agentApproved = totalAgentApproved(state);
+  const agentFlagged = records.filter((r) => r.status === "flagged");
+  const sentences: string[] = [
+    `Reconciled ${total} records across ${bankCount} ${plural(
+      bankCount,
+      "account",
+      "accounts"
+    )}; ${agentApproved} matched on their own and ${
+      agentFlagged.length
+    } are open for review.`,
+  ];
+
+  const byReason = new Map<string, number>();
+  for (const r of agentFlagged) {
+    byReason.set(r.reason, (byReason.get(r.reason) ?? 0) + 1);
+  }
+  let topReason = "";
+  let topCount = 0;
+  for (const [reason, n] of byReason) {
+    if (n > topCount) {
+      topReason = reason;
+      topCount = n;
+    }
+  }
+  if (topCount > 1) {
+    sentences.push(
+      `${topCount} of the ${agentFlagged.length} exceptions share one cause: ${lowerFirst(
+        topReason
+      )}.`
+    );
+  }
+
+  const rate = Math.round((agentApproved / total) * 100);
+  const prior = property.sessions.find(
+    (s) => s.statusKey === "completed" && s.cycle !== (session?.cycle ?? "")
+  );
+  if (prior && prior.records > 0) {
+    const priorRate = Math.round((prior.matched / prior.records) * 100);
+    const delta = rate - priorRate;
+    sentences.push(
+      delta === 0
+        ? `Match rate is ${rate}%, level with ${prior.cycle}.`
+        : `Match rate is ${rate}%, ${Math.abs(delta)} ${plural(
+            Math.abs(delta),
+            "point",
+            "points"
+          )} ${delta < 0 ? "below" : "above"} ${prior.cycle}.`
+    );
+  } else {
+    sentences.push(`Match rate is ${rate}%.`);
+  }
+
+  return { body: sentences.join(" ") };
+}
+
+/* Reasons are authored as sentence fragments starting with a capital ("New fee
+ * code · no mapping in property setup"). Mid-sentence they need the capital
+ * dropped, but only where it is not an initialism or a proper noun. */
+function lowerFirst(s: string): string {
+  if (s.length < 2) return s.toLowerCase();
+  if (s[1] === s[1].toUpperCase() && s[1] !== s[1].toLowerCase()) return s;
+  return s[0].toLowerCase() + s.slice(1);
+}
+
+/* ---------- The report the Download chip actually produces ----------
+ *
+ * The chip used to name a 14-page PDF that no code produced and no click could
+ * reach. There is no PDF: the honest artifact is the session's own record
+ * list, which the app already holds, so the button writes that out as CSV and
+ * says so. */
+
+function reportFileName(
+  property: PropertyRecord,
+  session: PropertySession | null,
+  state: SessionState
+): string {
+  const label = session?.label ?? state.cycle;
+  const slug = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  return `${slug(property.code)}-${slug(label)}-records.csv`;
+}
+
+function csvCell(value: string | number): string {
+  const s = String(value);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadSessionReport({
+  state,
+  property,
+  session,
+  records,
+}: {
+  state: SessionState;
+  property: PropertyRecord;
+  session: PropertySession | null;
+  records: RecordItem[];
+}) {
+  if (typeof document === "undefined") return;
+  const statusOf = (r: RecordItem) =>
+    state.recordStatusOverrides[r.id] ?? r.status;
+  const approved = records.filter((r) => statusOf(r) === "approved").length;
+  const label = session?.label ?? state.cycle;
+
+  const rows: (string | number)[][] = [
+    ["Property", property.shortAddress],
+    ["Property code", property.code],
+    ["Cycle", label],
+    ["Records", records.length],
+    ["Approved", approved],
+    ["Exceptions", records.length - approved],
+    [],
+    ["Date", "Account", "Record", "Amount", "Status", "Confidence", "Reason"],
+    ...records.map((r) => {
+      const meta = getBankMeta(r.bankId);
+      return [
+        r.date,
+        `${meta.shortName} ${meta.account}`,
+        r.title,
+        r.amount.toFixed(2),
+        statusOf(r),
+        r.confidence,
+        state.recordComments[r.id]
+          ? `${r.reason} · reviewer note: ${state.recordComments[r.id]}`
+          : r.reason,
+      ];
+    }),
+  ];
+
+  const csv = rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = reportFileName(property, session, state);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  /* Deferred: revoking in the same tick can cancel the download the click
+   * just started. */
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/* ---------- Collapsed ----------
+ *
+ * The collapsed panel was a 68px full-height white card holding a single
+ * chevron: a tall empty column that read as something which had failed to load
+ * rather than as something deliberately put away.
+ *
+ * It answers the same question the expanded panel answers — how are the agents
+ * doing — in less room. Its own component rather than a branch inside
+ * AgentsPanel, because it needs the session and AgentsPanel does not: a hook
+ * called on one side of a conditional return is the one thing hooks cannot
+ * survive.
+ */
+function CollapsedAgentsRail({ onToggle }: { onToggle?: () => void }) {
+  const { state, property, session, banks, records } = useSession();
+  const derived = useMemo(
+    () => deriveAgents({ state, property, session, banks, records, demoState: "" }),
+    [state, property, session, banks, records]
+  );
+  /* Records still waiting on a person, counted off the same list the review
+   * canvas renders, so the badge and the panel's own figures cannot disagree. */
+  const openCount = useMemo(
+    () => records.filter((r) => r.status === "flagged").length,
+    [records]
+  );
+
+  return (
+    <aside
+      className="flex flex-col items-center shrink-0"
+      aria-label="Agents, collapsed"
+      style={{
+        position: "sticky",
+        top: 12,
+        alignSelf: "flex-start",
+        height: "calc(100vh - 24px)",
+        margin: "12px 12px 12px 0",
+        /* 48, down from 68. A rail of 24px marks needs 48; the extra 20 was
+         * empty on both sides of a single chevron. */
+        width: 48,
+        padding: "var(--space-5) var(--space-4)",
+        gap: "var(--space-5)",
+        background: "var(--surface-card)",
+        borderRadius: "var(--radius-panel)",
+        boxShadow: "var(--shadow-card)",
+        transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
+      }}
+    >
+      <IconButton
+        variant="ghost"
+        size="md"
+        onClick={onToggle}
+        ariaLabel="Expand agents"
+      >
+        <PanelRightOpen size={16} strokeWidth={1.5} />
+      </IconButton>
+
+      <span
+        aria-hidden
+        style={{
+          width: 20,
+          height: 1,
+          background: "var(--line-hair)",
+          flexShrink: 0,
+        }}
+      />
+
+      {derived.map((agent) => (
+        <CollapsedAgentMark
+          key={agent.id}
+          agent={agent}
+          onClick={onToggle}
+        />
+      ))}
+
+      <div className="flex-1" />
+
+      {/* The one figure worth surfacing at 48px: how much is still open. It
+        * is why a reader would reopen the panel at all. */}
+      {openCount > 0 && (
+        <span
+          className="nums inline-flex items-center justify-center shrink-0"
+          /* The app's own hint, not the browser's. A native `title` here drew
+           * the one black OS chip on a light product — the exact thing
+           * ui/Hint exists to have replaced. */
+          data-hint={`${openCount} open ${
+            openCount === 1 ? "record" : "records"
+          }`}
+          data-hint-side="left"
+          style={{
+            minWidth: "var(--control-sm)",
+            height: "var(--control-sm)",
+            padding: "0 6px",
+            borderRadius: 999,
+            background: "var(--status-warn-bg)",
+            color: "var(--status-warn-ink)",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            fontWeight: "var(--weight-medium)",
+          }}
+        >
+          {openCount}
+        </span>
+      )}
+    </aside>
+  );
+}
+
+/* One agent as a 24px mark, for the collapsed rail.
+ *
+ * The dot is the agent's IDENTITY colour and the ring around it is its STATE —
+ * two facts that must not share one channel, which is the mistake the guidance
+ * panel used to make by tinting Summary with the failure red. Idle agents drop
+ * to a hollow ring: nothing has happened for them yet, and an absence should
+ * look like one. */
+function CollapsedAgentMark({
+  agent,
+  onClick,
+}: {
+  agent: DerivedAgent;
+  onClick?: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const identity = AGENT_IDENTITY[agent.id];
+  const idle = agent.state === "idle";
+  const failed = agent.state === "error";
+
+  return (
+    <Tooltip
+      label={`${agent.name} · ${
+        failed
+          ? STATUS_META.failed.label
+          : idle
+          ? "Waiting"
+          : agent.state === "working"
+          ? STATUS_META.active.label
+          : STATUS_META.completed.label
+      }`}
+      side="left"
+      tone={failed ? "danger" : idle ? "neutral" : "success"}
+    >
+      <button
+        onClick={onClick}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        aria-label={`${agent.name}. Expand agents.`}
+        className="flex items-center justify-center shrink-0"
+        style={{
+          width: "var(--control-md)",
+          height: "var(--control-md)",
+          borderRadius: 999,
+          background: hover ? "var(--surface-control)" : "transparent",
+          border: "none",
+          cursor: "pointer",
+          transition: "background 120ms ease",
+        }}
+      >
+        <span
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            background: idle ? "transparent" : failed
+              ? "var(--status-danger)"
+              : identity,
+            border: idle ? "1.5px solid var(--line)" : "none",
+            /* A halo in the state colour, so "which agent" and "how is it
+              * doing" are separable at a glance. */
+            boxShadow: idle
+              ? "none"
+              : `0 0 0 3px ${
+                  failed
+                    ? "var(--status-danger-bg)"
+                    : agent.state === "working"
+                    ? "var(--status-info-bg)"
+                    : "var(--status-ok-bg)"
+                }`,
+          }}
+        />
+      </button>
+    </Tooltip>
+  );
+}
+
+/* ---------- One agent ---------- */
+
+/* Sub-line under an agent's name. Labels come from the one status table, so
+ * this panel cannot call a finished run "Done" while the session row beside it
+ * calls the same run "Completed". */
+function statusLineFor(data: DerivedAgent): { label: string; color: string } {
+  if (data.statusKey) {
+    const tone = STATUS_META[data.statusKey].tone;
+    return {
+      label: STATUS_META[data.statusKey].label,
+      color:
+        tone === "neutral"
+          ? "var(--ink-tertiary)"
+          : `var(--status-${tone}-ink)`,
+    };
+  }
+  switch (data.state) {
+    case "error":
+      /* An agent that broke is Failed, which is the word the status table and
+       * every session row use for the same event. It said "Review" here — the
+       * label for a run waiting on a person — printed in the danger ink, so the
+       * colour and the word named two different states at once. */
+      return {
+        label: STATUS_META.failed.label,
+        color: "var(--status-danger-ink)",
+      };
+    case "idle":
+      return { label: "Waiting", color: "var(--ink-tertiary)" };
+    case "working":
+      return {
+        label: STATUS_META.active.label,
+        color: "var(--status-info-ink)",
+      };
+    default:
+      return {
+        label: STATUS_META.completed.label,
+        color: "var(--ink-secondary)",
+      };
+  }
+}
+
 function AgentSection({
   data,
   onInspect,
+  onOpenBank,
+  onRetry,
+  onDownload,
+  downloadTitle,
 }: {
-  data: AgentSectionData;
+  data: DerivedAgent;
   onInspect?: () => void;
+  onOpenBank?: (bankId: string) => void;
+  onRetry: () => void;
+  onDownload: () => void;
+  downloadTitle: string;
 }) {
   const [expanded, setExpanded] = useState(!!data.defaultExpanded);
   const [hover, setHover] = useState(false);
@@ -639,6 +1293,7 @@ function AgentSection({
   const isIdle = data.state === "idle";
   const isWorking = data.state === "working";
   const isError = data.state === "error";
+  const status = statusLineFor(data);
 
   /* The entire header is a click target when the body has content to toggle
    * — easier ergonomics than the small chevron-in-dot affordance below. */
@@ -668,7 +1323,12 @@ function AgentSection({
         className="flex flex-row items-center text-left transition"
         style={{
           width: "100%",
-          paddingLeft: 2,
+          /* No inset. The avatar is 44 and the gap is 12, so a flush header
+           * puts the agent's name on 56 — the same column the timeline dots,
+           * the insight paragraph and the CTAs below it all indent to. The 2px
+           * that used to be here pushed the name off that axis by exactly
+           * itself. */
+          paddingLeft: 0,
           gap: 12,
           minHeight: 44,
           background: "transparent",
@@ -679,14 +1339,13 @@ function AgentSection({
         <AgentAvatar agentId={data.id} agentState={data.state} />
         <div className="flex flex-col items-start flex-1" style={{ gap: 2 }}>
           <span
+            className="t-title"
             style={{
-              fontSize: 16,
-              lineHeight: "19px",
               color: isIdle
-                ? "var(--text-4)"
+                ? "var(--ink-tertiary)"
                 : isError
-                ? "#A32626"
-                : "var(--text-1)",
+                ? "var(--status-danger-ink)"
+                : "var(--ink-primary)",
             }}
           >
             {data.name}
@@ -694,27 +1353,8 @@ function AgentSection({
           {/* Sub-line under the name — a stable state indicator so the reader
            * knows at a glance what mode each agent is in. Reads regardless of
            * whether the body is expanded/collapsed. */}
-          <span
-            style={{
-              fontSize: 11,
-              lineHeight: "13px",
-              color: isError
-                ? "#A32626"
-                : isIdle
-                ? "var(--text-4)"
-                : isWorking
-                ? "var(--dot-active)"
-                : "var(--text-3)",
-              letterSpacing: "0.02em",
-            }}
-          >
-            {isError
-              ? "Needs attention"
-              : isIdle
-              ? "Waiting"
-              : isWorking
-              ? "Working…"
-              : "Done"}
+          <span className="t-meta" style={{ color: status.color }}>
+            {status.label}
           </span>
         </div>
       </button>
@@ -723,8 +1363,10 @@ function AgentSection({
        * in grey instead of collapsing to a bare header. */}
       {isIdle && data.idleHint && <IdleBody hint={data.idleHint} />}
 
-      {/* Error body — inline error card + Retry chip. */}
-      {isError && data.error && <ErrorBody error={data.error} />}
+      {/* Error body — inline error card + Retry. */}
+      {isError && data.error && (
+        <ErrorBody error={data.error} onRetry={onRetry} />
+      )}
 
       {/* Working / done body. */}
       {!isIdle && !isError && (
@@ -735,6 +1377,7 @@ function AgentSection({
               isWorking={isWorking}
               hover={hover}
               onToggle={() => setExpanded(false)}
+              onOpenBank={onOpenBank}
             />
           ) : (
             data.collapsedLine && (
@@ -747,15 +1390,14 @@ function AgentSection({
             )
           )}
           {/* Deliverable surfaces — only Summary (in its done state) populates
-           * these today. CTA ladder rebuilt:
+           * these today. CTA ladder:
            *   tier 1 — insight paragraph (the read-out)
            *   tier 2 — Review records   (PRIMARY dark pill — first CTA a
            *                              reviewer should reach for)
            *   tier 3 — Post to Yardi    (outline secondary — the terminal
            *                              commit, still visible & one click
            *                              away but doesn't out-shout Review)
-           *   tier 4 — Utility chips    (Rerun · Download PDF as small
-           *                              lifted chips, not underlines) */}
+           *   tier 4 — Utility row      (Rerun · Download report) */}
           {data.insight && <InsightCard insight={data.insight} />}
           {data.inspectAction && (
             <ReviewPrimaryButton
@@ -766,10 +1408,14 @@ function AgentSection({
           {data.primaryAction && (
             <PostToYardiSecondary action={data.primaryAction} />
           )}
+          {data.signoff && <SignoffLine signoff={data.signoff} />}
           {(data.secondaryAction || data.artifact) && (
             <UtilityRow
               secondaryAction={data.secondaryAction}
               artifact={data.artifact}
+              onRetry={onRetry}
+              onDownload={onDownload}
+              downloadTitle={downloadTitle}
             />
           )}
         </>
@@ -780,9 +1426,14 @@ function AgentSection({
 
 /* Error body — sits in the same body column as idle/collapsed lines so the
  * indent aligns. Two-part: a soft red-tinted card with title + explanation,
- * then a Retry chip. Uses --chip-failed tokens so no new color values enter
- * the system. */
-function ErrorBody({ error }: { error: NonNullable<AgentSectionData["error"]> }) {
+ * then a Retry button that actually restarts the run. */
+function ErrorBody({
+  error,
+  onRetry,
+}: {
+  error: NonNullable<AgentSectionData["error"]>;
+  onRetry: () => void;
+}) {
   return (
     <div
       className="flex flex-col items-start"
@@ -792,64 +1443,44 @@ function ErrorBody({ error }: { error: NonNullable<AgentSectionData["error"]> })
         className="flex flex-col items-start"
         style={{
           width: "100%",
-          padding: "10px 12px",
+          padding: "6px 8px",
           gap: 4,
           background: "var(--chip-failed-bg)",
           border: "1px solid var(--chip-failed-border)",
-          borderRadius: 10,
-          boxShadow: "var(--shadow-chip)",
+          borderRadius: "var(--radius-sheet)",
+          boxShadow: "var(--shadow-depth-1)",
         }}
       >
         <span
+          className="t-body"
           style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "#A32626",
-            fontWeight: 500,
+            color: "var(--status-danger-ink)",
+            fontWeight: "var(--weight-medium)",
           }}
         >
           {error.title}
         </span>
-        <span
-          style={{
-            fontSize: 12,
-            lineHeight: "16px",
-            color: "var(--text-2)",
-          }}
-        >
+        <span className="t-prose" style={{ color: "var(--ink-secondary)" }}>
           {error.body}
         </span>
       </div>
-      <button
-        type="button"
-        className="inline-flex items-center transition"
-        style={{
-          height: 30,
-          padding: "0 12px",
-          gap: 6,
-          background: "var(--surface-card-glow)",
-          border: "1px solid #FFFFFF",
-          boxShadow: "var(--shadow-chip)",
-          borderRadius: 999,
-          cursor: "pointer",
-          color: "var(--text-1)",
-          fontSize: 12,
-          lineHeight: "14px",
-        }}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={onRetry}
+        leftIcon={<RotateCcw size={14} strokeWidth={1.75} />}
       >
-        <RotateCcw size={12} strokeWidth={1.75} />
         {error.retryLabel ?? "Retry"}
-      </button>
+      </Button>
     </div>
   );
 }
 
 /* ---------- Body — idle (greyed-out placeholder) ---------- */
 
-/* Idle agents keep the same 42 px indent + leading dot + body column geometry
+/* Idle agents keep the same 56 px indent + leading dot + body column geometry
  * as the working/done states so the panel doesn't reflow when the agent
- * activates. Dot is the lightest grey ("pending"), text uses --text-4 — both
- * say "present but inactive" without competing with active agents. */
+ * activates. */
 function IdleBody({ hint }: { hint: string }) {
   return (
     <div
@@ -869,14 +1500,7 @@ function IdleBody({ hint }: { hint: string }) {
           }}
         />
       </div>
-      <span
-        className="flex-1 truncate"
-        style={{
-          fontSize: 12,
-          lineHeight: "14px",
-          color: "var(--text-4)",
-        }}
-      >
+      <span className="flex-1 truncate t-meta" style={{ color: "var(--ink-tertiary)" }}>
         {hint}
       </span>
     </div>
@@ -898,7 +1522,7 @@ function CollapsedBody({
   hover,
   onToggle,
 }: {
-  line: AgentStatusLine;
+  line: DerivedLine;
   isWorking: boolean;
   hover: boolean;
   onToggle: () => void;
@@ -928,9 +1552,9 @@ function CollapsedBody({
         {line.chips && line.chips.length > 0 && (
           <ChipRow chips={line.chips} />
         )}
-        {/* Per-bank rows are deliberately hidden in collapsed view —
-         * collapsed should stay compact (one summary line). The 4-row
-         * strip shows only when the agent is expanded. */}
+        {/* Per-account rows are deliberately hidden in collapsed view —
+         * collapsed should stay compact (one summary line). The strip shows
+         * only when the agent is expanded. */}
       </div>
     </div>
   );
@@ -943,11 +1567,13 @@ function TimelineBody({
   isWorking,
   hover,
   onToggle,
+  onOpenBank,
 }: {
-  timeline: AgentStatusLine[];
+  timeline: DerivedLine[];
   isWorking: boolean;
   hover: boolean;
   onToggle: () => void;
+  onOpenBank?: (bankId: string) => void;
 }) {
   return (
     <div
@@ -980,7 +1606,7 @@ function TimelineBody({
                 <ChipRow chips={line.chips} />
               )}
               {line.bankRows && line.bankRows.length > 0 && (
-                <BankRowStrip rows={line.bankRows} />
+                <BankRowStrip rows={line.bankRows} onOpenBank={onOpenBank} />
               )}
             </div>
           </div>
@@ -1050,7 +1676,7 @@ function LeadingIndicator({
             borderRadius: 999,
             background: DOT_COLOR[dotState],
             border: "1px solid #FFFFFF",
-            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.08)",
+            boxShadow: "var(--shadow-depth-1)",
             display: "block",
           }}
         />
@@ -1061,10 +1687,10 @@ function LeadingIndicator({
         style={{
           opacity: showChevron ? 1 : 0,
           transition: "opacity 120ms ease",
-          color: "var(--text-1)",
+          color: "var(--ink-primary)",
         }}
       >
-        <Chevron size={14} strokeWidth={1.5} />
+        <Chevron size={14} strokeWidth={1.75} />
       </span>
     </button>
   );
@@ -1078,21 +1704,24 @@ const STATIC_TONE_CLASS: Record<StatusTone, string> = {
 };
 
 /* When shimmer is on, only the NEUTRAL runs pick up the moving-highlight
- * variant. Colored runs (approved blue, unapproved red, failed red) stay
- * static so the inline numerics keep their signal — shimmering them would
- * blur the "41 approved · 16 flagged" read into noise. */
+ * variant. Colored runs stay static so the inline numerics keep their signal —
+ * shimmering them would blur the "196 approved · 8 flagged" read into noise. */
 function StatusText({
   runs,
   shimmer,
 }: {
-  runs: StatusRun[];
+  runs: DerivedLine["runs"];
   shimmer: boolean;
 }) {
   return (
-    <div
-      className="flex flex-row items-center"
-      style={{ width: "100%", minHeight: 14 }}
-    >
+    /* Text flow, not a flex row. The runs are one sentence cut into coloured
+     * pieces, and as flex items with `white-space: pre` they could only ever be
+     * one line — so "Handed off · 4 account pairs · 2 files unclassified" ran
+     * 5px past the 244px column and lost its last letter to the panel's own
+     * overflow, with no ellipsis to say so. Laid out inline they wrap at a
+     * space like any other sentence. `pre-wrap` keeps the spaces the runs carry
+     * around their separators, which is what holds "· " together. */
+    <div style={{ width: "100%", minHeight: 14 }}>
       {runs.map((run, j) => {
         const cls =
           shimmer && run.tone === "neutral"
@@ -1101,12 +1730,8 @@ function StatusText({
         return (
           <span
             key={j}
-            className={cls}
-            style={{
-              fontSize: 12,
-              lineHeight: "14px",
-              whiteSpace: "pre",
-            }}
+            className={`t-meta ${cls}`}
+            style={{ whiteSpace: "pre-wrap" }}
           >
             {run.text}
           </span>
@@ -1116,32 +1741,77 @@ function StatusText({
   );
 }
 
-/* Per-bank progress strip — one row per bank, attached under a status line
- * (currently used by Reconciliation). Each row carries:
+/* Per-account progress strip — one row per account, attached under a status
+ * line (currently used by Reconciliation). Each row carries:
  *   • bank logo (14×14)
  *   • short name + masked account (truncates at column width)
  *   • thin progress bar (matched / total)
- *   • numeric count
- * Reads as a compact parallel-work tracker without inventing new color tokens. */
-function BankRowStrip({ rows }: { rows: BankProgressRow[] }) {
+ *   • numeric count, and a tick once the account has been reviewed
+ *
+ * The row is also the way into the review: it is the only surface that knows
+ * which account a reviewer is about to look at, so it is the one that opens
+ * the review scoped to it. */
+function BankRowStrip({
+  rows,
+  onOpenBank,
+}: {
+  rows: ReconBankRow[];
+  onOpenBank?: (bankId: string) => void;
+}) {
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", gap: 4 }}
+      style={{ width: "100%", gap: 2 }}
     >
       {rows.map((r) => (
-        <BankRow key={r.id} row={r} />
+        <BankRow key={r.id} row={r} onOpenBank={onOpenBank} />
       ))}
     </div>
   );
 }
 
-function BankRow({ row }: { row: BankProgressRow }) {
+function BankRow({
+  row,
+  onOpenBank,
+}: {
+  row: ReconBankRow;
+  onOpenBank?: (bankId: string) => void;
+}) {
+  const [hover, setHover] = useState(false);
   const pct = row.total > 0 ? Math.min(1, row.matched / row.total) : 0;
+  const bankId = row.bankId;
+  const interactive = !!bankId && !!onOpenBank;
+
   return (
-    <div
-      className="flex flex-row items-center"
-      style={{ width: "100%", height: 20, gap: 8 }}
+    <button
+      type="button"
+      disabled={!interactive}
+      onClick={interactive ? () => onOpenBank?.(bankId!) : undefined}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-label={
+        interactive
+          ? `Review ${row.shortName}${row.account ? ` ${row.account}` : ""}`
+          : undefined
+      }
+      data-hint={`${row.shortName}${row.account ? ` ${row.account}` : ""}`}
+      className="flex flex-row items-center text-left transition relative"
+      style={{
+        width: "100%",
+        height: "var(--row-sm)",
+        padding: "0 6px 3px",
+        gap: 8,
+        /* One hover, everywhere: lift to white on a transparent resting
+         * border so nothing shifts. */
+        background: hover && interactive ? "#FFFFFF" : "transparent",
+        border:
+          hover && interactive
+            ? "1px solid var(--line-row-hover)"
+            : "1px solid transparent",
+        boxShadow: hover && interactive ? "var(--shadow-chip)" : "none",
+        borderRadius: "var(--radius-row)",
+        cursor: interactive ? "pointer" : "default",
+      }}
     >
       <div
         className="shrink-0 overflow-hidden"
@@ -1156,48 +1826,69 @@ function BankRow({ row }: { row: BankProgressRow }) {
         />
       </div>
       <span
-        className="flex-1 truncate"
-        style={{
-          fontSize: 12,
-          lineHeight: "14px",
-          color: "var(--text-1)",
-          minWidth: 0,
-        }}
+        className="flex-1 truncate t-meta"
+        style={{ color: "var(--ink-primary)", minWidth: 0 }}
       >
         {row.shortName}
       </span>
-      <div
-        className="shrink-0"
+      {row.account && (
+        <span
+          className="shrink-0 nums t-meta"
+          style={{ color: "var(--ink-tertiary)" }}
+        >
+          {row.account}
+        </span>
+      )}
+      {/* The bar runs along the row's own bottom edge rather than taking a
+       * 48px column of its own. In a 240px column that column was the
+       * difference between "Wells Fargo SD ******7782" and "W…": the account's
+       * name is what the row is for, and the bar says the same thing the
+       * fraction beside it already says. */}
+      <span
+        aria-hidden
         style={{
-          width: 48,
-          height: 3,
+          /* Starts where the name starts, not at the row edge: a rule that ran
+           * the full width would read as table ruling rather than as this
+           * row's meter. */
+          position: "absolute",
+          left: 28,
+          right: 6,
+          bottom: 3,
+          height: 2,
           borderRadius: 2,
-          background: "rgba(48, 59, 69, 0.08)",
+          background: "rgba(48, 59, 69, 0.06)",
           overflow: "hidden",
         }}
       >
-        <div
+        <span
           style={{
+            display: "block",
             width: `${pct * 100}%`,
             height: "100%",
-            background: "var(--text-2)",
+            background: "var(--line)",
             transition: "width 240ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         />
-      </div>
+      </span>
       <span
-        className="shrink-0 tabular-nums"
+        className="shrink-0 nums t-meta"
         style={{
-          fontSize: 12,
-          lineHeight: "14px",
-          color: "var(--text-4)",
+          color: "var(--ink-tertiary)",
           minWidth: 32,
           textAlign: "right",
         }}
       >
         {row.matched}/{row.total}
       </span>
-    </div>
+      {/* Fixed-width gutter so the tick appearing cannot reflow the columns. */}
+      <span
+        className="shrink-0 inline-flex items-center justify-center"
+        style={{ width: 14, height: 14, color: "var(--status-ok)" }}
+        data-hint={row.reviewed ? "Reviewed" : undefined}
+      >
+        {row.reviewed && <Check size={14} strokeWidth={1.75} />}
+      </span>
+    </button>
   );
 }
 
@@ -1214,29 +1905,32 @@ function ChipRow({ chips }: { chips: AgentFile[] }) {
   );
 }
 
+/* A file intake could not classify. Deliberately inert: there is no parsed
+ * content behind it to open or download, so it carries no hover, no cursor and
+ * no click — it is a label naming the file, and looking like a control it is
+ * not would be the worse defect. */
 function FileChip({ file }: { file: AgentFile }) {
   const Icon = file.icon === "file-text" ? FileText : Landmark;
   return (
     <div
       className="flex flex-row items-center flex-1 min-w-0"
       style={{
-        height: 22,
-        padding: "4px 6px",
+        /* Chip height comes off the control scale like every other chip in the
+         * app; 22 was a one-off two pixels below it. */
+        height: "var(--control-sm)",
+        padding: "0 6px",
         gap: 6,
         background: "var(--chip-failed-bg)",
         border: "1px solid var(--chip-failed-border)",
         boxShadow: "var(--shadow-chip)",
-        borderRadius: 6,
+        borderRadius: "var(--radius-control)",
       }}
+      data-hint={file.label}
     >
-      <Icon size={12} strokeWidth={1} color="#7F7F87" />
+      <Icon size={14} strokeWidth={1.75} color="var(--ink-tertiary)" />
       <span
-        className="flex-1 truncate"
-        style={{
-          fontSize: 12,
-          lineHeight: "14px",
-          color: "var(--text-1)",
-        }}
+        className="flex-1 truncate t-meta"
+        style={{ color: "var(--ink-primary)" }}
       >
         {file.label}
       </span>
@@ -1256,34 +1950,40 @@ function AgentAvatar({
   const error = agentState === "error";
   /* Sized up from 26 → 44 so each pattern's silhouette (stars / pulse /
    * summary curve) is clearly readable — at 26 px the fields shrunk faster
-   * than the eye could parse. Spacing / baseRadius / amp are scaled from the
-   * originals by ~1.7× to keep pattern density proportional to canvas size.
+   * than the eye could parse.
    *
    * State palette:
-   *   working — full contrast (#1a1a1a on card surface)
+   *   working — full contrast, motion running
    *   done    — same contrast, motion continues (agents keep breathing)
-   *   idle    — paused at t=0, muted mid-grey
-   *   error   — paused at t=0, muted red so the signature shape holds a
-   *             failed-tone signal even before you read the status line */
-  const dotColor = error
-    ? "#B84545"
-    : idle
-    ? "#A8A9AD"
-    : "#1a1a1a";
+   *   idle    — paused at t=0, muted tertiary ink
+   *   error   — paused at t=0, danger ink so the signature shape holds a
+   *             failed-tone signal even before you read the status line
+   *
+   * The colour is set as this wrapper's `color` rather than passed as a hex:
+   * the canvas resolves its fill from the computed colour, which is what lets
+   * a design token drive artwork. The avatar is keyed by tone because that
+   * resolution happens once per mount. */
+  const tone = error ? "error" : idle ? "idle" : "live";
+  const inkForTone = {
+    error: "var(--status-danger-ink)",
+    idle: "var(--ink-tertiary)",
+    live: "var(--ink-primary)",
+  }[tone];
   return (
     <div
       className="shrink-0 overflow-hidden"
       style={{
         width: 44,
         height: 44,
-        borderRadius: 10,
-        background: error ? "#FFF6F6" : "#F7F8FA",
+        borderRadius: "var(--radius-sheet)",
+        background: error ? "var(--status-danger-bg)" : "var(--surface-card)",
         border: error
-          ? "1px solid rgba(255, 0, 0, 0.18)"
+          ? "1px solid var(--chip-failed-border)"
           : "1px solid transparent",
       }}
     >
       <DotGridAvatar
+        key={tone}
         size={44}
         pattern={visual.pattern}
         paused={idle || error}
@@ -1293,7 +1993,7 @@ function AgentAvatar({
         baseAlpha={idle || error ? 0.2 : 0.26}
         peakAlpha={idle || error ? 0.55 : 1.0}
         edgeFadeFrac={0.09}
-        dotColor={dotColor}
+        style={{ color: inkForTone }}
       />
     </div>
   );
@@ -1301,20 +2001,17 @@ function AgentAvatar({
 
 /* ---------- Summary deliverables ---------- */
 
-/* All three deliverable surfaces share the same 42 px left indent and 16 px
- * right edge so they align with the timeline column above. Each one is single-
- * purpose and visually distinct from the timeline so they don't read as
- * additional status lines. */
+/* All deliverable surfaces share the same 56 px left indent so they align with
+ * the timeline column above. Each one is single-purpose and visually distinct
+ * from the timeline so they don't read as additional status lines. */
 
 /* No chip, no heading — the insight sits as a quiet paragraph in the
  * timeline column. The body itself is the signal; framing it as a "card"
  * was making it compete with the actual CTAs.
  *
- * Sized to read as the headline content for Summary — 40% larger than the
- * other agent body type, with proportional line-height. The status line
- * above stays the count signal; the inspect/primary CTAs below stay the
- * action ladder; this paragraph carries the AI-generated read-out and the
- * type weight reflects that. */
+ * Sized to read as the headline content for Summary — the status line above
+ * stays the count signal, the CTAs below stay the action ladder, and this
+ * paragraph carries the read-out. */
 function InsightCard({ insight }: { insight: AgentInsight }) {
   return (
     <div
@@ -1329,10 +2026,11 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
       <p
         style={{
           margin: 0,
-          fontSize: 18,
-          lineHeight: "25px",
-          color: "var(--text-1)",
-          letterSpacing: "-0.005em",
+          fontSize: "var(--type-title)",
+          lineHeight: "var(--leading-prose)",
+          letterSpacing: "var(--tracking-title)",
+          fontWeight: "var(--weight-regular)",
+          color: "var(--ink-primary)",
         }}
       >
         {insight.body}
@@ -1341,10 +2039,26 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
   );
 }
 
+/* The audit line: who closed this run and when. One line, tertiary ink — it is
+ * a fact to be able to cite later, not something the reviewer acts on, so it
+ * sits below the CTAs rather than competing with them. */
+function SignoffLine({ signoff }: { signoff: AgentSignoff }) {
+  return (
+    <div
+      className="flex flex-row items-center"
+      style={{ width: "100%", paddingLeft: 56, paddingTop: 2 }}
+    >
+      <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
+        Closed by {signoff.by} · {signoff.at}
+      </span>
+    </div>
+  );
+}
+
 /* Review records — PRIMARY CTA in the Summary agent. Dark pill: this is the
  * first action a reviewer should reach for once reconciliation completes.
  * Sits above the outline Post-to-Yardi commit so the ladder reads
- * "review, then commit" left-to-right in the eye's expected order. */
+ * "review, then commit". */
 function ReviewPrimaryButton({
   action,
   onClick,
@@ -1352,49 +2066,21 @@ function ReviewPrimaryButton({
   action: AgentAction;
   onClick?: () => void;
 }) {
-  const [hover, setHover] = useState(false);
   return (
     <div
       className="flex flex-col items-start"
       style={{ width: "100%", paddingLeft: 56 }}
     >
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="md"
+        fullWidth
         onClick={onClick}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        className="flex flex-row items-center justify-between transition"
-        style={{
-          width: "100%",
-          padding: "12px 18px",
-          gap: 10,
-          background: hover
-            ? "var(--action-primary-hover)"
-            : "var(--action-primary)",
-          border: "1px solid var(--action-primary)",
-          borderRadius: 999,
-          cursor: "pointer",
-          color: "var(--action-on-primary)",
-          transition: "background 140ms ease",
-        }}
-        aria-label={action.label}
+        rightIcon={<ArrowRight size={16} strokeWidth={1.5} />}
+        ariaLabel={action.label}
       >
-        <span
-          style={{
-            fontSize: 14,
-            lineHeight: "17px",
-            color: "var(--action-on-primary)",
-          }}
-        >
-          {action.label}
-        </span>
-        <ArrowRight
-          size={16}
-          strokeWidth={1.75}
-          color="var(--action-on-primary)"
-          className="shrink-0"
-        />
-      </button>
+        {action.label}
+      </Button>
     </div>
   );
 }
@@ -1403,7 +2089,11 @@ function ReviewPrimaryButton({
  * surface (matches the ladder) but doesn't out-shout Review records above.
  * Wraps the ConfirmPopoverButton so the "are you sure?" gesture stays. */
 function PostToYardiSecondary({ action }: { action: AgentAction }) {
-  const { startYardiUpdate } = useSession();
+  const { startYardiUpdate, state } = useSession();
+  const reviewedCount = state.bankOrder.filter(
+    (id) => state.banks[id]?.reviewed
+  ).length;
+  const everyAccountReviewed = allBanksReviewed(state);
   return (
     <div
       className="flex flex-col items-start"
@@ -1415,108 +2105,88 @@ function PostToYardiSecondary({ action }: { action: AgentAction }) {
         variant="secondary"
         size="md"
         fullWidth
-        rightIcon={<ArrowRight size={15} strokeWidth={1.75} />}
+        rightIcon={<ArrowRight size={16} strokeWidth={1.5} />}
         confirmTitle="Post approved records to Yardi?"
         confirmBody={
           <>
+            {everyAccountReviewed
+              ? "Every account has been reviewed. "
+              : `${reviewedCount} of ${state.bankOrder.length} accounts reviewed. `}
             You&apos;re committing the approved records and flagging exceptions.
             Posting writes to Yardi and can&apos;t be undone.
           </>
         }
         confirmLabel="Post to Yardi"
         onConfirm={startYardiUpdate}
-        align="left"
+        /* Right, not left: the button is indented 56px into a 360px panel, so
+         * a popover anchored to its left edge runs 36px past the panel and is
+         * clipped by the panel's own overflow. */
+        align="right"
       />
     </div>
   );
 }
 
-/* Utility row — Rerun + Download are now small lifted chips instead of the
- * previous underlined middot-separated text. Chips read as tappable, sit
- * side-by-side, and match the rest of the system's chip vocabulary. Each
- * carries icon + label so the affordance is unambiguous. */
+/* Utility row — the two tertiary actions, on the shared Button primitive at
+ * its smallest size rather than a bespoke chip. Both now do what they say:
+ * Rerun restarts the run behind a confirm, Download writes the session's
+ * records out as a file. */
 function UtilityRow({
   secondaryAction,
   artifact,
+  onRetry,
+  onDownload,
+  downloadTitle,
 }: {
   secondaryAction?: AgentAction;
   artifact?: AgentArtifact;
+  onRetry: () => void;
+  onDownload: () => void;
+  downloadTitle: string;
 }) {
-  const items: {
-    key: string;
-    label: string;
-    title?: string;
-    icon: React.ReactNode;
-  }[] = [];
-  if (secondaryAction) {
-    items.push({
-      key: "rerun",
-      label: secondaryAction.label,
-      icon: <RotateCcw size={12} strokeWidth={1.75} />,
-    });
-  }
-  if (artifact) {
-    items.push({
-      key: "download",
-      label: "Download PDF",
-      title: `${artifact.filename} · ${artifact.meta}`,
-      icon: <Download size={12} strokeWidth={1.75} />,
-    });
-  }
   return (
     <div
       className="flex flex-row items-center"
       style={{ width: "100%", paddingLeft: 56, gap: 8, paddingTop: 2 }}
     >
-      {items.map((it) => (
-        <UtilityChip
-          key={it.key}
-          label={it.label}
-          title={it.title}
-          icon={it.icon}
-        />
-      ))}
+      {/* The seed's artifact is the promise that a report exists; its filename
+       * and "14 pages · 2.3 MB" described a PDF nothing produced, so the
+       * tooltip names the file this button actually writes. */}
+      {artifact && (
+        <span data-hint={downloadTitle} className="shrink-0">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onDownload}
+            leftIcon={<Download size={14} strokeWidth={1.75} />}
+            ariaLabel="Download reconciliation report"
+          >
+            Download report
+          </Button>
+        </span>
+      )}
+      <div className="flex-1" />
+      {secondaryAction && (
+        /* Rerun sits at the row's right edge and its confirm hangs off that
+         * edge: the popover is 320px wide and the panel's content column is
+         * 320px, so anchored anywhere further left it would be cut off by the
+         * panel. The visible label is trimmed to fit the line; the full label
+         * stays as the accessible name and the tooltip. */
+        <span data-hint={secondaryAction.label} className="shrink-0">
+          <ConfirmPopoverButton
+            label="Rerun"
+            variant="secondary"
+            size="sm"
+            leftIcon={<RotateCcw size={14} strokeWidth={1.75} />}
+            confirmTitle={`${secondaryAction.label}?`}
+            confirmBody="Clears this session back to its uploads so it can be run again. Reviewer decisions on the current records are discarded."
+            confirmLabel="Rerun"
+            onConfirm={onRetry}
+            align="right"
+            ariaLabel={secondaryAction.label}
+          />
+        </span>
+      )}
     </div>
   );
 }
-
-function UtilityChip({
-  label,
-  title,
-  icon,
-}: {
-  label: string;
-  title?: string;
-  icon: React.ReactNode;
-}) {
-  const [hover, setHover] = useState(false);
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={label}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="inline-flex items-center transition"
-      style={{
-        height: 28,
-        padding: "0 12px",
-        gap: 6,
-        background: hover ? "#FFFFFF" : "var(--surface-card-glow)",
-        border: hover
-          ? "1px solid rgba(157, 179, 197, 0.4)"
-          : "1px solid rgba(157, 179, 197, 0.28)",
-        borderRadius: 999,
-        cursor: "pointer",
-        color: "var(--text-1)",
-        fontSize: 12,
-        lineHeight: "14px",
-        transition: "background 140ms ease, border-color 140ms ease",
-      }}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-

@@ -7,8 +7,11 @@
  *              Assigned to Reconciliation (the "spiral" per the source assets).
  *   stars    — four star glyphs rotating clockwise around a 2×2 lattice.
  *              Assigned to Intake.
- *   summary  — an epitrochoid (looped cursive scribble) traced by a moving
- *              highlight. Assigned to Summary.
+ *   summary  — a bold ring (shallow 3-lobe loop) with a bright highlight
+ *              orbiting it. Assigned to Summary. The loop is drawn wide and
+ *              thick, with a strong baseline, so it stays legible as a clear
+ *              circle-with-comet even at small (44px) avatar sizes rather than
+ *              collapsing into scattered dots.
  *
  * The wrapper is a plain <div>; the canvas fills it via ResizeObserver so
  * this component composes into any sized slot (24×24 avatar, 480×480 hero,
@@ -52,9 +55,9 @@ const summaryCurve: { samples: Float64Array | null; R: number } = {
 function getSummaryCurve(R: number): Float64Array {
   if (summaryCurve.samples && summaryCurve.R === R) return summaryCurve.samples;
   const N = 220;
-  const rhoMain = 0.42 * R;
-  const rhoD = 0.18 * R;
-  const K = 8;
+  const rhoMain = 0.54 * R;
+  const rhoD = 0.08 * R;
+  const K = 3;
   const arr = new Float64Array(N * 2);
   for (let i = 0; i < N; i++) {
     const th = (2 * Math.PI * i) / N;
@@ -137,10 +140,10 @@ const FIELDS: Record<DotGridPattern, Field> = {
     const tau = (t / T) % 1;
     const samples = getSummaryCurve(R);
     const N = samples.length / 2;
-    const sigma = R * 0.033;
+    const sigma = R * 0.1;
     const inv2s2 = 1 / (2 * sigma * sigma);
     const maxD2 = 16 * sigma * sigma;
-    const baseline = 0.3;
+    const baseline = 0.5;
     const sigmaT = 0.07;
     const inv2t2 = 1 / (2 * sigmaT * sigmaT);
     let g = 0;

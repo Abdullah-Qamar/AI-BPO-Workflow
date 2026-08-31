@@ -12,11 +12,12 @@
  *      files land here, get routed one-by-one to the next empty bank in order,
  *      and the button reflects an in-flight state while the routing plays out.
  *
- *   2. Bank strip — every bank associated with this property, rendered as a
- *      visible informational chip (logo + short name). Not clickable: the
- *      strip is the "what will be filled" preview. If a statement lands
- *      for a bank while the card is still open (e.g. from within an
- *      overlay re-upload), the chip flips to its "filled" tint.
+ *   2. Account strip — every bank account associated with this property,
+ *      rendered as a visible informational chip (logo + short name + masked
+ *      account). Not clickable: the strip is the "what will be filled"
+ *      preview. If a statement lands for an account while the card is still
+ *      open (e.g. from within an overlay re-upload), the chip flips to its
+ *      "filled" tint.
  *
  *   3. File-type microcopy — the small "PDF, CSV, XLSX · 50 MB max" hint.
  *
@@ -27,13 +28,20 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import { Check, UploadCloud, Loader2 } from "lucide-react";
-import type { BankFile, PropertyBank } from "@/lib/seed";
+import { Check, FileUp, Loader2, Upload } from "lucide-react";
+import { getBankMeta, type PropertyBank } from "@/lib/seed";
+import type { BankFile } from "@/lib/seed";
 import { Button } from "./ui/Button";
 
 export interface BankStatementState {
   statement?: BankFile;
 }
+
+/* Soft tints derived from the drag accent. color-mix keeps them tied to
+ * --dot-active, so the drop affordance can never drift away from the stroke
+ * it is meant to belong to. */
+const DRAG_TINT = "color-mix(in srgb, var(--dot-active) 9%, transparent)";
+const DRAG_GLOW = "color-mix(in srgb, var(--dot-active) 8%, transparent)";
 
 export function BulkUploadCard({
   banks,
@@ -47,7 +55,7 @@ export function BulkUploadCard({
   onUploadStatement: (bankId: string) => void;
   onBrowseAll?: () => void;
   /* When true, drop the outer card chrome (surface, shadow, radius). Used
-   * inside the BulkUploadOverlay so the modal's white card is the only
+   * inside the BulkUploadOverlay so the modal's inner sheet is the only
    * elevated surface and the hero content sits flush inside it. */
   flat?: boolean;
 }) {
@@ -88,9 +96,9 @@ export function BulkUploadCard({
   };
 
   const borderColor = drag
-    ? "#001AFF"
+    ? "var(--dot-active)"
     : hover
-    ? "rgba(157, 179, 197, 0.5)"
+    ? "var(--line-row-hover)"
     : "transparent";
 
   return (
@@ -114,7 +122,7 @@ export function BulkUploadCard({
         background: flat ? "transparent" : "var(--surface-card-glow)",
         border: flat
           ? drag
-            ? "1px solid #001AFF"
+            ? "1px solid var(--dot-active)"
             : "1px solid transparent"
           : `1px solid ${borderColor}`,
         boxShadow: flat
@@ -122,7 +130,7 @@ export function BulkUploadCard({
           : drag
           ? "var(--shadow-depth-3)"
           : "var(--shadow-depth-2)",
-        borderRadius: flat ? 0 : 20,
+        borderRadius: flat ? 0 : "var(--radius-panel)",
         position: "relative",
         overflow: "hidden",
       }}
@@ -140,7 +148,7 @@ export function BulkUploadCard({
         }}
       />
       <Hero onBrowse={openPicker} busy={dropping} drag={drag} />
-      <BankStrip banks={banks} uploads={uploads} />
+      <AccountStrip banks={banks} uploads={uploads} />
     </div>
   );
 }
@@ -160,10 +168,10 @@ function Hero({
     ? "Uploading files"
     : "Upload statements and ledgers";
   const helper = drag
-    ? "Release to route each file to its bank"
+    ? "Release to route each file to its account"
     : busy
     ? "Matching each file to the right bank"
-    : "Drop files here or browse — we'll route each one to its bank.";
+    : "Drop files here or browse · we'll route each one to its account.";
 
   return (
     <div
@@ -173,6 +181,11 @@ function Hero({
         padding: "40px 32px 24px",
         gap: 14,
         cursor: busy ? "default" : "pointer",
+        /* Inside, not outside. This target is the full width of the card, and
+         * the card clips its own overflow to keep its corners — so the app's
+         * default 2px ring was drawn beyond the clip and a keyboard user
+         * focusing the largest control on the screen saw nothing at all. */
+        outlineOffset: -2,
       }}
       onClick={busy ? undefined : onBrowse}
       role="button"
@@ -185,57 +198,36 @@ function Hero({
         }
       }}
     >
-      {/* Illustration slot — soft-tinted round tile with a subtle inner glow
-       * that grows on drag. The illustration used to float on transparent
-       * background; framing it inside a tinted circle keeps it visually
+      {/* Illustration slot — soft-tinted tile with a subtle inner glow that
+       * grows on drag. The illustration used to float on transparent
+       * background; framing it inside a tinted tile keeps it visually
        * anchored to the rest of the card. */}
       <div
         className="flex items-center justify-center"
         style={{
           width: 76,
           height: 76,
-          borderRadius: 22,
-          background: drag
-            ? "linear-gradient(180deg, rgba(0,26,255,0.10) 0%, rgba(0,26,255,0.04) 100%)"
-            : "linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(240,244,251,0.7) 100%)",
+          borderRadius: "var(--radius-card)",
+          background: drag ? DRAG_TINT : "var(--surface-card-glow)",
           border: drag
-            ? "1px solid rgba(0,26,255,0.28)"
-            : "1px solid rgba(157, 179, 197, 0.28)",
+            ? "1px solid var(--dot-active)"
+            : "1px solid var(--line-menu)",
           boxShadow: drag
-            ? "0 0 0 6px rgba(0,26,255,0.08), var(--shadow-depth-1)"
+            ? `0 0 0 6px ${DRAG_GLOW}, var(--shadow-depth-1)`
             : "var(--shadow-depth-1)",
+          color: "var(--ink-tertiary)",
           transition:
             "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
         }}
       >
-        <Image
-          src="/icons/upload-document.svg"
-          width={44}
-          height={44}
-          alt=""
-          aria-hidden
-        />
+        {/* Dropzone affordance. On the icon scale at --icon-mark rather than the
+          * old 44px raster, so it sits with every other icon in the app. */}
+        <FileUp size={24} strokeWidth={1.5} aria-hidden />
       </div>
 
       <div className="flex flex-col items-center" style={{ gap: 4 }}>
-        <div
-          style={{
-            fontSize: 18,
-            lineHeight: "22px",
-            color: "var(--text-1)",
-            letterSpacing: "-0.005em",
-          }}
-        >
-          {headline}
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            lineHeight: "17px",
-            color: "var(--text-2)",
-            maxWidth: 440,
-          }}
-        >
+        <div className="t-title ink-primary">{headline}</div>
+        <div className="t-body ink-secondary" style={{ maxWidth: 440 }}>
           {helper}
         </div>
       </div>
@@ -256,13 +248,13 @@ function Hero({
           leftIcon={
             busy ? (
               <Loader2
-                size={15}
+                size={14}
                 strokeWidth={1.75}
                 className="animate-spin"
                 style={{ opacity: 0.85 }}
               />
             ) : (
-              <UploadCloud size={15} strokeWidth={1.75} />
+              <Upload size={14} strokeWidth={1.75} />
             )
           }
         >
@@ -270,26 +262,26 @@ function Hero({
         </Button>
       </span>
 
-      <div
-        style={{
-          marginTop: 2,
-          fontSize: 12,
-          lineHeight: "15px",
-          color: "var(--text-2)",
-          letterSpacing: "0.02em",
-        }}
-      >
+      <div className="t-meta ink-secondary" style={{ marginTop: 2 }}>
         PDF, CSV, XLSX · 50 MB max per file
       </div>
     </div>
   );
 }
 
-/* Bank strip — informational preview of the banks that will receive files
- * once the user drops. Quiet, structural — not the visual centerpiece.
- * Small filled-count on the right helps the user see progress after any
- * partial batch has landed. */
-function BankStrip({
+/* Account strip — informational preview of the accounts that will receive
+ * files once the user drops. Quiet, structural — not the visual centerpiece.
+ * A filled count on the header line helps the user see progress after any
+ * partial batch has landed.
+ *
+ * The layout is a grid capped at two columns rather than a wrapping flex row.
+ * Flex with a 160px basis put three chips on the first line and orphaned the
+ * fourth, and squeezed every label until both the bank name AND the account
+ * number truncated — "Wells Far… ******77…" tells the reader nothing. Two
+ * columns give each chip roughly half the card at any of the widths this
+ * renders at (canvas ~590px, overlay ~740px), and the grid drops to one
+ * column below ~400px so a chip never falls under a readable width. */
+function AccountStrip({
   banks,
   uploads,
 }: {
@@ -311,25 +303,25 @@ function BankStrip({
         className="flex flex-row items-center"
         style={{ width: "100%", gap: 6 }}
       >
-        <span
-          className="tabular-nums"
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "var(--text-1)",
-          }}
-        >
+        <span className="nums t-body ink-primary">
           {filled === 0
-            ? `${banks.length} Associated ${banks.length === 1 ? "Bank" : "Banks"}`
+            ? `${banks.length} associated ${
+                banks.length === 1 ? "account" : "accounts"
+              }`
             : `${filled} of ${banks.length} filled`}
         </span>
       </div>
       <div
-        className="flex flex-row items-stretch"
-        style={{ width: "100%", gap: 6, flexWrap: "wrap" }}
+        style={{
+          width: "100%",
+          display: "grid",
+          gap: "var(--space-3)",
+          gridTemplateColumns:
+            "repeat(auto-fill, minmax(max(200px, calc(50% - var(--space-3))), 1fr))",
+        }}
       >
         {banks.map((b) => (
-          <BankInfoChip
+          <AccountInfoChip
             key={b.id}
             bank={b}
             filled={!!uploads[b.id]?.statement}
@@ -340,7 +332,7 @@ function BankStrip({
   );
 }
 
-function BankInfoChip({
+function AccountInfoChip({
   bank,
   filled,
 }: {
@@ -361,20 +353,22 @@ function BankInfoChip({
     prev.current = filled;
   }, [filled]);
 
+  /* The seed already knows what an account is called — "Chase Op",
+   * "Chase Escrow" — and that label is what distinguishes two accounts at the
+   * same bank. The old local regex table collapsed both to "Chase" and
+   * disagreed with the seed on Bank of America besides. */
+  const label = getBankMeta(bank.id).shortName;
+
   return (
     <div
-      className={`flex items-center ${filled ? "chip-lifted" : ""}`}
+      className={`flex items-center min-w-0 ${filled ? "chip-lifted" : ""}`}
       style={{
-        flex: "1 1 160px",
-        minWidth: 150,
-        height: 32,
-        padding: "0 12px 0 3px",
+        height: "var(--control-lg)",
+        padding: "0 12px 0 4px",
         gap: 8,
-        background: filled ? "#F1FBF3" : "rgba(255,255,255,0.65)",
-        border: `1px solid ${
-          filled ? "rgba(30, 200, 0, 0.35)" : "rgba(157, 179, 197, 0.28)"
-        }`,
-        boxShadow: filled ? "var(--shadow-chip)" : "none",
+        background: filled ? "var(--status-ok-bg)" : "var(--surface-control)",
+        border: "1px solid #FFFFFF",
+        boxShadow: "var(--shadow-chip)",
         borderRadius: 999,
         cursor: "default",
         position: "relative",
@@ -383,23 +377,23 @@ function BankInfoChip({
         transform: justFilled ? "translateY(-1px)" : "translateY(0)",
         animation: justFilled ? "chip-fill-in 500ms cubic-bezier(0.22, 1, 0.36, 1)" : undefined,
       }}
-      title={`${shortBankName(bank.name)} · ${bank.accountNumber}`}
+      data-hint={`${label} · ${bank.accountNumber}`}
     >
       {filled ? (
         <span
           key="filled"
           className="flex items-center justify-center shrink-0 relative"
           style={{
-            width: 22,
-            height: 22,
+            width: "var(--control-sm)",
+            height: "var(--control-sm)",
             borderRadius: 999,
-            background: "#22C55E",
-            border: "1px solid rgba(15, 77, 38, 0.22)",
+            background: "var(--status-ok)",
+            color: "#FFFFFF",
             overflow: "visible",
             animation: "mark-swap 400ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
-          <Check size={13} strokeWidth={2.5} color="#FFFFFF" />
+          <Check size={14} strokeWidth={1.75} />
           {justFilled && <ParticleBurst />}
         </span>
       ) : (
@@ -409,39 +403,31 @@ function BankInfoChip({
         <Image
           key="empty"
           src={bank.logoSrc}
-          width={20}
-          height={20}
+          width={24}
+          height={24}
           alt=""
           className="shrink-0"
-          style={{ objectFit: "contain", width: 20, height: 20 }}
+          style={{ objectFit: "contain", width: 24, height: 24 }}
         />
       )}
-      <div
-        className="flex flex-row items-baseline min-w-0"
-        style={{ gap: 6, flex: 1 }}
+      {/* Name gives up its width first. A half-printed account number is worse
+       * than a half-printed bank name: the number is the thing the reader is
+       * matching a file against. */}
+      <span
+        className="truncate t-body ink-primary"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontWeight: filled
+            ? "var(--weight-medium)"
+            : "var(--weight-regular)",
+        }}
       >
-        <span
-          className="truncate"
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "var(--text-1)",
-            fontWeight: filled ? 500 : 400,
-          }}
-        >
-          {shortBankName(bank.name)}
-        </span>
-        <span
-          className="truncate tabular-nums"
-          style={{
-            fontSize: 12,
-            lineHeight: "15px",
-            color: "var(--text-2)",
-          }}
-        >
-          {bank.accountNumber}
-        </span>
-      </div>
+        {label}
+      </span>
+      <span className="shrink-0 nums t-meta ink-tertiary">
+        {bank.accountNumber}
+      </span>
 
       <style jsx>{`
         @keyframes chip-fill-in {
@@ -493,7 +479,7 @@ function ParticleBurst() {
               width: 4,
               height: 4,
               borderRadius: 999,
-              background: "#22C55E",
+              background: "var(--status-ok)",
               opacity: 0,
               animation: `particle-burst 600ms ${p.delay}ms cubic-bezier(0.22, 1, 0.36, 1) both`,
               transform: "translate(-50%, -50%)",
@@ -521,15 +507,4 @@ function ParticleBurst() {
       `}</style>
     </span>
   );
-}
-
-function shortBankName(full: string): string {
-  const cleaned = full
-    .replace(/,?\s*N\.A\.$/i, "")
-    .replace(/\s+Bank$/i, "")
-    .trim();
-  if (/^JPMorgan Chase/i.test(cleaned)) return "Chase";
-  if (/^Bank of America/i.test(cleaned)) return "BoA";
-  if (/^Wells Fargo/i.test(cleaned)) return "Wells Fargo";
-  return cleaned;
 }

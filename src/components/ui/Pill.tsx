@@ -13,45 +13,50 @@ export type PillTone =
   | "danger"
   | "violet";
 
+/* Tones map onto the semantic status pairs in globals.css rather than carrying
+ * their own hexes. They used to be a seventh palette: this file's "success"
+ * green was #1EFF00 while the Dashboard's was #2FA35F and the upload card's was
+ * #22C55E, all on screen at once. */
 const TONE: Record<
   PillTone,
   { bg: string; border: string; text: string; dot: string }
 > = {
   neutral: {
-    bg: "#F2F4FB",
+    bg: "var(--surface-control)",
     border: "#FFFFFF",
-    text: "var(--text-1)",
-    dot: "#9DB3C5",
+    text: "var(--ink-primary)",
+    dot: "var(--line)",
   },
   info: {
-    bg: "#EAF1FF",
+    bg: "var(--status-info-bg)",
     border: "#FFFFFF",
-    text: "#0033C2",
-    dot: "#001AFF",
+    text: "var(--status-info-ink)",
+    dot: "var(--status-info)",
   },
   success: {
-    bg: "#E8F8EE",
+    bg: "var(--status-ok-bg)",
     border: "#FFFFFF",
-    text: "#0F7A3D",
-    dot: "#1EFF00",
+    text: "var(--status-ok-ink)",
+    dot: "var(--status-ok)",
   },
   warning: {
-    bg: "#FFF6E8",
+    bg: "var(--status-warn-bg)",
     border: "#FFFFFF",
-    text: "#9C5A00",
-    dot: "#FF8A1F",
+    text: "var(--status-warn-ink)",
+    dot: "var(--status-warn)",
   },
   danger: {
-    bg: "#FFF2F2",
-    border: "#FFC0C0",
-    text: "var(--text-1)",
-    dot: "#FF0000",
+    bg: "var(--status-danger-bg)",
+    border: "#FFFFFF",
+    text: "var(--status-danger-ink)",
+    dot: "var(--status-danger)",
   },
+  /* The one tone with no status meaning — used for identity, not state. */
   violet: {
     bg: "#F1EBFF",
     border: "#FFFFFF",
     text: "#4423C2",
-    dot: "#7C4DFF",
+    dot: "var(--agent-summary)",
   },
 };
 
@@ -73,15 +78,15 @@ export function Pill({
     <span
       className="inline-flex items-center"
       style={{
-        height: 22,
+        height: "var(--control-sm)",
         padding: "4px 8px",
         gap: 6,
         background: t.bg,
         border: `1px solid ${t.border}`,
         boxShadow: "var(--shadow-chip)",
         borderRadius: 999,
-        fontSize: 12,
-        lineHeight: "14px",
+        fontSize: "var(--type-meta)",
+        lineHeight: "var(--leading-ui)",
         color: t.text,
         whiteSpace: "nowrap",
         ...style,

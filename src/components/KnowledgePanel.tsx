@@ -10,28 +10,73 @@ import {
   X,
 } from "lucide-react";
 import {
-  activeProperty,
   guidanceEntries as seedGuidance,
   type GuidanceAgent,
   type GuidanceEntry,
 } from "@/lib/seed";
+import { useSession } from "@/lib/session/SessionProvider";
+import { Button } from "./ui/Button";
 
-/* ---- Agent visuals ----
- * Mirrors AGENT_VISUAL in AgentsPanel — three agents, three accent colors
- * matched to the workspace status-dot palette so a glance at an entry's dot
- * tells the reviewer which agent the rule steers. */
+/* ---- Agent identity ----
+ * Which agent a rule steers, not how anything is going. These used to be the
+ * status palette — intake #001AFF (--dot-active), reconciliation #1EFF00
+ * (--dot-complete), summary #FF0000 (--dot-failed) — so a red dot sat beside
+ * "Summary" in a UI where red means failed, and a blue one beside "Intake"
+ * where blue means a run is in flight. Identity and status are kept
+ * structurally apart now. Spec: docs/design-system/decisions.md §4. */
 const AGENT_META: Record<
   GuidanceAgent,
   { label: string; dot: string }
 > = {
-  intake: { label: "Intake", dot: "#001AFF" },
-  reconciliation: { label: "Reconciliation", dot: "#1EFF00" },
-  summary: { label: "Summary", dot: "#FF0000" },
+  intake: { label: "Intake", dot: "var(--agent-intake)" },
+  reconciliation: {
+    label: "Reconciliation",
+    dot: "var(--agent-reconciliation)",
+  },
+  summary: { label: "Summary", dot: "var(--agent-summary)" },
 };
 
 type View = "active" | "archived";
 
-export function KnowledgePanel() {
+/* Rules carry an ISO capture date so they can be sorted; the panel formats it
+ * here. Built from a fixed table rather than `toLocaleDateString` so the
+ * server and the client render the same string. */
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function formatCaptured(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  return `${MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+}
+
+function todayISO(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function KnowledgePanel({
+  /* Opens the record a rule was captured from. The host does not pass this
+   * yet, so the provenance link degrades to plain text rather than offering a
+   * click that goes nowhere. */
+  onOpenRecord,
+}: {
+  onOpenRecord?: (recordId: string) => void;
+} = {}) {
+  const { property, session, state, records } = useSession();
   const [entries, setEntries] = useState<GuidanceEntry[]>(seedGuidance);
   const [view, setView] = useState<View>("active");
   const [composerOpen, setComposerOpen] = useState(false);
@@ -47,8 +92,9 @@ export function KnowledgePanel() {
   );
 
   /* Sort: load-bearing first (applied this cycle desc), then totalApplied,
-   * then by capturedAt (kept lexically rough — the seed labels share a year
-   * scope so this is good enough for the prototype). */
+   * then newest captured. The last step compares ISO dates, which sort
+   * correctly as strings; the pre-formatted labels this used to hold put
+   * "Dec 11" above "Sep 17" whatever year each belonged to. */
   const visible = useMemo(() => {
     const filtered = entries.filter((e) =>
       view === "active" ? !e.archived : e.archived
@@ -57,23 +103,43 @@ export function KnowledgePanel() {
       if (a.appliedThisCycle !== b.appliedThisCycle) {
         return b.appliedThisCycle - a.appliedThisCycle;
       }
-      return b.totalApplied - a.totalApplied;
+      if (a.totalApplied !== b.totalApplied) {
+        return b.totalApplied - a.totalApplied;
+      }
+      return b.capturedOn.localeCompare(a.capturedOn);
     });
   }, [entries, view]);
+
+  const currentSessionLabel = session?.label ?? state.cycle;
 
   function handleAdd(rule: string, agent: GuidanceAgent) {
     const newEntry: GuidanceEntry = {
       id: `g-${Date.now()}`,
       rule,
       agent,
-      capturedAt: "Today",
-      capturedFromSessionLabel: "May 2026",
+      capturedOn: todayISO(),
+      /* Whoever is running this session. Every other rule store names an
+       * author and a rule with none cannot be argued with later. */
+      capturedBy: session?.ranBy ?? property.accountant,
+      /* The run the rule was captured during — the open session, not the
+       * hardcoded cycle the panel used to stamp on every rule regardless of
+       * which session was open. */
+      capturedFromSessionLabel: currentSessionLabel,
       appliedThisCycle: 0,
       totalApplied: 0,
       archived: false,
     };
     setEntries((prev) => [newEntry, ...prev]);
     setComposerOpen(false);
+  }
+
+  /* Rules carry the title of the record they were captured from, not its id —
+   * they outlive the session that produced them. The link is offered only when
+   * that record is actually present in the open session; otherwise the
+   * provenance stays plain text rather than promising a destination. */
+  function recordIdFor(entry: GuidanceEntry): string | undefined {
+    if (!entry.capturedFromRecordTitle) return undefined;
+    return records.find((r) => r.title === entry.capturedFromRecordTitle)?.id;
   }
 
   function toggleArchive(id: string) {
@@ -93,14 +159,8 @@ export function KnowledgePanel() {
         className="flex flex-col items-start"
         style={{ width: "100%", gap: 10 }}
       >
-        <span
-          style={{
-            fontSize: 13,
-            lineHeight: "16px",
-            color: "var(--text-2)",
-          }}
-        >
-          {activeProperty.shortAddress} guidance
+        <span className="t-body" style={{ color: "var(--ink-secondary)" }}>
+          {property.shortAddress} guidance
         </span>
         <div
           className="flex flex-row items-center"
@@ -154,6 +214,8 @@ export function KnowledgePanel() {
                 setExpandedId((prev) => (prev === entry.id ? null : entry.id))
               }
               onArchive={() => toggleArchive(entry.id)}
+              recordId={recordIdFor(entry)}
+              onOpenRecord={onOpenRecord}
             />
           ))}
         </div>
@@ -162,7 +224,11 @@ export function KnowledgePanel() {
   );
 }
 
-/* ---------- Segmented tabs (Active · Archived) ---------- */
+/* ---------- Tabs (Active · Archived) ----------
+ * The app's one tab recipe: --control-md tall, --radius-control, --type-body,
+ * counts riding alongside at --type-meta. This strip was 24px at --type-meta
+ * inside a 6px-radius track, which is a second tab design in a panel that
+ * already has one at the top. Spec: docs/design-system/decisions.md §2. */
 
 function Segmented({
   view,
@@ -176,17 +242,7 @@ function Segmented({
   archivedCount: number;
 }) {
   return (
-    <div
-      className="flex flex-row items-center"
-      style={{
-        height: 28,
-        padding: 2,
-        gap: 2,
-        background: "var(--surface-input)",
-        border: "1px solid var(--line-inner-white)",
-        borderRadius: 8,
-      }}
-    >
+    <div className="flex flex-row items-center" style={{ gap: 2 }}>
       <SegmentedTab
         active={view === "active"}
         onClick={() => onChange("active")}
@@ -220,26 +276,26 @@ function SegmentedTab({
       onClick={onClick}
       className="flex flex-row items-center transition"
       style={{
-        height: 24,
+        height: "var(--control-md)",
         padding: "0 10px",
         gap: 6,
-        background: active ? "#FFFFFF" : "transparent",
-        border: active ? "1px solid var(--line-inner-white)" : "1px solid transparent",
+        background: active ? "var(--surface-tab-active)" : "transparent",
+        border: active ? "1px solid #FFFFFF" : "1px solid transparent",
         boxShadow: active ? "var(--shadow-chip)" : "none",
-        borderRadius: 6,
-        fontSize: 12,
-        lineHeight: "14px",
-        color: active ? "var(--text-1)" : "var(--text-placeholder)",
+        borderRadius: "var(--radius-control)",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        letterSpacing: "var(--tracking-body)",
+        fontWeight: active ? "var(--weight-medium)" : "var(--weight-regular)",
+        color: active ? "var(--ink-primary)" : "var(--ink-tertiary)",
         cursor: "pointer",
       }}
     >
       <span>{label}</span>
       <span
-        className="tabular-nums"
+        className="nums t-meta"
         style={{
-          fontSize: 11,
-          lineHeight: "13px",
-          color: active ? "var(--text-2)" : "var(--text-4)",
+          color: active ? "var(--ink-secondary)" : "var(--ink-tertiary)",
         }}
       >
         {count}
@@ -263,7 +319,7 @@ function AddPill({
       onClick={onClick}
       className="flex flex-row items-center justify-center transition"
       style={{
-        height: 28,
+        height: "var(--control-md)",
         padding: "0 10px 0 8px",
         gap: 4,
         background: active ? "#FFFFFF" : "var(--surface-card-glow)",
@@ -271,18 +327,16 @@ function AddPill({
         boxShadow: "var(--shadow-chip)",
         borderRadius: 999,
         cursor: "pointer",
-        color: "var(--text-1)",
+        color: "var(--ink-primary)",
       }}
       aria-label={active ? "Close composer" : "Add guidance"}
     >
       {active ? (
-        <X size={13} strokeWidth={1.75} color="var(--text-1)" />
+        <X size={14} strokeWidth={1.75} />
       ) : (
-        <Plus size={13} strokeWidth={1.75} color="var(--text-1)" />
+        <Plus size={14} strokeWidth={1.75} />
       )}
-      <span style={{ fontSize: 12, lineHeight: "14px" }}>
-        {active ? "Cancel" : "Add"}
-      </span>
+      <span className="t-meta">{active ? "Cancel" : "Add"}</span>
     </button>
   );
 }
@@ -306,12 +360,12 @@ function Composer({
       className="flex flex-col"
       style={{
         width: "100%",
-        padding: 12,
+        padding: "var(--pad-card)",
         gap: 10,
         background: "var(--surface-card-glow)",
         border: "1px solid var(--line-inner-white)",
-        boxShadow: "var(--shadow-chip)",
-        borderRadius: 10,
+        boxShadow: "var(--shadow-depth-1)",
+        borderRadius: "var(--radius-sheet)",
       }}
     >
       <textarea
@@ -326,9 +380,10 @@ function Composer({
           maxWidth: "100%",
           boxSizing: "border-box",
           fontFamily: "inherit",
-          fontSize: 13,
-          lineHeight: "18px",
-          color: "var(--text-1)",
+          fontSize: "var(--type-body)",
+          lineHeight: "var(--leading-ui)",
+          letterSpacing: "var(--tracking-body)",
+          color: "var(--ink-primary)",
           background: "transparent",
           border: "none",
           outline: "none",
@@ -341,45 +396,20 @@ function Composer({
         className="flex flex-row items-center justify-end"
         style={{ width: "100%", gap: 6, minWidth: 0 }}
       >
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            height: 28,
-            padding: "0 12px",
-            background: "transparent",
-            border: "none",
-            fontSize: 12,
-            lineHeight: "14px",
-            color: "var(--text-2)",
-            cursor: "pointer",
-          }}
-        >
+        {/* Both on the shared primitive, so the disabled Save carries the real
+         * DOM `disabled` attribute and leaves the tab order instead of only
+         * looking unavailable. */}
+        <Button variant="ghost" size="md" onClick={onCancel}>
           Cancel
-        </button>
-        <button
-          type="button"
-          onClick={() => canSave && onSave(rule.trim(), agent)}
+        </Button>
+        <Button
+          variant="primary"
+          size="md"
           disabled={!canSave}
-          className="flex flex-row items-center justify-center transition"
-          style={{
-            height: 28,
-            padding: "0 14px",
-            gap: 6,
-            background: canSave
-              ? "var(--action-primary)"
-              : "rgba(26,31,37,0.35)",
-            border: "1px solid var(--action-primary)",
-            boxShadow: canSave ? "var(--shadow-chip)" : "none",
-            borderRadius: 999,
-            color: "var(--action-on-primary)",
-            cursor: canSave ? "pointer" : "not-allowed",
-            fontSize: 12,
-            lineHeight: "14px",
-          }}
+          onClick={() => canSave && onSave(rule.trim(), agent)}
         >
           Save rule
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -395,14 +425,9 @@ function AgentSelect({
   return (
     <div
       className="flex flex-row items-center"
-      style={{
-        height: 24,
-        padding: 2,
-        gap: 2,
-        background: "var(--surface-input)",
-        border: "1px solid var(--line-inner-white)",
-        borderRadius: 6,
-      }}
+      style={{ gap: 2 }}
+      role="group"
+      aria-label="Which agent this rule steers"
     >
       {(["intake", "reconciliation", "summary"] as GuidanceAgent[]).map((a) => {
         const meta = AGENT_META[a];
@@ -412,19 +437,24 @@ function AgentSelect({
             key={a}
             type="button"
             onClick={() => onChange(a)}
-            className="flex flex-row items-center"
+            aria-pressed={active}
+            className="flex flex-row items-center transition"
             style={{
-              height: 20,
-              padding: "0 8px",
-              gap: 4,
-              background: active ? "#FFFFFF" : "transparent",
-              border: active ? "1px solid var(--line-inner-white)" : "1px solid transparent",
+              height: "var(--control-md)",
+              padding: "0 10px",
+              gap: 5,
+              background: active ? "var(--surface-tab-active)" : "transparent",
+              border: active ? "1px solid #FFFFFF" : "1px solid transparent",
               boxShadow: active ? "var(--shadow-chip)" : "none",
-              borderRadius: 5,
+              borderRadius: "var(--radius-row)",
               cursor: "pointer",
-              fontSize: 11,
-              lineHeight: "13px",
-              color: active ? "var(--text-1)" : "var(--text-placeholder)",
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-ui)",
+              letterSpacing: "var(--tracking-body)",
+              fontWeight: active
+                ? "var(--weight-medium)"
+                : "var(--weight-regular)",
+              color: active ? "var(--ink-primary)" : "var(--ink-tertiary)",
             }}
           >
             <span
@@ -453,15 +483,20 @@ function EntryCard({
   expanded,
   onToggle,
   onArchive,
+  recordId,
+  onOpenRecord,
 }: {
   entry: GuidanceEntry;
   expanded: boolean;
   onToggle: () => void;
   onArchive: () => void;
+  /* The source record's id, when it is present in the open session. */
+  recordId?: string;
+  onOpenRecord?: (recordId: string) => void;
 }) {
   const [hover, setHover] = useState(false);
-  const meta = AGENT_META[entry.agent];
   const isArchived = entry.archived;
+  const canOpenRecord = !!recordId && !!onOpenRecord;
 
   return (
     <div
@@ -470,28 +505,36 @@ function EntryCard({
       className="flex flex-col items-start transition"
       style={{
         width: "100%",
-        padding: 12,
+        padding: 8,
         gap: 8,
         background: hover || expanded ? "#FFFFFF" : "var(--surface-card)",
         border: "1px solid",
-        borderColor:
-          hover || expanded ? "rgba(157, 179, 197, 0.35)" : "transparent",
-        borderRadius: 10,
+        borderColor: hover || expanded ? "var(--line-row-hover)" : "transparent",
+        borderRadius: "var(--radius-sheet)",
+        boxShadow: hover || expanded ? "var(--shadow-chip)" : "none",
         cursor: "pointer",
         opacity: isArchived ? 0.72 : 1,
       }}
       onClick={onToggle}
       role="button"
       tabIndex={0}
+      /* It announces as a button and it takes focus, so it has to answer the
+       * keys a button answers. Without this the card was reachable by Tab,
+       * drew a focus ring, and then did nothing at all. Space is prevented on
+       * keydown as well as handled, or the page scrolls underneath it. */
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
     >
       {/* Rule sentence */}
       <p
+        className="t-body"
         style={{
           margin: 0,
-          fontSize: 13,
-          lineHeight: "18px",
-          color: "var(--text-1)",
-          letterSpacing: "-0.005em",
+          color: "var(--ink-primary)",
           ...(expanded
             ? {}
             : {
@@ -518,15 +561,13 @@ function EntryCard({
         />
         <div className="flex-1 min-w-0" />
         <span
-          className="truncate"
+          className="truncate t-meta"
           style={{
-            fontSize: 11,
-            lineHeight: "14px",
-            color: "var(--text-4)",
+            color: "var(--ink-tertiary)",
             minWidth: 0,
             textAlign: "right",
           }}
-          title={
+          data-hint={
             entry.capturedFromRecordTitle
               ? `From ${entry.capturedFromRecordTitle} · ${entry.capturedFromSessionLabel}`
               : `Captured ${entry.capturedFromSessionLabel}`
@@ -552,60 +593,55 @@ function EntryCard({
               className="flex flex-row items-center"
               style={{ width: "100%", gap: 6 }}
             >
-              <span
-                style={{
-                  fontSize: 11,
-                  lineHeight: "14px",
-                  color: "var(--text-2)",
-                }}
-              >
+              <span className="t-meta" style={{ color: "var(--ink-secondary)" }}>
                 From
               </span>
-              <button
-                type="button"
-                onClick={(e) => e.stopPropagation()}
-                className="flex flex-row items-center transition"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  gap: 4,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  lineHeight: "14px",
-                  color: "var(--text-1)",
-                  textDecoration: "underline",
-                  textUnderlineOffset: 3,
-                  textDecorationColor: "rgba(48,59,69,0.3)",
-                }}
-                title="Open source record"
-              >
-                {entry.capturedFromRecordTitle}
-                <ArrowUpRight
-                  size={11}
-                  strokeWidth={1.75}
-                  color="var(--text-2)"
-                />
-              </button>
-              <span
-                style={{
-                  fontSize: 11,
-                  lineHeight: "14px",
-                  color: "var(--text-4)",
-                }}
-              >
-                · captured {entry.capturedAt}
+              {/* A link only when there is somewhere to go. The underline and
+               * the arrow used to sit on a handler that did nothing but stop
+               * the click propagating, which is a link that promises a
+               * destination it has none of. */}
+              {canOpenRecord ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenRecord?.(recordId!);
+                  }}
+                  className="flex flex-row items-center transition t-meta"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    gap: 4,
+                    cursor: "pointer",
+                    color: "var(--ink-primary)",
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                    textDecorationColor: "rgba(48,59,69,0.3)",
+                  }}
+                  data-hint="Open source record"
+                >
+                  {entry.capturedFromRecordTitle}
+                  <ArrowUpRight
+                    size={14}
+                    strokeWidth={1.75}
+                    color="var(--ink-secondary)"
+                  />
+                </button>
+              ) : (
+                <span className="t-meta" style={{ color: "var(--ink-primary)" }}>
+                  {entry.capturedFromRecordTitle}
+                </span>
+              )}
+              <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
+                · captured {formatCaptured(entry.capturedOn)} by{" "}
+                {entry.capturedBy}
               </span>
             </div>
           ) : (
-            <span
-              style={{
-                fontSize: 11,
-                lineHeight: "14px",
-                color: "var(--text-4)",
-              }}
-            >
-              Captured {entry.capturedAt} · added directly
+            <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
+              Captured {formatCaptured(entry.capturedOn)} by {entry.capturedBy}{" "}
+              · added directly
             </span>
           )}
 
@@ -613,13 +649,7 @@ function EntryCard({
             className="flex flex-row items-center"
             style={{ width: "100%", gap: 8 }}
           >
-            <span
-              style={{
-                fontSize: 11,
-                lineHeight: "14px",
-                color: "var(--text-2)",
-              }}
-            >
+            <span className="t-meta" style={{ color: "var(--ink-secondary)" }}>
               Applied {entry.totalApplied}× since captured
             </span>
             <div className="flex-1" />
@@ -629,28 +659,26 @@ function EntryCard({
                 e.stopPropagation();
                 onArchive();
               }}
-              className="flex flex-row items-center transition"
+              className="flex flex-row items-center transition t-meta"
               style={{
-                height: 24,
+                height: "var(--control-sm)",
                 padding: "0 10px",
                 gap: 4,
                 background: "transparent",
-                border: "1px solid rgba(157,179,197,0.35)",
+                border: "1px solid var(--line-row-hover)",
                 borderRadius: 999,
                 cursor: "pointer",
-                fontSize: 11,
-                lineHeight: "13px",
-                color: "var(--text-2)",
+                color: "var(--ink-secondary)",
               }}
             >
               {isArchived ? (
                 <>
-                  <RotateCcw size={11} strokeWidth={1.75} />
+                  <RotateCcw size={14} strokeWidth={1.75} />
                   Restore
                 </>
               ) : (
                 <>
-                  <Archive size={11} strokeWidth={1.75} />
+                  <Archive size={14} strokeWidth={1.75} />
                   Archive
                 </>
               )}
@@ -668,7 +696,8 @@ function AgentChip({ agent }: { agent: GuidanceAgent }) {
     <div
       className="flex flex-row items-center"
       style={{
-        height: 20,
+        /* Off the control scale like every other chip; 20 was a one-off. */
+        height: "var(--control-sm)",
         padding: "0 8px 0 6px",
         gap: 5,
         background: "var(--surface-chip)",
@@ -687,13 +716,7 @@ function AgentChip({ agent }: { agent: GuidanceAgent }) {
           display: "inline-block",
         }}
       />
-      <span
-        style={{
-          fontSize: 11,
-          lineHeight: "13px",
-          color: "var(--text-1)",
-        }}
-      >
+      <span className="t-meta" style={{ color: "var(--ink-primary)" }}>
         {meta.label}
       </span>
     </div>
@@ -711,40 +734,24 @@ function AppliedStat({
 }) {
   if (archived) {
     return (
-      <span
-        style={{
-          fontSize: 11,
-          lineHeight: "14px",
-          color: "var(--text-4)",
-        }}
-      >
+      <span className="t-meta nums" style={{ color: "var(--ink-tertiary)" }}>
         Applied {totalApplied}×
       </span>
     );
   }
   if (appliedThisCycle === 0) {
     return (
-      <span
-        style={{
-          fontSize: 11,
-          lineHeight: "14px",
-          color: "var(--text-4)",
-        }}
-      >
+      <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
         Not applied this cycle
       </span>
     );
   }
   return (
-    <span
-      className="tabular-nums"
-      style={{
-        fontSize: 11,
-        lineHeight: "14px",
-        color: "var(--text-1)",
-      }}
-    >
-      Applied <strong style={{ fontWeight: 500 }}>{appliedThisCycle}×</strong>{" "}
+    <span className="nums t-meta" style={{ color: "var(--ink-primary)" }}>
+      Applied{" "}
+      <strong style={{ fontWeight: "var(--weight-medium)" }}>
+        {appliedThisCycle}×
+      </strong>{" "}
       this cycle
     </span>
   );
@@ -759,32 +766,36 @@ function EmptyState({
   view: View;
   onAdd: () => void;
 }) {
+  /* The two empty states are the same state twice, so they are built to the
+   * same measurements: one tile size, one gap, one padding. They had drifted to
+   * 48/12/40 and 56/14/32, which is two of them rather than one seen under two
+   * filters — and 14 and 40 are not on the space scale at all. */
   if (view === "archived") {
     return (
       <div
         className="flex flex-col items-center justify-center flex-1"
-        style={{ width: "100%", gap: 12, padding: "40px 16px" }}
+        style={{
+          width: "100%",
+          gap: "var(--space-5)",
+          padding: "var(--space-9) var(--space-6)",
+        }}
       >
         <div
           className="flex items-center justify-center"
           style={{
             width: 48,
             height: 48,
-            borderRadius: 12,
-            background: "var(--surface-card)",
+            borderRadius: "var(--radius-card)",
+            background: "var(--surface-card-glow)",
             border: "1px solid var(--line-inner-white)",
             boxShadow: "var(--shadow-chip)",
           }}
         >
-          <Archive size={20} strokeWidth={1.25} color="var(--text-4)" />
+          <Archive size={20} strokeWidth={1.5} color="var(--ink-tertiary)" />
         </div>
         <span
-          style={{
-            fontSize: 13,
-            lineHeight: "17px",
-            color: "var(--text-2)",
-            textAlign: "center",
-          }}
+          className="t-body"
+          style={{ color: "var(--ink-secondary)", textAlign: "center" }}
         >
           No archived guidance for this property.
         </span>
@@ -794,66 +805,55 @@ function EmptyState({
   return (
     <div
       className="flex flex-col items-center justify-center flex-1"
-      style={{ width: "100%", gap: 14, padding: "32px 16px" }}
+      style={{
+        width: "100%",
+        gap: "var(--space-5)",
+        padding: "var(--space-9) var(--space-6)",
+      }}
     >
       <div
         className="flex items-center justify-center"
         style={{
-          width: 56,
-          height: 56,
-          borderRadius: 14,
+          width: 48,
+          height: 48,
+          borderRadius: "var(--radius-card)",
           background: "var(--surface-card-glow)",
           border: "1px solid var(--line-inner-white)",
           boxShadow: "var(--shadow-chip)",
         }}
       >
-        <BookOpen size={22} strokeWidth={1.25} color="#7C8C9A" />
+        <BookOpen size={20} strokeWidth={1.5} color="var(--ink-tertiary)" />
       </div>
       <div
         className="flex flex-col items-center"
         style={{ gap: 6, maxWidth: 280 }}
       >
         <span
+          className="t-body"
           style={{
-            fontSize: 15,
-            lineHeight: "19px",
-            color: "var(--text-1)",
+            color: "var(--ink-primary)",
+            fontWeight: "var(--weight-medium)",
             textAlign: "center",
           }}
         >
           No guidance captured yet
         </span>
         <span
-          style={{
-            fontSize: 12,
-            lineHeight: "17px",
-            color: "var(--text-2)",
-            textAlign: "center",
-          }}
+          className="t-prose"
+          style={{ color: "var(--ink-secondary)", textAlign: "center" }}
         >
           As you leave guidance on records during review, it&apos;ll show up
           here for the AI to use next time.
         </span>
       </div>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="md"
         onClick={onAdd}
-        className="flex flex-row items-center justify-center transition"
-        style={{
-          height: 30,
-          padding: "0 14px 0 11px",
-          gap: 6,
-          background: "var(--surface-card-glow)",
-          border: "1px solid var(--line-inner-white)",
-          boxShadow: "var(--shadow-chip)",
-          borderRadius: 999,
-          cursor: "pointer",
-          color: "var(--text-1)",
-        }}
+        leftIcon={<Plus size={14} strokeWidth={1.75} />}
       >
-        <Plus size={13} strokeWidth={1.75} color="var(--text-1)" />
-        <span style={{ fontSize: 12, lineHeight: "14px" }}>Add a rule</span>
-      </button>
+        Add a rule
+      </Button>
     </div>
   );
 }

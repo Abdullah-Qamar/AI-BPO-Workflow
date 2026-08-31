@@ -30,13 +30,17 @@ interface ButtonProps {
   ariaLabel?: string;
 }
 
+/* Compact scale, matched to the reference (Compact UI References/README.md).
+ * Was 32 / 40 / 48 at 14 / 15 / 16px. Controls step down ~25%, and the label
+ * settles on --type-body (13px) across all three so buttons stop out-shouting
+ * the content they sit beside. */
 const SIZE: Record<
   ButtonSize,
-  { height: number; padX: number; gap: number; font: number; line: string }
+  { height: number; padX: number; gap: number; font: string; line: string }
 > = {
-  sm: { height: 32, padX: 12, gap: 6, font: 14, line: "17px" },
-  md: { height: 40, padX: 18, gap: 8, font: 15, line: "19px" },
-  lg: { height: 48, padX: 22, gap: 10, font: 16, line: "19px" },
+  sm: { height: 24, padX: 8, gap: 4, font: "var(--type-meta)", line: "16px" },
+  md: { height: 28, padX: 12, gap: 6, font: "var(--type-body)", line: "17px" },
+  lg: { height: 32, padX: 14, gap: 6, font: "var(--type-body)", line: "17px" },
 };
 
 export function Button({
@@ -62,6 +66,10 @@ export function Button({
     <button
       type={type}
       aria-label={ariaLabel}
+      /* The real attribute, not just the look. A control that reads as
+       * disabled and stays in the tab order announces as enabled to a screen
+       * reader and takes focus a keyboard user cannot act on. */
+      disabled={disabled}
       onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => {
@@ -70,7 +78,11 @@ export function Button({
       }}
       onMouseDown={() => setPress(true)}
       onMouseUp={() => setPress(false)}
-      className="inline-flex items-center justify-center transition"
+      className={`inline-flex items-center transition ${
+        fullWidth && (leftIcon || rightIcon)
+          ? "justify-between"
+          : "justify-center"
+      }`}
       style={{
         height: s.height,
         padding: `0 ${s.padX}px`,
@@ -85,7 +97,6 @@ export function Button({
         color: visual.color,
         border: visual.border,
         boxShadow: visual.boxShadow,
-        transform: press ? "translateY(0)" : "translateY(0)",
         ...style,
       }}
     >
@@ -118,23 +129,25 @@ function computeVisual(
   }
   if (variant === "secondary") {
     return {
-      background: hover ? "#EFF3F8" : "#F2F4FB",
-      color: "var(--text-1)",
+      background: hover
+        ? "var(--surface-control-hover)"
+        : "var(--surface-control)",
+      color: "var(--ink-primary)",
       border: "1px solid #FFFFFF",
       boxShadow: press ? "var(--shadow-depth-1)" : "var(--shadow-chip)",
     };
   }
   // ghost
   return {
-    background: hover ? "rgba(0, 0, 0, 0.03)" : "transparent",
-    color: "var(--text-1)",
+    background: hover ? "var(--surface-control)" : "transparent",
+    color: "var(--ink-primary)",
     border: "1px solid transparent",
     boxShadow: "none",
   };
 }
 
 /* Icon-only round button (used for compact controls like the "+" / arrow
- * buttons in the references). 32 / 40 / 48 sizes. */
+ * buttons in the references). 24 / 28 / 32 sizes, matching --control-*. */
 export function IconButton({
   variant = "secondary",
   size = "md",
@@ -154,11 +167,12 @@ export function IconButton({
 }) {
   const [hover, setHover] = useState(false);
   const visual = computeVisual(variant, hover, false, disabled);
-  const d = size === "sm" ? 32 : size === "md" ? 36 : 40;
+  const d = size === "sm" ? 24 : size === "md" ? 28 : 32;
   return (
     <button
       type="button"
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}

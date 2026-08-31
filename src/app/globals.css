@@ -1,7 +1,52 @@
 @import "tailwindcss";
 
+/* ---------- Numerals: Host Grotesk ----------
+ * Self-hosted variable subset (OFL, 20KB, weights 300-800). Scoped by
+ * unicode-range to numerals and their separators. Because the browser resolves
+ * families per codepoint, listing this first in --font-sans means every figure
+ * in the app renders in Host Grotesk and every letter falls through to the text
+ * face. No markup changes, no per-site font-family, and numbers inside prose
+ * are covered too.
+ *
+ * The range covers a whole numeric token, not just the digit glyphs: comma,
+ * period, plus and true-minus come along so that "$12,400.00" renders in one
+ * family. Measured reason, not taste: the digits and "$" are weight-stable
+ * (45.5px at both 400 and 600), but a comma from the text face is 2.82px at 400
+ * and 3.148px at 600, so a bold total under regular rows used to break the
+ * column's right edge by ~0.66px. Pulling the separators in removes that.
+ *
+ * The cost is that every comma and full stop in body copy is now Host Grotesk
+ * too. At 11-13px, with metrics inside 2%, that is not perceptible, and it is
+ * the deliberate trade for figures that hold a column at any weight.
+ *
+ * The hyphen (U+002D) is deliberately NOT included. It is a word-joiner in
+ * prose ("auto-pay", "first-time") far more often than it is a minus here, so
+ * U+2212 carries real negatives instead.
+ *
+ * Why this face works here:
+ *   - Digits are natively uniform width (65/100px at every weight), so columns
+ *     align without tabular-nums, and a figure does not re-flow when it goes
+ *     semibold. Geist shifts 66.3 -> 68.3 between 400 and 600; this does not.
+ *   - Metrics sit within ~2% of the text face: digit ascent 71.2 vs 72.6,
+ *     cap height 70 vs 71. Mixed-family strings like "TH-1247" read as one word.
+ *   - It has NO slashed zero. Verified against the binary: "zero" 1 and
+ *     font-variant-numeric: slashed-zero both render the plain oval. The 0/O
+ *     distinction now rests on width alone. See docs/design-system/typography.md.
+ *
+ * Recheck the metric match if TASA Orbiter ever loads; Orbiter is the wider
+ * face and the pairing was measured against the Geist fallback. */
+@font-face {
+  font-family: "Host Grotesk Numerals";
+  src: url("/fonts/host-grotesk-latin-var.woff2") format("woff2");
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0030-0039, U+0024, U+0025, U+002B, U+002C, U+002E, U+2212;
+}
+
 @theme inline {
-  --font-sans: "TASA Orbiter", var(--font-geist-sans), system-ui, sans-serif;
+  --font-sans: "Host Grotesk Numerals", "TASA Orbiter", var(--font-geist-sans),
+    system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -18,28 +63,101 @@
   --surface-chip: #eff3f8;
   --surface-input: rgba(221, 223, 232, 0.4);
   --surface-tab-active: #e9ebf3;
-
-  /* Text */
-  --text-1: #303b45;
-  --text-2: #627483;
-  --text-3: #63696e;
-  --text-4: #7f7f87;
-  --text-muted: #656c76;
-  --text-placeholder: #61717f;
+  /* The light lifted fill every chip-shaped control rests on: buttons
+   * (secondary), the cycle picker, pills, slot chips. It was written as the
+   * literal #F2F4FB in six files and had no name, which is why half of them
+   * drifted to --surface-chip and half did not. */
+  --surface-control: #f2f4fb;
+  --surface-control-hover: #eff3f8;
+  /* The bright inner panel a listing's rows sit on, nested inside the softer
+   * --surface-card shell. Straight from the references: every list in them is
+   * a soft outer card holding a brighter inner sheet, and that one step of
+   * nesting is what separates "the controls" from "the data". */
+  /* Off-white, not white, and the 1.5% matters: a row hover-lifting to pure
+   * white needs somewhere whiter to go. Three steps in all —
+   * card #f7f8fa -> sheet #fbfcfe -> hovered row #ffffff — which is the
+   * references' own stacking and what makes the lift legible without a fill
+   * change loud enough to flash. */
+  --surface-list: #fbfcfe;
+  /* There is no separate row-hover fill any more. Every listing row in the app
+   * lifts to white with a --line-row-hover border and --shadow-chip — one
+   * treatment, so two identical-looking rows on two screens cannot hover
+   * differently. The old --surface-row-hover had zero call sites once the
+   * Properties roster adopted the Dashboard's lift, and is gone rather than
+   * left available to be reintroduced.
+   * Spec: docs/design-system/decisions.md §3. */
 
   /* Lines */
   --line: #9db3c5;
   --line-soft: #d3d6d8;
+  /* Row rule inside a listing. --line-soft is a structural divider and is far
+   * too present repeated forty times down a table; the references' row rules
+   * are barely there. Alpha, not a flat grey, so it works on both the card and
+   * the brighter listing surface. */
+  --line-hair: rgba(38, 50, 66, 0.07);
   --line-inner-white: rgba(253, 255, 255, 0.6);
+  /* Border a listing row paints when it hover-lifts to white. */
+  --line-row-hover: rgba(157, 179, 197, 0.45);
+  /* Border on a floating menu or popover sheet. */
+  --line-menu: rgba(157, 179, 197, 0.35);
 
-  /* Status dots & accents */
+  /* Status dots & accents. These are MARKS — the 6px dot on a row, the
+   * drag-over stroke. They are deliberately saturated because a 6px circle
+   * needs to be. Never set text or a fill from them; use the semantic pairs
+   * below, which are solved for contrast at size. */
   --dot-active: #001aff;
   --dot-failed: #ff0000;
   --dot-complete: #1eff00;
 
+  /* ---------- Semantic status ----------
+   * One pair per meaning, three parts each: `mark` for dots and strokes,
+   * `bg` for a tinted chip, `ink` for text on that chip (and for a figure
+   * that carries the meaning on its own, e.g. the open-items count).
+   *
+   * This replaces five greens (#1EFF00, #2FA35F, #22C55E, #4B7F63, #1A7048),
+   * three ambers (#8A5300, #A8701C, #FF8A1F) and four reds (#FF0000, #A40000,
+   * #A32626, #B84545) that were all in service at once, so "this succeeded"
+   * looked like a different event depending on which screen said it.
+   *
+   * Inks are AA (>=4.5:1) on their own `bg` and on --surface-card. Marks are
+   * >=3.0:1 on --surface-card, the non-text minimum. */
+  --status-ok: #2fa35f;
+  --status-ok-bg: #e9f7ef;
+  --status-ok-ink: #146c40;
+
+  --status-warn: #d08616;
+  --status-warn-bg: #fdf4e3;
+  --status-warn-ink: #8a5300;
+
+  --status-danger: #d24545;
+  --status-danger-bg: #fdf1f1;
+  --status-danger-ink: #a32626;
+
+  --status-info: #3358d4;
+  --status-info-bg: #edf1fd;
+  --status-info-ink: #23409a;
+
+  /* ---------- Agent identity ----------
+   * Which agent, not how it is doing. Kept structurally apart from the status
+   * ramp because they answer different questions and were previously the same
+   * three hexes: the guidance panel tinted "Summary" with --dot-failed, so a
+   * red dot sat beside an agent that had not failed.
+   *
+   * Three agents. Every surface shows the same three. */
+  /* A PERSON did this, as against an agent. A reviewer's note changing what an
+   * agent concluded is a different class of event from "matched 14 rows", and
+   * it is neither a status nor an agent identity — the two ramps above would
+   * both misread it. One token, so the activity log and the guidance surfaces
+   * mark a human's hand the same way. */
+  --mark-human: #6b5ea8;
+
+  --agent-intake: #5b6ab8;
+  --agent-reconciliation: #3e8c93;
+  --agent-summary: #8a6bbf;
+
   /* Failed-file chips */
-  --chip-failed-bg: #fff2f2;
-  --chip-failed-border: #ffc0c0;
+  --chip-failed-bg: var(--status-danger-bg);
+  --chip-failed-border: #f0c7c7;
 
   /* Shadows — named depth scale.
    *   depth-1: barely-there lift (chips, pills resting state)
@@ -47,14 +165,67 @@
    *   depth-3: floating element (tooltips, popovers)
    *   depth-4: modal / overlay surface
    * The old --shadow-card / --shadow-chip names are kept as aliases. */
-  --shadow-depth-1: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-depth-2: 0 0 6px rgba(0, 0, 0, 0.15);
-  --shadow-depth-3: 0 8px 24px -6px rgba(0, 0, 0, 0.18),
-    0 2px 6px rgba(0, 0, 0, 0.08);
-  --shadow-depth-4: 0 24px 64px -12px rgba(0, 0, 0, 0.25),
-    0 8px 24px -8px rgba(0, 0, 0, 0.12);
+  /* Softened 2026-08-22. Three changes, all pulling the same direction:
+   *
+   *  1. depth-2 was `0 0 6px rgba(0,0,0,0.15)` — a zero-offset, tight, fairly
+   *     opaque shadow, which reads as a dark ring around the card rather than
+   *     the card sitting above the page. It is now a two-layer lift: a tight
+   *     contact shadow plus a wide diffuse one, which is how a real shadow
+   *     falls and is most of why the old one looked harsh.
+   *  2. Alphas come down roughly a third across the scale.
+   *  3. Black is replaced by a cool slate tinted toward the page's own
+   *     blue-grey. Pure black over a cool ground is what reads as "hard"; the
+   *     tint costs nothing and removes the muddiness. */
+  --shadow-depth-1: 0 1px 2px rgba(38, 50, 66, 0.05);
+  --shadow-depth-2: 0 1px 2px rgba(38, 50, 66, 0.04),
+    0 4px 12px -2px rgba(38, 50, 66, 0.07);
+  --shadow-depth-3: 0 2px 6px rgba(38, 50, 66, 0.05),
+    0 12px 28px -8px rgba(38, 50, 66, 0.10);
+  --shadow-depth-4: 0 4px 12px rgba(38, 50, 66, 0.06),
+    0 28px 64px -16px rgba(38, 50, 66, 0.16);
   --shadow-card: var(--shadow-depth-2);
-  --shadow-chip: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-chip: 0 1px 2px rgba(38, 50, 66, 0.07);
+
+  /* ---------- Frosted glass ----------
+   * Every surface that floats ABOVE the page rather than sitting on it: menus,
+   * popovers, tooltips, and the AI page's token bar. They used to be flat
+   * white, which on a page whose whole ground is a soft blue-grey gradient made
+   * them read as holes punched in it rather than as panes held over it.
+   *
+   * Three parts, and all three are needed for the effect to read:
+   *   - a translucent fill, so the ground shows through
+   *   - blur, so what shows through is diffused rather than legible
+   *   - saturation, because blurring alone greys the colour underneath and the
+   *     pane ends up looking dirty; pushing saturation back up is what makes it
+   *     read as glass rather than as fog
+   *
+   * Two tiers. `--glass-*` is the menu tier, and its fill is deliberately high
+   * (0.78) rather than the 0.5 that reads as "glassy" in a screenshot: a menu is
+   * something you READ, and menu text has to hold WCAG AA over whatever happens
+   * to pass beneath it. A listing row or a chart bar under a 50%-white sheet
+   * does not leave --ink-secondary at 4.5:1.
+   *
+   * `--glass-raised-*` is the heavier tier, for a pane carrying a figure or a
+   * bar rather than a paragraph — there the effect can carry more because
+   * nothing on it has to be read at length.
+   *
+   * The border and the edge are two different things and a pane needs both.
+   * `--glass-border` is a real hairline, because a white border on a
+   * translucent pane over a light ground draws no boundary at all.
+   * `--glass-edge` is the top-lit rim: real glass catches light on its upper
+   * edge, and it is what separates "a pane held over the page" from "a smudge". */
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-blur: blur(20px) saturate(180%);
+  --glass-border: rgba(157, 179, 197, 0.28);
+  --glass-edge: rgba(255, 255, 255, 0.9);
+
+  --glass-raised-bg: rgba(255, 255, 255, 0.55);
+  --glass-raised-blur: blur(28px) saturate(200%);
+
+  /* Modal scrim. One value, so two modals opening over the same canvas do not
+   * dim it by different amounts. */
+  --scrim: rgba(48, 59, 69, 0.38);
+  --scrim-blur: 4px;
 
   /* Action color — dark pill primary action surface. */
   --action-primary: #1a1f25;
@@ -73,6 +244,171 @@
   --radius-panel: 20px;
   --radius-chip: 8px;
   --radius-small: 6px;
+  /* The bright inner sheet nested inside a card, and floating menu surfaces.
+   * Sits between --radius-chip and --radius-card on purpose: a sheet inset 4px
+   * inside a 12px card needs 10 to keep its corners concentric. Was a bare 10
+   * in twenty places. */
+  --radius-sheet: 10px;
+
+  /* ==================================================================
+   * DENSITY  — control, icon, row and space scales
+   * Reference: "Compact UI References/README.md" (Lightfield, 2026-08-22)
+   *
+   * The app was built at a comfortable desktop scale; the reference is a
+   * compact one. Controls, icons and rows all step down roughly 25%. Type
+   * mostly stays (the ramp was already close) but its *usage* tightens:
+   * tabs and list rows drop from --type-title to --type-body.
+   *
+   * Colour and shadow tokens are deliberately untouched.
+   * ================================================================== */
+
+  /* Control heights. Was 32 / 40 / 48. */
+  --control-sm: 24px;   /* micro: filter chips, inline toggles, badges     */
+  --control-md: 28px;   /* DEFAULT: buttons, tab pills, month picker      */
+  --control-lg: 32px;   /* prominent: primary CTA, modal actions          */
+
+  /* Icons. Was an unmanaged 11/14/16/18/23/28/30. */
+  --icon-sm: 14px;      /* inline beside meta text, field-row leading     */
+  --icon-md: 16px;      /* nav items, tabs, button affixes               */
+  --icon-lg: 20px;      /* section and record headers                     */
+  --icon-mark: 24px;    /* brand / record marks (bank logos, avatars)      */
+
+  /* Icon stroke, paired to icon size. Small icons need a touch more weight to
+   * stay visible; large ones get relatively thinner. That optical ramp is how
+   * icon families are actually drawn, and it is why this is not one value.
+   *   14px -> 1.75   16px -> 1.5   20px -> 1.5   24px -> 1.5
+   * Decorative SVG (WireConnector, NavGlyph, TieoutMark, PixelField,
+   * DotGridAvatar) is exempt: those are artwork, not glyphs. */
+  --stroke-sm: 1.75;
+  --stroke-md: 1.5;
+
+  /* Rows. Was 44 rail buttons and 74px session rows. */
+  --row-sm: 28px;       /* dense table row                                */
+  --row-md: 32px;       /* nav item, single-line list row                  */
+  --row-lg: 44px;       /* two-line list row                              */
+
+  /* Space scale. 4-based, with 2 and 6 for tight control interiors. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+
+  /* Control radius. Distinct from --radius-card so shrinking a control
+   * does not leave it looking over-rounded. Pills keep 999. */
+  --radius-control: 8px;
+  --radius-row: 8px;
+
+  /* Container padding. The compact pass took these down with everything else,
+   * which was a step too far: a 1120px card with 8px of padding reads cramped
+   * no matter how tight its contents are. Density belongs to the type, controls
+   * and rows; the container's job is to give that density air.
+   *
+   * Rows and controls keep their tight interiors and are NOT governed by these. */
+  --pad-card: 16px;    /* content cards */
+  --pad-panel: 20px;   /* large panels, side rails */
+  --pad-bar: 10px 14px; /* toolbars and filter bars holding 28px controls */
+
+  /* ==================================================================
+   * TYPOGRAPHY
+   * Spec + rationale: docs/design-system/typography.md
+   *
+   * Five sizes, three leadings, three weights, three ink levels.
+   * Hierarchy comes from size + weight + ink together. Never invent an
+   * intermediate size to signal importance — step the weight or the ink.
+   * ================================================================== */
+
+  /* --- Ramp. rem so it honours the reader's base font size.
+   * Steps are >=1.18 apart; anything between them is muddy and banned. */
+  --type-meta: 0.6875rem;    /* 11px — labels, timestamps, badges, captions */
+  --type-body: 0.8125rem;    /* 13px — DEFAULT. Row content, values, prose  */
+  --type-title: 1rem;        /* 16px — card + section titles, tab labels    */
+  --type-heading: 1.25rem;   /* 20px — panel and page headings              */
+  --type-display: 1.5rem;    /* 24px — canvas h1 (the property address)     */
+  /* 32px — the figures a screen is ABOUT, and nothing else.
+   *
+   * Not a heading size. No title anywhere may take it, and it may not appear at
+   * two different levels of importance on one screen. A ROW OF PEERS is fine
+   * and is the case it was made for: the Dashboard's accuracy and token
+   * readings are one pair, read together, and sizing one of them below the
+   * other would invent a hierarchy that is not there.
+   *
+   * It exists because a lead figure is read as a quantity rather than as text —
+   * the eye lands on it before it reads anything — and at --type-display it was
+   * the same size as the page heading beside it, so the two competed for that
+   * first landing. 1.33x above display, clear of the ramp's 1.18 minimum.
+   *
+   * The guard is the test, not a count: if it has a letter in it that is not a
+   * unit, it is not a metric. */
+  --type-metric: 2rem;
+
+  /* --- Leading. Unitless so it tracks the size token.
+   * ui      : single-line UI text whose line box drives row height
+   * prose   : multi-line running text (exception reasons, notes, activity)
+   * tight   : >=20px headings and display */
+  --leading-ui: 1.3;
+  --leading-prose: 1.55;
+  --leading-tight: 1.15;
+
+  /* --- Weight. TASA Orbiter ships 400/500/600 for this app; 300 is not
+   * loaded and 700 does not exist, so `bold` synthesises. Never use either. */
+  --weight-regular: 400;     /* body, all running text, data values         */
+  --weight-medium: 500;      /* labels, column headers, active nav, titles  */
+  --weight-semibold: 600;    /* headings, display, the one number that leads */
+
+  /* --- Tracking. Bound to size, not chosen per site. Orbiter needs
+   * tightening as it gets large and opening when set as uppercase micro. */
+  --tracking-display: -0.015em;  /* >=20px  */
+  --tracking-title: -0.01em;     /* 16px    */
+  --tracking-body: 0;            /* 13px    */
+  --tracking-meta: 0.01em;       /* 11px    */
+  --tracking-caps: 0.06em;       /* uppercase micro-labels, always 11px/500 */
+
+  /* --- Ink. Three levels, solved for WCAG AA (>=4.5:1) against every
+   * common text surface, on an even OKLCH lightness ramp (dL ~= 0.10) so the
+   * steps read as evenly spaced. Ratios on --surface-card / --surface-chip /
+   * --surface-tab-active respectively:
+   *   primary   11.76 / 11.22 / 10.50
+   *   secondary  7.84 /  7.48 /  7.00
+   *   tertiary   5.15 /  4.91 /  4.60
+   * Tertiary drops to 4.12 on --bg-side; on the rails, step up one level. */
+  /* Rail glyph, resting state, EXPANDED rail only.
+   *
+   * The nav icons read too heavy beside their labels. The obvious fix — lighten
+   * the ink — runs straight into contrast: the rail is transparent over the
+   * root gradient, so its real backdrop is about #c0c7d2, and --ink-tertiary is
+   * already only 3.22:1 there against a 3:1 floor for non-text UI. There is no
+   * room below it.
+   *
+   * What resolves it is that the two states are not the same problem. Expanded,
+   * the icon sits beside a label that names the destination at full contrast:
+   * the glyph is decoration, WCAG 1.4.11 does not bite, and it can recede.
+   * COLLAPSED, the glyph is the only label there is, so it keeps
+   * --ink-tertiary and its contrast.
+   *
+   * That is why this token exists and why LeftRail applies it conditionally.
+   * Do not reach for it anywhere an icon carries meaning on its own. */
+  --rail-icon-quiet: #8a95a2;
+
+  --ink-primary: #2c353e;
+  --ink-secondary: #464f59;
+  --ink-tertiary: #616a75;
+
+  /* Deprecated colour aliases. The old set had four near-identical mid-greys
+   * (text-2/3/muted/placeholder all sat within one 20% luminance band), which
+   * is why the UI read as two ink levels instead of three. Kept so existing
+   * call sites keep working; migrate to --ink-* and delete these. */
+  --text-1: var(--ink-primary);
+  --text-2: var(--ink-secondary);
+  --text-3: var(--ink-secondary);
+  --text-4: var(--ink-tertiary);
+  --text-muted: var(--ink-tertiary);
+  --text-placeholder: var(--ink-tertiary);
 }
 
 html,
@@ -101,9 +437,104 @@ html {
 
 body {
   font-family: var(--font-sans);
-  font-weight: 400;
+  font-weight: var(--weight-regular);
+  font-size: var(--type-body);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-body);
   font-feature-settings: "ss01" 1;
+  /* Lining, proportional figures are the default for text. Anything that sits
+   * in a column or updates in place opts into .nums instead. */
+  font-variant-numeric: lining-nums proportional-nums;
+  font-kerning: normal;
 }
+
+/* ---------- Typographic roles ----------
+ * Prefer these over per-site fontSize/lineHeight/letterSpacing. Each one sets
+ * the whole bundle so a role can never be half-applied. Ink is set separately
+ * because the same role appears at different ink levels.
+ * Spec: docs/design-system/typography.md */
+.t-display {
+  font-size: var(--type-display);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-semibold);
+}
+.t-heading {
+  font-size: var(--type-heading);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-semibold);
+}
+.t-title {
+  font-size: var(--type-title);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-title);
+  font-weight: var(--weight-medium);
+}
+.t-body {
+  font-size: var(--type-body);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-body);
+  font-weight: var(--weight-regular);
+}
+/* Running text. The only role that gets prose leading, and the only one that
+ * needs a measure cap. */
+.t-prose {
+  font-size: var(--type-body);
+  line-height: var(--leading-prose);
+  letter-spacing: var(--tracking-body);
+  font-weight: var(--weight-regular);
+  max-width: 68ch;
+}
+.t-meta {
+  font-size: var(--type-meta);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-meta);
+  font-weight: var(--weight-regular);
+}
+/* Section label — the sidebar group headings ("Chats", "Records") and the
+ * eyebrows above field groups. SENTENCE CASE, not uppercase: this is what the
+ * compact reference uses and what the user asked for on 2026-06-28. Reach for
+ * this, not .t-caps. */
+.t-label {
+  font-size: var(--type-meta);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-meta);
+  font-weight: var(--weight-medium);
+  color: var(--ink-tertiary);
+}
+
+/* .t-caps, the uppercase micro-label, is gone. Its last call site moved to
+ * .t-label in this pass, and the compact reference has no uppercase text
+ * anywhere. --tracking-caps stays defined for now; nothing sets it. */
+
+/* ---------- Numerals ----------
+ * Money, account numbers, GL codes, counts, and any figure in a column or one
+ * that mutates in place.
+ *
+ * Since the Host Grotesk numeral face landed, this class is largely belt-and
+ * braces: that face has uniform digit widths at every weight, so columns align
+ * without tabular-nums. The declaration stays because it still governs the
+ * fallback face if the numeral woff2 fails to load.
+ *
+ * slashed-zero is INERT under Host Grotesk, which ships no such glyph (verified:
+ * both the "zero" feature and the keyword render the plain oval). The 0/O
+ * distinction now rests on the letterforms' differing widths. Kept for the
+ * fallback face, which does have it. */
+.nums {
+  font-variant-numeric: tabular-nums lining-nums slashed-zero;
+}
+/* The figure a card is *about* (an unmatched total, a variance). One per card. */
+.nums-lead {
+  font-variant-numeric: tabular-nums lining-nums slashed-zero;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-display);
+}
+
+/* ---------- Ink ---------- */
+.ink-primary { color: var(--ink-primary); }
+.ink-secondary { color: var(--ink-secondary); }
+.ink-tertiary { color: var(--ink-tertiary); }
 
 /* Gradient text utilities used in the agents panel. Each run gets its own
  * colored gradient — see the design-system page for the tone palette. */
@@ -114,19 +545,24 @@ body {
   background-clip: text;
 }
 .text-grad-failed {
-  background: linear-gradient(90deg, #ff0000 0%, #ffa1a1 100%);
+  background: linear-gradient(90deg, #a32626 0%, #e08c8c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+/* "Matched" is a success, so it takes the ok hue. It used to run the same blue
+ * as --dot-active, which is the mark for a run in flight — a count of settled
+ * records reading in the "still working" colour. */
 .text-grad-approved {
-  background: linear-gradient(90deg, #001aff 0%, #6a85ff 100%);
+  background: linear-gradient(90deg, #146c40 0%, #4fae7c 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+/* Open items. The warn hue, not the danger red: a record waiting on a person
+ * is work, not a failure, and the app says so everywhere else. */
 .text-grad-unapproved {
-  background: linear-gradient(90deg, #ff0000 0%, #ffa1a1 100%);
+  background: linear-gradient(90deg, #8a5300 0%, #d9a24e 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -159,20 +595,124 @@ body {
   -webkit-text-fill-color: transparent;
   animation: status-shimmer 2.4s linear infinite;
 }
-.text-grad-failed-shimmer {
+/* Light-surface variant. The shimmer above peaks at #ffffff, which reads as a
+ * highlight over a mid-tone backdrop but erases the glyphs on anything near
+ * white — the workspace's live status line briefly reads as a gap. Same
+ * travelling highlight, peaked at a mid grey that holds against both
+ * --surface-card and the canvas gradient, so the line stays legible for the
+ * whole cycle. */
+.text-grad-neutral-shimmer-card {
   background: linear-gradient(
     90deg,
-    #ff0000 0%,
-    #ff5a5a 30%,
-    #ffd6d6 50%,
-    #ff5a5a 70%,
-    #ff0000 100%
+    #454547 0%,
+    #5c5e63 30%,
+    #9aa0a8 50%,
+    #5c5e63 70%,
+    #454547 100%
   );
   background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: status-shimmer 2.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-grad-neutral-shimmer-card {
+    animation: none;
+    background-position: 50% 0;
+  }
+}
+.text-grad-failed-shimmer {
+  background: linear-gradient(
+    90deg,
+    #a32626 0%,
+    #c45252 30%,
+    #eab8b8 50%,
+    #c45252 70%,
+    #a32626 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: status-shimmer 2.4s linear infinite;
+}
+
+/* ---------- Floating surfaces ----------
+ * One class per tier for every menu, popover and tooltip, so a call site sets
+ * no fill, blur, border or shadow of its own and a surface cannot end up half
+ * frosted. Spec: docs/design-system/decisions.md §2.
+ *
+ * The -webkit- prefix is not optional: Safari still needs it for
+ * backdrop-filter. `isolation` matters too — without it the filter can sample
+ * the wrong stacking context and the pane renders opaque.
+ *
+ * Where a browser cannot blur at all, fall back to an opaque sheet rather than
+ * a transparent one: unreadable is worse than un-fancy. */
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-depth-3), inset 0 1px 0 var(--glass-edge);
+  isolation: isolate;
+}
+
+/* The heavier pane, for surfaces carrying a figure or a bar rather than a
+ * paragraph. */
+.glass-raised {
+  background: var(--glass-raised-bg);
+  -webkit-backdrop-filter: var(--glass-raised-blur);
+  backdrop-filter: var(--glass-raised-blur);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-depth-2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  isolation: isolate;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .glass {
+    background: #ffffff;
+  }
+  .glass-raised {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* ---------- Listing rows ----------
+ * Inset hairline between rows. No reference list runs its divider to the
+ * container's edge — it starts where the first column's text starts and stops
+ * where the last one ends, which is most of what keeps a dense list reading as
+ * lines of text rather than a grid of cells. It needs a pseudo-element, so it
+ * cannot be an inline style like the rest of these components.
+ *
+ * --list-inset is set by the list that owns the rows, so the rule tracks that
+ * list's own padding instead of hard-coding it here. */
+.list-row {
+  position: relative;
+}
+.list-row::after {
+  content: "";
+  position: absolute;
+  left: var(--list-inset, 8px);
+  right: var(--list-inset, 8px);
+  bottom: 0;
+  height: 1px;
+  background: var(--line-hair);
+  pointer-events: none;
+}
+.list-row:last-child::after {
+  display: none;
+}
+
+/* Trailing affordance. Lives in a fixed-width gutter and only changes opacity,
+ * so revealing it on hover cannot reflow the row's columns. */
+.row-chevron {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.list-row:hover .row-chevron,
+.list-row:focus-visible .row-chevron {
+  opacity: 1;
 }
 
 /* Scroll chrome */
@@ -195,6 +735,34 @@ body {
 ::selection {
   background: rgba(0, 26, 255, 0.14);
   color: var(--text-1);
+}
+
+/* ---------- Focus ----------
+ * The app shipped with ZERO focus styles: Tailwind's reset drops the UA outline
+ * and nothing replaced it, so every one of the ~100 buttons and rows was
+ * invisible to a keyboard user. :focus-visible means pointer users never see a
+ * ring, so this costs the mouse-driven design nothing.
+ *
+ * Written as a plain selector list rather than :where(...) so it carries normal
+ * specificity and can be overridden per-component by a plain class rule. Both
+ * forms compile fine under Turbopack's Lightning CSS.
+ *
+ * Uses the existing accent (--dot-active); no new colour is introduced. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--dot-active);
+  outline-offset: 2px;
+}
+
+/* Rows are wide and already lifted; an offset ring would collide with the row
+ * above, so the rail's nav items take the ring flush to their edge. */
+button.nav-item:focus-visible {
+  outline-offset: 0;
 }
 
 /* Smooth swap for AgentsPanel's collapsed "current action" line. React
@@ -244,17 +812,64 @@ body {
   animation: card-bloom 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Canvas horizontal padding. Heavy at wide viewports, lighter as space tightens. */
+/* ---------- Canvas title ----------
+ * The workspace canvas is the narrowest column on the screen: at a 1512px
+ * viewport it gets ~620px once the rail, the session list and the agents panel
+ * have taken theirs, and at 1280 with everything expanded it gets under 400.
+ * A 24px address does not fit in that, and the title is the one thing on the
+ * screen that says which property you are looking at — so it stepped down to
+ * an ellipsis exactly when it mattered most.
+ *
+ * A container query rather than a viewport one, because what decides this is
+ * the column's width, not the window's: the same 1440px window gives the canvas
+ * 620px or 1080px depending on whether the reader has collapsed the panels
+ * beside it, and a media query cannot see that.
+ *
+ * Two steps down the existing ramp — never an intermediate size. */
+.canvas-scope {
+  container-type: inline-size;
+  container-name: canvas;
+}
+
+.canvas-title {
+  font-size: var(--type-display);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  font-weight: var(--weight-semibold);
+}
+@container canvas (max-width: 620px) {
+  .canvas-title {
+    font-size: var(--type-heading);
+  }
+}
+@container canvas (max-width: 440px) {
+  .canvas-title {
+    font-size: var(--type-title);
+    letter-spacing: var(--tracking-title);
+  }
+}
+
+/* Canvas padding. Was 28/60, which was the single biggest contributor to the
+ * app reading as roomy next to the compact reference. Now 20/32 stepping to
+ * 16/20, all off the space scale. */
+/* One gutter for every canvas — Dashboard, Reconciliation, Properties, AI
+ * Performance and the review surface all wear this class, so widening it here
+ * widens all five together and they cannot drift apart.
+ *
+ * 40px rather than 32 at full width: the content column is capped at 1120px and
+ * centred, so on a wide screen the gutter is generous anyway. What it fixes is
+ * the case that actually shows — a canvas narrower than the cap, where the card
+ * grows until it is 32px off the window edge and reads as pressed against it. */
 .canvas-pad {
-  padding: 28px 60px 12px;
+  padding: var(--space-7) var(--space-10) var(--space-7);
 }
 @media (max-width: 1440px) {
   .canvas-pad {
-    padding: 28px 40px 12px;
+    padding: var(--space-7) var(--space-9) var(--space-6);
   }
 }
 @media (max-width: 1280px) {
   .canvas-pad {
-    padding: 28px 28px 12px;
+    padding: var(--space-6) var(--space-8) var(--space-6);
   }
 }

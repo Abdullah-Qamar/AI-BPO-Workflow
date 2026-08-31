@@ -1,247 +1,231 @@
 "use client";
 
-import { ArrowLeft, TrendingDown, TrendingUp } from "lucide-react";
+/* AI Performance — a top-level destination, reached from the rail.
+ *
+ * Two tabs, because there are two questions and they are not versions of each
+ * other:
+ *
+ *   Overview        what the three agents did, what it cost, and whether any of
+ *                   it is improving
+ *   Knowledge base  the rules a person has given the AI, which is the only
+ *                   place in this product where a human changes how it behaves
+ *
+ * Throughput used to be a third tab. It was one card of six-cycle trend on a tab
+ * of its own, which made a reader navigate to find out whether the numbers on
+ * the first tab were going the right way — the two belong on one screen.
+ *
+ * Colour is the product's own and nothing else: the three agents take a single
+ * blue-slate ramp so the cost bar reads as one quantity split four ways rather
+ * than four unrelated things, and the trend chart uses the same green the
+ * Dashboard's close-progress bar uses. */
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  aiObservability,
-  type AIAgentRow,
-  type AICyclePoint,
-  type AIDecision,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  CURRENT_CYCLE,
+  aiAgents,
+  aiAgentsFor,
+  aiThroughput,
+  cycleOptions,
+  shortCycle,
+  knowledgeRules,
+  properties,
+  type AIAgentKey,
+  type AIAgentProfile,
+  type AIThroughputPoint,
+  type KnowledgeRule,
+  type RuleScope,
 } from "@/lib/seed";
+import { Button, IconButton } from "./ui/Button";
+import { CyclePicker } from "./ui/CyclePicker";
+import { Overlay, OverlayCard } from "./ui/Overlay";
 
-interface AIQualityDetailProps {
-  onBack: () => void;
-}
+type Tab = "overview" | "knowledge";
 
-export function AIQualityDetail({ onBack }: AIQualityDetailProps) {
-  const o = aiObservability;
+/* No agent colours. An agent is not a status, and a hue per agent across a row of
+ * peers had the reader hunting for a meaning that was not there — the third
+ * palette in three passes, which is itself the evidence that colour was never
+ * carrying anything here.
+ *
+ * The one place a tone is genuinely load-bearing is the token bar, where four
+ * adjacent segments have to be told apart. That is a quantity divided, so it
+ * takes a neutral ramp stepped by lightness alone: no hue is asserted, and the
+ * legend is positioned under its own segment rather than keyed by colour, so
+ * even the ramp is a courtesy rather than the mechanism. */
+const TOKEN_STEP: Record<AIAgentKey, string> = {
+  intake: "#5A6B7D",
+  reconciliation: "#8B99A9",
+  summary: "#C4CDD8",
+};
+
+/* Chart marks. History is the page's own hairline blue-grey; the current cycle
+ * takes the green the Dashboard already uses for close progress, so "the latest
+ * bar" and "progress" are the same colour everywhere in the product. */
+const MARK_PAST = "rgba(157, 179, 197, 0.55)";
+/* Same hue with enough weight for the current bar to lead, and enough contrast
+ * for the axis title to be legible as type. A 0.55-alpha grey-blue works as a
+ * 40px bar and fails as an 11px word. */
+const MARK_PAST_STRONG = "rgba(125, 151, 176, 0.85)";
+const MARK_PAST_INK = "#5E7793";
+const MARK_NOW = "var(--status-ok)";
+
+const GOOD = "var(--status-ok-ink)";
+const ALERT = "var(--status-warn-ink)";
+
+export function AIQualityDetail() {
+  const [tab, setTab] = useState<Tab>("overview");
+  /* The cycle scopes the whole page. It used to set a piece of state nothing
+   * read, so choosing April moved the label and left May's figures under it.
+   * The per-agent detail is only modelled for the current cycle, so earlier
+   * cycles show the trend series' own figures for that point and say so. */
+  const [cycle, setCycle] = useState(CURRENT_CYCLE);
+  const point = useMemo(
+    () => aiThroughput.find((p) => p.cycle === cycle) ?? null,
+    [cycle]
+  );
 
   return (
     <main
-      className="flex flex-col items-center flex-1 min-w-0 relative overflow-auto scroll-thin"
-      style={{
-        padding: "28px 60px 48px",
-        background: "var(--bg-grad)",
-      }}
+      className="canvas-pad flex flex-col items-center flex-1 min-w-0 relative overflow-auto scroll-thin"
+      style={{ background: "var(--bg-grad)" }}
     >
       <div
         className="flex flex-col"
-        style={{ width: "100%", maxWidth: 1120, gap: 32 }}
+        style={{ width: "100%", maxWidth: 1120, gap: "var(--space-7)" }}
       >
-        <Header onBack={onBack} cycle={o.cycle} />
-
-        <Card>
-          <SectionEyebrow>This cycle · {o.cycle}</SectionEyebrow>
-          <div
-            className="flex flex-row"
-            style={{ gap: 0, paddingTop: 8 }}
+        {/* No leading icon and no back link. The rail is the navigation now, and
+          * a heading that says "AI Performance" beside a rail item that says
+          * "AI Performance" beside a gauge glyph was three statements of one
+          * fact. Dropping it also puts the heading on the same left edge as
+          * every card beneath it. */}
+        <div
+          className="flex flex-row items-center shrink-0"
+          style={{ width: "100%", gap: "var(--space-4)", height: "var(--control-lg)" }}
+        >
+          <h1
+            className="t-display flex-1 truncate"
+            style={{ color: "var(--ink-primary)", margin: 0 }}
           >
-            <BigMetric
-              label="AI accuracy"
-              value={`${o.accuracy}%`}
-              hint="How often the AI's match or flag turned out to be correct."
-              trend={o.accuracyTrend}
-              higherIsBetter
-            />
-            <CardDivider />
-            <BigMetric
-              label="Overrides"
-              value={`${o.overrides}%`}
-              hint="How often a reviewer changed the AI's decision."
-              trend={o.overridesTrend}
-              higherIsBetter={false}
-            />
-            <CardDivider />
-            <BigMetric
-              label="Avg confidence"
-              value={`${o.confidence}%`}
-              hint="The AI's own sureness across all decisions this cycle."
-              trend={o.confidenceTrend}
-              higherIsBetter
-            />
-          </div>
-        </Card>
+            AI Performance
+          </h1>
+          <CyclePicker value={cycle} options={cycleOptions} onChange={setCycle} />
+        </div>
 
-        <Card>
-          <div
-            className="flex flex-row items-end justify-between"
-            style={{ width: "100%" }}
-          >
-            <div className="flex flex-col" style={{ gap: 4 }}>
-              <SectionEyebrow>Last 6 cycles</SectionEyebrow>
-              <span
-                style={{
-                  fontSize: 14,
-                  lineHeight: "17px",
-                  color: "var(--text-2)",
-                }}
-              >
-                AI accuracy over time — the trend you'd want to see.
-              </span>
-            </div>
-            <LegendChip />
-          </div>
-          <TrendChart history={o.history} />
-          <div
-            style={{
-              fontSize: 13,
-              lineHeight: "17px",
-              color: "var(--text-2)",
-              fontStyle: "italic",
-            }}
-          >
-            {o.overridesNote}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex flex-col" style={{ gap: 4 }}>
-            <SectionEyebrow>By AI agent</SectionEyebrow>
-            <span
-              style={{
-                fontSize: 14,
-                lineHeight: "17px",
-                color: "var(--text-2)",
-              }}
-            >
-              Four agents handle the run. Each one's quality is tracked
-              separately.
-            </span>
-          </div>
-          <div className="flex flex-col" style={{ marginTop: 8 }}>
-            {o.byAgent.map((a, i) => (
-              <AgentRow
-                key={a.key}
-                agent={a}
-                showDivider={i < o.byAgent.length - 1}
-              />
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex flex-col" style={{ gap: 4 }}>
-            <SectionEyebrow>Recent calls the AI made</SectionEyebrow>
-            <span
-              style={{
-                fontSize: 14,
-                lineHeight: "17px",
-                color: "var(--text-2)",
-              }}
-            >
-              A sample of recent decisions and the AI's reason — useful for
-              spot-checking how it's thinking.
-            </span>
-          </div>
-          <div className="flex flex-col" style={{ gap: 12, marginTop: 8 }}>
-            {o.recentDecisions.map((d) => (
-              <DecisionRow key={d.id} decision={d} />
-            ))}
-          </div>
-        </Card>
+        <TabStrip tab={tab} setTab={setTab} />
+        {tab === "overview" ? (
+          <OverviewTab cycle={cycle} point={point} />
+        ) : (
+          <KnowledgeTab cycle={cycle} />
+        )}
       </div>
     </main>
   );
 }
 
-function Header({ onBack, cycle }: { onBack: () => void; cycle: string }) {
-  return (
-    <div className="flex flex-col" style={{ gap: 16, width: "100%" }}>
-      <button
-        onClick={onBack}
-        className="flex flex-row items-center"
-        style={{
-          width: "fit-content",
-          gap: 6,
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-          color: "var(--text-2)",
-          fontFamily: "inherit",
-          fontSize: 13,
-          lineHeight: "17px",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--text-1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = "var(--text-2)";
-        }}
-      >
-        <ArrowLeft size={14} strokeWidth={1.6} />
-        <span>Back to Dashboard</span>
-      </button>
-      <div className="flex flex-row items-end justify-between">
-        <div className="flex flex-col" style={{ gap: 4 }}>
-          <h1
-            style={{
-              fontSize: 28,
-              lineHeight: "34px",
-              fontWeight: 400,
-              color: "var(--text-1)",
-              margin: 0,
-            }}
-          >
-            AI Quality
-          </h1>
-          <span
-            style={{
-              fontSize: 14,
-              lineHeight: "17px",
-              color: "var(--text-2)",
-            }}
-          >
-            How well the AI is doing — and where it could be better.
-          </span>
-        </div>
-        <div
-          className="flex flex-row items-center"
-          style={{
-            height: 36,
-            padding: "0 14px",
-            gap: 8,
-            background: "rgba(255,255,255,0.55)",
-            border: "1px solid rgba(255,255,255,0.7)",
-            borderRadius: 999,
-            color: "var(--text-1)",
-            fontSize: 14,
-            lineHeight: "17px",
-          }}
-        >
-          <span style={{ color: "var(--text-2)" }}>Cycle</span>
-          <span>{cycle}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
+function TabStrip({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const items: [Tab, string][] = [
+    ["overview", "Overview"],
+    ["knowledge", "Knowledge base"],
+  ];
   return (
     <div
-      className="flex flex-col"
-      style={{
-        width: "100%",
-        padding: 28,
-        gap: 16,
-        background: "var(--surface-card)",
-        backgroundImage: "var(--surface-card-glow)",
-        boxShadow: "var(--shadow-card)",
-        borderRadius: 20,
-      }}
+      className="flex flex-row items-center shrink-0"
+      style={{ gap: "var(--space-2)" }}
     >
-      {children}
+      {items.map(([key, label]) => {
+        const active = tab === key;
+        return (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            aria-pressed={active}
+            className="flex flex-row items-center"
+            style={{
+              height: "var(--control-md)",
+              padding: "0 10px",
+              background: active ? "var(--surface-tab-active)" : "transparent",
+              border: active ? "1px solid #FFFFFF" : "1px solid transparent",
+              boxShadow: active ? "var(--shadow-chip)" : "none",
+              borderRadius: "var(--radius-control)",
+              cursor: "pointer",
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-ui)",
+              fontWeight: active ? "var(--weight-medium)" : "var(--weight-regular)",
+              color: active ? "var(--ink-primary)" : "var(--ink-tertiary)",
+              fontFamily: "inherit",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function SectionEyebrow({ children }: { children: React.ReactNode }) {
+/* The one card shape this page uses, and the same two surfaces as the Dashboard
+ * listing — soft shell, brighter sheet where there are rows — so the screens
+ * read as one product. */
+function Card({
+  title,
+  meta,
+  action,
+  children,
+  note,
+}: {
+  title: string;
+  meta?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  note?: string;
+}) {
+  return (
+    <section
+      className="flex flex-col shrink-0"
+      style={{
+        width: "100%",
+        background: "var(--surface-card)",
+        borderRadius: "var(--radius-card)",
+        boxShadow: "var(--shadow-card)",
+        padding: "var(--space-6)",
+        gap: "var(--space-5)",
+      }}
+    >
+      <div className="flex flex-row items-center" style={{ gap: "var(--space-5)" }}>
+        <span className="t-title shrink-0" style={{ color: "var(--ink-primary)" }}>
+          {title}
+        </span>
+        {meta}
+        <div className="flex-1" />
+        {action}
+      </div>
+      {children}
+      {note && (
+        <p className="t-prose" style={{ color: "var(--ink-tertiary)", margin: 0 }}>
+          {note}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function CardMeta({ children }: { children: React.ReactNode }) {
   return (
     <span
+      className="truncate"
       style={{
-        fontSize: 13,
-        lineHeight: "17px",
-        color: "var(--text-2)",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        color: "var(--ink-tertiary)",
       }}
     >
       {children}
@@ -249,470 +233,2021 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CardDivider() {
-  return (
-    <div
-      style={{
-        width: 1,
-        background: "var(--line-soft)",
-        margin: "8px 0",
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-function BigMetric({
-  label,
-  value,
-  hint,
-  trend,
-  higherIsBetter,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  trend: number;
-  higherIsBetter: boolean;
-}) {
-  const flat = trend === 0;
-  const positive = higherIsBetter ? trend > 0 : trend < 0;
-  const trendColor = flat
-    ? "var(--text-3)"
-    : positive
-    ? "#1A7048"
-    : "#A32626";
-
+function Sheet({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex flex-col"
-      style={{ flex: 1, gap: 10, padding: "8px 24px" }}
+      style={{
+        background: "var(--surface-list)",
+        borderRadius: "var(--radius-sheet)",
+        boxShadow: "var(--shadow-depth-1)",
+        overflow: "hidden",
+        padding: 4,
+        ...({ "--list-inset": "8px" } as React.CSSProperties),
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ================= Overview ================= */
+
+function OverviewTab({
+  cycle,
+  point,
+}: {
+  cycle: string;
+  point: AIThroughputPoint | null;
+}) {
+  /* Every card on this tab reads the chosen cycle. The picker used to set
+   * state nothing consumed, so the page showed May's figures under any label
+   * the reader picked. */
+  const agents = useMemo(() => aiAgentsFor(cycle), [cycle]);
+
+  if (agents.length === 0) {
+    return (
+      <Card title="No sessions in this cycle">
+        <span className="t-body" style={{ color: "var(--ink-tertiary)" }}>
+          Nothing was reconciled in {cycle}, so there is nothing to report on.
+        </span>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--space-7)", width: "100%" }}>
+      <TokenUseCard agents={agents} cycle={cycle} />
+      <AgentsCard agents={agents} point={point} />
+      <TrendCard />
+    </div>
+  );
+}
+
+/* Cost first: it is the one thing on this page nobody could see before and that
+ * somebody is paying for.
+ *
+ * The legend is positioned, not listed. Each agent's key starts at the exact
+ * left edge of its own segment and is exactly as wide, so the bar needs no
+ * reading key at all — position is the key, and the dot is there only to anchor
+ * the cell to the segment above it. A flowing legend row put "Summary" under
+ * Reconciliation's segment and made the reader match colours instead of just
+ * looking down.
+ *
+ * The name and the figures stack, which is what lets the narrowest segment (8%)
+ * hold a legible label at all. */
+function TokenUseCard({
+  agents,
+  cycle,
+}: {
+  agents: AIAgentProfile[];
+  cycle: string;
+}) {
+  const total = agents.reduce((s, a) => s + a.tokens, 0);
+  const share = (a: AIAgentProfile) => (a.tokens / total) * 100;
+
+  return (
+    <Card
+      title="Token use"
+      meta={<CardMeta>{`${fmtTokens(total)} in ${cycle}`}</CardMeta>}
+    >
+      <div className="flex flex-col" style={{ width: "100%", gap: "var(--space-4)" }}>
+        {/* The bar is glass, not paint.
+          *
+          * Three flat blocks of grey butted together read as a stacked chart
+          * from a spreadsheet — the one visual on the page and the least
+          * considered. Each segment is now a pane on `.glass-raised`: a real
+          * blur, a top-lit rim and a contact shadow, so it sits ABOVE the track
+          * rather than inside it.
+          *
+          * Three things have to hold at once and they pull against each other:
+          *
+          *   lifted     the blur and the rim, which is what `.glass-raised`
+          *              carries and what makes a pane read as a pane
+          *   tellable   a tint of the agent's own step, mixed in rather than
+          *              painted over, so the blur is still visible through the
+          *              colour and the three panes are still three
+          *   readable   a 4px gap and a full pill radius on each pane, so the
+          *              PROPORTION is legible as three separate widths and not
+          *              as one bar with colour changes in it
+          *
+          * The track underneath is what gives the panes something to be above.
+          * Without it they float on nothing and the effect reads as a rendering
+          * artefact.
+          *
+          * Taller than it was (10 -> 22) because the effect needs somewhere to
+          * happen: below about 16px the rim and the shadow consume the whole
+          * segment and it just looks blurry. */}
+        <div
+          aria-hidden
+          className="flex flex-row items-stretch"
+          style={{
+            width: "100%",
+            height: 22,
+            gap: 4,
+            padding: 3,
+            borderRadius: 999,
+            background: "rgba(157, 179, 197, 0.16)",
+            boxShadow: "inset 0 1px 2px rgba(38, 50, 66, 0.07)",
+          }}
+        >
+          {agents.map((a) => (
+            <div
+              key={a.key}
+              className="glass-raised"
+              style={{
+                width: `${share(a)}%`,
+                /* A pane narrower than its own corner radius stops being a
+                 * shape and becomes a smudge. */
+                minWidth: 16,
+                borderRadius: 999,
+                /* The agent's step tints the pane rather than filling it. The
+                 * mix is with a translucent white, so the result is itself
+                 * translucent and the blur behind still comes through.
+                 *
+                 * 70% and not the 46% this started at: a white wash of half
+                 * compresses a three-step ramp into about 25 levels of grey
+                 * end to end, and three panes 25 levels apart on a white card
+                 * are three panes nobody can tell apart. At 70% the steps land
+                 * roughly 35 levels apart and the darkest still reads as a
+                 * slate rather than as a shadow. */
+                background: `color-mix(in srgb, ${TOKEN_STEP[a.key]} 70%, rgba(255,255,255,0.55))`,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Same widths, the same gap and the same 3px inset as the bar, so
+          * every cell's left edge lands on its own segment's left edge. The
+          * three have to agree exactly: the legend is not keyed by colour, it
+          * is keyed by position, so a cell that drifts is a cell that names the
+          * wrong segment. */}
+        <div className="flex flex-row" style={{ width: "100%", gap: 4, padding: "0 3px" }}>
+          {agents.map((a) => (
+            <div
+              key={a.key}
+              className="flex flex-col min-w-0"
+              style={{ width: `${share(a)}%`, minWidth: 16, gap: 1 }}
+            >
+              <span
+                className="flex flex-row items-center truncate"
+                style={{ gap: "var(--space-3)" }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 999,
+                    background: TOKEN_STEP[a.key],
+                    flexShrink: 0,
+                  }}
+                />
+                <span
+                  className="truncate"
+                  style={{
+                    fontSize: "var(--type-body)",
+                    lineHeight: "var(--leading-ui)",
+                    color: "var(--ink-secondary)",
+                  }}
+                >
+                  {a.name}
+                </span>
+              </span>
+              <span
+                className="nums truncate"
+                style={{
+                  fontSize: "var(--type-meta)",
+                  lineHeight: "var(--leading-ui)",
+                  color: "var(--ink-tertiary)",
+                  /* Indented to the name above it, not to the dot. */
+                  paddingLeft: 14,
+                }}
+              >
+                {fmtTokens(a.tokens)} · {Math.round(share(a))}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------- Agents ----------
+ *
+ * One block per agent — three of them, the same three every surface shows —
+ * and nothing open until you open one.
+ *
+ * The block is the reference folder's card, verbatim in structure (see r03, the
+ * workflow-step stack): a title row with a trailing disclosure glyph, a hairline
+ * inset to the text, then the content beneath it. That rule is what gives the
+ * card internal structure — it is doing the job four columns of micro-stats and
+ * an agent colour were previously failing to do.
+ *
+ * No colour. An agent is not a status, and a hue per agent across a row of peers made
+ * the reader look for a meaning that was not there. Identity is the name; the
+ * only reason a colour was ever needed was to tie a legend to a bar, and that
+ * legend is now positioned instead of keyed.
+ *
+ * Nothing is expanded by default. The blocks are the answer to "how are
+ * they doing"; the prompt is a second question, and a panel that is already open
+ * asserts the reader asked it. */
+function AgentsCard({
+  agents,
+  point,
+}: {
+  agents: AIAgentProfile[];
+  point: AIThroughputPoint | null;
+}) {
+  const [open, setOpen] = useState<AIAgentKey | null>(null);
+  const agent = open ? aiAgents.find((a) => a.key === open) : null;
+
+  return (
+    <Card title="Agents">
+      <div className="flex flex-row items-stretch" style={{ gap: "var(--space-5)" }}>
+        {agents.map((a) => (
+          <AgentBlock
+            key={a.key}
+            agent={a}
+            open={a.key === open}
+            onToggle={() => setOpen(a.key === open ? null : a.key)}
+          />
+        ))}
+      </div>
+
+      {agent && <PromptPanel agent={agent} />}
+    </Card>
+  );
+}
+
+function AgentBlock({
+  agent,
+  open,
+  onToggle,
+}: {
+  agent: AIAgentProfile;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const rate = Math.round((agent.succeeded / agent.runs) * 100);
+  const lifted = open || hover;
+
+  return (
+    <button
+      onClick={onToggle}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-expanded={open}
+      aria-label={`${agent.name} · ${rate}% success rate over ${agent.runs} runs, ${fmtTokens(
+        agent.tokens
+      )} tokens, ${agent.medianSeconds} seconds average. Show its system prompt.`}
+      className="flex flex-col text-left"
+      style={{
+        flex: 1,
+        minWidth: 0,
+        padding: "var(--space-6)",
+        gap: "var(--space-5)",
+        /* The edge is a white highlight and a shadow, not a stroke — the
+         * reference cards carry no visible border, and on a light ground the
+         * shadow step is what separates a resting card from a lifted one.
+         *
+         * The lifted state takes --surface-card-glow, the top-down sheen the
+         * reference cards all carry and which had been sitting unused in
+         * globals.css since the design system was written. It is the difference
+         * between a card that is white and a card that is lit. */
+        background: lifted ? "var(--surface-card-glow)" : "var(--surface-list)",
+        border: "1px solid #FFFFFF",
+        boxShadow: lifted ? "var(--shadow-depth-2)" : "var(--shadow-depth-1)",
+        borderRadius: "var(--radius-card)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "background 140ms ease, box-shadow 140ms ease",
+      }}
     >
       <span
-        style={{
-          fontSize: 13,
-          lineHeight: "17px",
-          color: "var(--text-2)",
-        }}
-      >
-        {label}
-      </span>
-      <div
-        className="flex flex-row items-baseline"
-        style={{ gap: 10 }}
+        className="flex flex-row items-center"
+        style={{ gap: "var(--space-4)", width: "100%" }}
       >
         <span
+          className="truncate flex-1"
           style={{
-            fontSize: 36,
-            lineHeight: "40px",
-            color: "var(--text-1)",
+            fontSize: "var(--type-title)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-title)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--ink-primary)",
+          }}
+        >
+          {agent.name}
+        </span>
+        {/* On every block, not only the open one: the glyph is what says a block
+          * opens, and an affordance that appears after you have already clicked
+          * has nothing left to tell you. */}
+        <ChevronRight
+          size={14}
+          strokeWidth={1.75}
+          color="var(--ink-tertiary)"
+          style={{
+            transform: open ? "rotate(90deg)" : "none",
+            transition: "transform 140ms ease",
+            flexShrink: 0,
+          }}
+        />
+      </span>
+
+      {/* The reference's hairline: inset to nothing, spanning the card's content
+        * width, separating what this is from how it is doing. */}
+      <span
+        aria-hidden
+        style={{ height: 1, width: "100%", background: "var(--line-hair)" }}
+      />
+
+      <span className="flex flex-col" style={{ gap: 2, width: "100%" }}>
+        {/* Level with the name, because they are the two halves of one sentence:
+          * which agent, and how well it ran. The run count sits on the title
+          * rather than as a third line — it answers "of what" for the one reader
+          * in ten who asks. */}
+        <span
+          className="nums truncate"
+          style={{
+            fontSize: "var(--type-title)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-title)",
+            color: "var(--ink-primary)",
+          }}
+          /* The app's own hint. A native `title` renders as the OS's black
+           * chip, which is the one surface in this product that comes from
+           * somewhere else. */
+          data-hint={`${agent.succeeded} of ${agent.runs} runs finished with no human correction`}
+        >
+          {rate}% success rate
+        </span>
+        <span
+          className="nums truncate"
+          style={{
+            fontSize: "var(--type-body)",
+            lineHeight: "var(--leading-ui)",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          {fmtTokens(agent.tokens)} tokens · {agent.medianSeconds}s average
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/* The prompt, and only the prompt. The agent's name and description were also
+ * here and both were already answered: the name by the block you just clicked,
+ * the description by the prompt itself, at more length and in the agent's own
+ * words.
+ *
+ * Flat. It used to be a lifted sheet holding a second, differently-tinted sheet
+ * — two surfaces and two borders to present one block of text, inside a card
+ * that is already a surface. Nesting like that says "this is a separate thing";
+ * a prompt revealed by expanding an agent is not a separate thing, it is that
+ * agent's detail.
+ *
+ * What carries the structure instead is a rule and a label, which is what the
+ * rest of the app uses to separate a section from the one above it, and a
+ * single hairline down the left of the prompt itself — the typographic mark for
+ * quoted material, and the lightest thing that will do the job. */
+function PromptPanel({ agent }: { agent: AIAgentProfile }) {
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
+      <span
+        aria-hidden
+        style={{ height: 1, width: "100%", background: "var(--line-hair)" }}
+      />
+      <span className="t-label">System prompt</span>
+      {/* Monospace, and the line breaks it was written with. A prompt reflowed
+        * as prose is a different document. */}
+      <pre
+        className="scroll-thin"
+        style={{
+          margin: 0,
+          padding: "0 0 0 var(--space-5)",
+          borderLeft: "1px solid var(--line-menu)",
+          background: "transparent",
+          fontFamily: "var(--font-mono)",
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-prose)",
+          color: "var(--ink-secondary)",
+          whiteSpace: "pre-wrap",
+          overflowX: "auto",
+        }}
+      >
+        {agent.systemPrompt}
+      </pre>
+    </div>
+  );
+}
+
+/* ---------- Trend ----------
+ *
+ * Rebuilt twice. The first pass fixed the hierarchy (four 20px readings that
+ * out-shouted the card's own title), the order (two sentences of prose before
+ * any number), the proximity (legend, plot and readings spread over five bands)
+ * and the density (every bar labelled, and labelled again underneath).
+ *
+ * This pass fixes what was left:
+ *
+ *   Title    "6 cycles of work" counted the rows in the series and called that
+ *            a heading. It changed meaning whenever the data did, and it named
+ *            the axis rather than the subject. The card is a trend; it says so,
+ *            in one word — the page above it is already titled "AI
+ *            Performance", so "Performance trend" would say performance twice.
+ *   Range    the series was fixed at whatever the seed held. A reader comparing
+ *            this cycle to last quarter had to read six bars and do it in their
+ *            head. They can pick the window now, and the meta line states which
+ *            cycles are actually on screen rather than restating the control.
+ *   Baseline the readings compared against the FIRST point in the whole series
+ *            no matter what was on screen, so "since Dec" was true only by
+ *            coincidence. They compare against the first point in the chosen
+ *            window, and name it.
+ *   Reading  "Held up on review" described the review process, not the figure.
+ *            The number is the share the agent got right before a person
+ *            touched it, which is first-pass accuracy in every product that
+ *            reports it.
+ *
+ * The plot keeps its construction — readings first at the card's own type size,
+ * one rule, then the chart — and gains the thing it was missing: a cycle under
+ * the pointer is readable. Every mark was inert, and only the last column was
+ * labelled, so four of the six months on screen could be compared but not
+ * read. */
+
+/* Windows a reader can choose. Capped at six: the series is monthly, and a
+ * chart of more than half a year of closes stops being a trend anyone reads and
+ * becomes a history nobody scrolls. */
+const TREND_WINDOWS = [3, 6] as const;
+
+function TrendCard() {
+  const [window, setWindow] = useState<number>(6);
+  const d = useMemo(() => aiThroughput.slice(-window), [window]);
+  const first = d[0];
+  const last = d[d.length - 1];
+
+  const perRecord = (p: AIThroughputPoint) => Math.round(p.tokens / p.lines);
+  const change = (from: number, to: number) =>
+    Math.round(((to - from) / from) * 100);
+
+  const since = shortCycle(first.cycle);
+
+  return (
+    <Card
+      title="Trend"
+      meta={<CardMeta>{`${first.cycle} to ${last.cycle}`}</CardMeta>}
+      action={
+        <RangePicker
+          value={window}
+          options={TREND_WINDOWS}
+          onChange={setWindow}
+        />
+      }
+    >
+      {/* The summary, at the card's own size. Label above value is what groups
+        * the pair: a reader reads the label, then the number under it, rather
+        * than a number and then hunting for what it counts. */}
+      <div className="flex flex-row flex-wrap" style={{ gap: "var(--space-9)" }}>
+        <Reading
+          label="Records matched"
+          value={last.lines.toLocaleString()}
+          delta={change(first.lines, last.lines)}
+          higherIsBetter
+          since={since}
+        />
+        <Reading
+          label="First-pass accuracy"
+          value={`${last.successRate}%`}
+          delta={last.successRate - first.successRate}
+          unit=" pts"
+          higherIsBetter
+          since={since}
+        />
+        <Reading
+          label="Reviewer hours"
+          value={String(last.reviewerHours)}
+          delta={change(first.reviewerHours, last.reviewerHours)}
+          higherIsBetter={false}
+          since={since}
+        />
+        <Reading
+          label="Tokens per record"
+          value={perRecord(last).toLocaleString()}
+          delta={change(perRecord(first), perRecord(last))}
+          higherIsBetter={false}
+          since={since}
+        />
+      </div>
+
+      <span
+        aria-hidden
+        style={{ height: 1, background: "var(--line-hair)", width: "100%" }}
+      />
+
+      <ComboChart data={d} />
+    </Card>
+  );
+}
+
+/* How far back the trend looks. A menu rather than a segmented strip because
+ * the label has to say what the number means — "6" alone in a toggle is a
+ * quantity of nothing in particular. */
+function RangePicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: number;
+  options: readonly number[];
+  onChange: (n: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const label = (n: number) => `Last ${n} cycles`;
+
+  return (
+    <div ref={wrap} className="relative shrink-0">
+      <Button
+        variant="secondary"
+        size="md"
+        onClick={() => setOpen(!open)}
+        rightIcon={
+          <ChevronDown
+            size={14}
+            strokeWidth={1.75}
+            style={{
+              transform: open ? "rotate(180deg)" : "none",
+              transition: "transform 140ms ease",
+            }}
+          />
+        }
+      >
+        {label(value)}
+      </Button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Trend range"
+          className="glass flex flex-col"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            minWidth: 160,
+            zIndex: 40,
+            borderRadius: "var(--radius-sheet)",
+            padding: 4,
+          }}
+        >
+          {options.map((n) => (
+            <MenuItem
+              key={n}
+              label={label(n)}
+              selected={n === value}
+              onSelect={() => {
+                onChange(n);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* One reading. Label above, then the value with its change beside it. Value at
+ * --type-title so it sits level with the card's heading rather than above it. */
+/* One reading: what it counts, where it stands, and which way it moved.
+ *
+ * The direction and the judgement are two different facts and must not share
+ * one input — reviewer hours falling is good news and tokens per line rising is
+ * bad news, and both are negative-looking or positive-looking depending on
+ * which. The old version formatted a "+" into the label at the call site and
+ * painted every delta green, which produced "+-19%" the moment a figure
+ * actually fell, and painted a 49% rise in cost as a success. */
+function Reading({
+  label,
+  value,
+  delta,
+  unit = "%",
+  higherIsBetter,
+  since,
+}: {
+  label: string;
+  value: string;
+  /** Signed change against the baseline cycle. */
+  delta: number;
+  unit?: string;
+  higherIsBetter: boolean;
+  since: string;
+}) {
+  const good = delta === 0 || delta > 0 === higherIsBetter;
+  const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
+  return (
+    <div className="flex flex-col" style={{ gap: 1 }}>
+      <span className="t-label">{label}</span>
+      <div className="flex flex-row items-baseline" style={{ gap: "var(--space-3)" }}>
+        <span
+          className="nums-lead"
+          style={{
+            fontSize: "var(--type-title)",
+            lineHeight: "var(--leading-ui)",
+            color: "var(--ink-primary)",
           }}
         >
           {value}
         </span>
         <span
-          className="flex flex-row items-center"
-          style={{ gap: 4, color: trendColor }}
+          className="nums"
+          style={{
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            color: good ? GOOD : ALERT,
+          }}
         >
-          {flat ? null : positive ? (
-            <TrendingUp size={12} strokeWidth={2} />
-          ) : (
-            <TrendingDown size={12} strokeWidth={2} />
-          )}
-          <span style={{ fontSize: 12, lineHeight: "14px" }}>
-            {flat
-              ? "unchanged"
-              : `${trend > 0 ? "+" : ""}${trend} pts vs prev.`}
-          </span>
+          {sign}
+          {Math.abs(delta)}
+          {unit} since {since}
         </span>
       </div>
-      <span
-        style={{
-          fontSize: 12,
-          lineHeight: "16px",
-          color: "var(--text-3)",
-        }}
-      >
-        {hint}
-      </span>
     </div>
   );
 }
 
-function LegendChip() {
-  return (
-    <div
-      className="flex flex-row items-center"
-      style={{
-        gap: 8,
-        padding: "6px 12px",
-        background: "rgba(255,255,255,0.55)",
-        border: "1px solid rgba(255,255,255,0.7)",
-        borderRadius: 999,
-        fontSize: 12,
-        lineHeight: "14px",
-        color: "var(--text-2)",
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 2,
-          background: "#2856E8",
-          borderRadius: 2,
-        }}
-      />
-      <span style={{ color: "var(--text-1)" }}>AI accuracy</span>
-    </div>
-  );
-}
+/* Bars for lines reconciled against the left axis, a line for reviewer hours
+ * against the right. The crossing is the point of the chart: work rising while
+ * the effort behind it falls.
+ *
+ * Bars, points and gridlines are HTML positioned in percentages; only the
+ * connecting polyline is SVG. A single stretched SVG was the obvious build and
+ * it was wrong — a viewBox 100 units wide scaled to ~900px turns every point
+ * circle into an ellipse, and `vectorEffect` fixes stroke width, not geometry.
+ * Percentages do not stretch, and an HTML rule stays 1px at any width. */
+function ComboChart({ data }: { data: AIThroughputPoint[] }) {
+  const H = 196;
+  const TICKS = 4;
+  const last = data.length - 1;
 
-function TrendChart({ history }: { history: AICyclePoint[] }) {
-  const W = 1040;
-  const H = 220;
-  const padL = 44;
-  const padR = 24;
-  const padT = 18;
-  const padB = 38;
+  /* Which column the reader is asking about. Nothing hovered means the current
+   * cycle, which is what the card answers when nobody has asked anything — so
+   * the plot has one emphasised column at all times and hovering moves it
+   * rather than switching an effect on. */
+  const [hover, setHover] = useState<number | null>(null);
+  const focus = hover ?? last;
 
-  const yMin = 80;
-  const yMax = 100;
-  const ySteps = [80, 85, 90, 95, 100];
-  const xStep = (W - padL - padR) / (history.length - 1);
+  /* Both scales start at zero, so a bar's height and a point's position are both
+   * honest ratios, and both round up to a clean interval so every gridline is a
+   * number a reader recognises. */
+  const linesMax = ceilTo(Math.max(...data.map((p) => p.lines)), 400);
+  const hoursMax = ceilTo(Math.max(...data.map((p) => p.reviewerHours)), 20);
 
-  const x = (i: number) => padL + i * xStep;
-  const y = (v: number) =>
-    padT + ((yMax - v) / (yMax - yMin)) * (H - padT - padB);
-
-  const linePath = history
-    .map((d, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(d.accuracy)}`)
-    .join(" ");
-
-  const areaPath =
-    linePath +
-    ` L ${x(history.length - 1)} ${H - padB} L ${x(0)} ${H - padB} Z`;
-
-  const last = history[history.length - 1];
+  const topPct = (v: number, max: number) => (1 - v / max) * 100;
+  const cxPct = (i: number) => ((i + 0.5) / data.length) * 100;
 
   return (
-    <svg
-      width="100%"
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="xMidYMid meet"
-      style={{ display: "block" }}
-    >
-      <defs>
-        <linearGradient id="ai-accuracy-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2856E8" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#2856E8" stopOpacity="0.0" />
-        </linearGradient>
-      </defs>
+    <div className="flex flex-col" style={{ width: "100%" }}>
+      {/* Axis titles stand in for a legend: one word each, in its series'
+        * colour, sitting directly over the axis that measures it. A legend band
+        * put the key three inches from the marks it explained.
+        *
+        * Each carries a swatch shaped like its own mark — a stub of bar, a stub
+        * of line — because colour alone asks the reader to remember which of
+        * two greys-and-greens went with which shape, and the shape is the thing
+        * they are actually looking at. */}
+      <div className="flex flex-row" style={{ width: "100%", gap: "var(--space-5)" }}>
+        <AxisTitle label="Records" tone={MARK_PAST_INK} mark="bar" align="left" />
+        <div style={{ flex: 1, minWidth: 0 }} />
+        <AxisTitle label="Hours" tone={MARK_NOW} mark="line" align="right" />
+      </div>
 
-      {/* y grid lines + labels */}
-      {ySteps.map((v) => (
-        <g key={v}>
-          <line
-            x1={padL}
-            x2={W - padR}
-            y1={y(v)}
-            y2={y(v)}
-            stroke="#E6E8EE"
-            strokeWidth={1}
-            strokeDasharray={v === 100 ? "0" : "3 4"}
-          />
-          <text
-            x={padL - 10}
-            y={y(v) + 4}
-            textAnchor="end"
-            fontSize={11}
-            fill="#7F8893"
-            fontFamily="inherit"
-          >
-            {v}%
-          </text>
-        </g>
-      ))}
+      <div className="flex flex-row" style={{ width: "100%", gap: "var(--space-5)" }}>
+        <AxisLabels max={linesMax} ticks={TICKS} height={H} align="right" />
 
-      {/* area under accuracy line */}
-      <path d={areaPath} fill="url(#ai-accuracy-fill)" />
-
-      {/* accuracy line */}
-      <path
-        d={linePath}
-        stroke="#2856E8"
-        strokeWidth={2}
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-
-      {/* data points */}
-      {history.map((d, i) => {
-        const isLast = i === history.length - 1;
-        return (
-          <g key={d.fullCycle}>
-            <circle
-              cx={x(i)}
-              cy={y(d.accuracy)}
-              r={isLast ? 5 : 3.5}
-              fill="#FFFFFF"
-              stroke="#2856E8"
-              strokeWidth={isLast ? 2.5 : 2}
-            />
-            {isLast && (
-              <text
-                x={x(i)}
-                y={y(d.accuracy) - 14}
-                textAnchor="end"
-                fontSize={13}
-                fontWeight={500}
-                fill="#303B45"
-                fontFamily="inherit"
-              >
-                {d.accuracy}%
-              </text>
-            )}
-          </g>
-        );
-      })}
-
-      {/* x labels */}
-      {history.map((d, i) => (
-        <text
-          key={d.fullCycle + "x"}
-          x={x(i)}
-          y={H - padB + 22}
-          textAnchor="middle"
-          fontSize={12}
-          fill={i === history.length - 1 ? "#303B45" : "#7F8893"}
-          fontFamily="inherit"
-        >
-          {d.monthLabel}
-        </text>
-      ))}
-    </svg>
-  );
-}
-
-function AgentRow({
-  agent,
-  showDivider,
-}: {
-  agent: AIAgentRow;
-  showDivider: boolean;
-}) {
-  const flat = agent.trend === 0;
-  const positive = agent.higherIsBetter ? agent.trend > 0 : agent.trend < 0;
-  const trendColor = flat
-    ? "var(--text-3)"
-    : positive
-    ? "#1A7048"
-    : "#A32626";
-
-  return (
-    <>
-      <div
-        className="flex flex-row items-center"
-        style={{
-          padding: "16px 0",
-          gap: 24,
-        }}
-      >
-        <div
-          className="flex flex-col"
-          style={{ width: 240, gap: 4, flexShrink: 0 }}
-        >
-          <span
-            style={{
-              fontSize: 16,
-              lineHeight: "19px",
-              color: "var(--text-1)",
-              fontWeight: 500,
-            }}
-          >
-            {agent.name}
-          </span>
-          <span
-            style={{
-              fontSize: 12,
-              lineHeight: "16px",
-              color: "var(--text-3)",
-            }}
-          >
-            {agent.description}
-          </span>
-        </div>
-
-        <div
-          className="flex flex-col flex-1"
-          style={{ minWidth: 0 }}
-        >
-          <span
-            style={{
-              fontSize: 14,
-              lineHeight: "17px",
-              color: "var(--text-2)",
-            }}
-          >
-            {agent.metricLabel}
-          </span>
-        </div>
-
-        <div
-          className="flex flex-row items-baseline"
-          style={{ gap: 10, flexShrink: 0 }}
-        >
-          <span
-            style={{
-              fontSize: 20,
-              lineHeight: "24px",
-              color: "var(--text-1)",
-            }}
-          >
-            {agent.value}%
-          </span>
-          <span
-            className="flex flex-row items-center"
-            style={{ gap: 4, color: trendColor, minWidth: 96, justifyContent: "flex-end" }}
-          >
-            {flat ? (
+        <div className="flex flex-col" style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ position: "relative", height: H, width: "100%" }}>
+            {Array.from({ length: TICKS + 1 }, (_, i) => (
               <span
+                key={i}
+                aria-hidden
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: "currentColor",
-                  opacity: 0.45,
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: `${(100 / TICKS) * i}%`,
+                  height: 1,
+                  background:
+                    i === TICKS ? "rgba(157,179,197,0.55)" : "var(--line-hair)",
                 }}
               />
-            ) : positive ? (
-              <TrendingUp size={12} strokeWidth={2} />
-            ) : (
-              <TrendingDown size={12} strokeWidth={2} />
-            )}
-            <span style={{ fontSize: 12, lineHeight: "14px" }}>
-              {flat
-                ? "unchanged"
-                : `${agent.trend > 0 ? "+" : ""}${agent.trend} pts`}
+            ))}
+
+            {/* The guide. It runs the full height of the plot at the focused
+              * column's centre, which is what lets a reader carry a bar's top
+              * edge across to the right-hand axis without a ruler. */}
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: `${cxPct(focus)}%`,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                transform: "translateX(-50%)",
+                background: "rgba(157, 179, 197, 0.5)",
+                opacity: hover === null ? 0 : 1,
+                transition: "left 140ms ease, opacity 140ms ease",
+              }}
+            />
+
+            {/* Bars. Wider than the first build, which drew them at 34% of the
+              * slot and read as mostly gap. */}
+            <div
+              className="flex flex-row items-end"
+              style={{ position: "absolute", inset: 0 }}
+              aria-hidden
+            >
+              {data.map((p, i) => (
+                <div
+                  key={p.cycle}
+                  className="flex flex-col justify-end items-center"
+                  style={{ flex: 1, minWidth: 0, height: "100%" }}
+                >
+                  <div
+                    style={{
+                      width: "52%",
+                      maxWidth: 60,
+                      height: `${(p.lines / linesMax) * 100}%`,
+                      background: i === focus ? MARK_PAST_STRONG : MARK_PAST,
+                      borderRadius: "3px 3px 0 0",
+                      transition: "background 140ms ease",
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              width="100%"
+              height={H}
+              aria-hidden
+              style={{ position: "absolute", inset: 0, display: "block" }}
+            >
+              <polyline
+                points={data
+                  .map((p, i) => `${cxPct(i)},${topPct(p.reviewerHours, hoursMax)}`)
+                  .join(" ")}
+                fill="none"
+                stroke={MARK_NOW}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+
+            {data.map((p, i) => (
+              <span
+                key={p.cycle}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: `${cxPct(i)}%`,
+                  top: `${topPct(p.reviewerHours, hoursMax)}%`,
+                  transform: "translate(-50%, -50%)",
+                  width: i === focus ? 8 : 6,
+                  height: i === focus ? 8 : 6,
+                  borderRadius: 999,
+                  background: "#FFFFFF",
+                  border: `2px solid ${MARK_NOW}`,
+                  boxSizing: "content-box",
+                  transition: "width 140ms ease, height 140ms ease",
+                }}
+              />
+            ))}
+
+            {/* One label, on the focused column. Labelling all six duplicated
+              * two axes that already name every value; labelling none left the
+              * reader estimating against a gridline. It sits on the current
+              * cycle at rest and follows the pointer. */}
+            <span
+              className="nums"
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: `${cxPct(focus)}%`,
+                top: `${topPct(data[focus].lines, linesMax)}%`,
+                transform: "translate(-50%, -140%)",
+                fontSize: "var(--type-meta)",
+                lineHeight: "var(--leading-ui)",
+                fontWeight: "var(--weight-medium)",
+                color: "var(--ink-primary)",
+                whiteSpace: "nowrap",
+                transition: "left 140ms ease, top 140ms ease",
+              }}
+            >
+              {data[focus].lines.toLocaleString()}
             </span>
-          </span>
+
+            {/* The hit areas, last so they sit over every mark.
+              *
+              * One full-height column per cycle rather than a target on each
+              * bar and each point: the reader is asking about a month, not
+              * about a rectangle, and a 6px dot is not a pointer target. The
+              * exact figures ride on the app's own hint rather than a bespoke
+              * tooltip drawn inside the plot. */}
+            <div
+              className="flex flex-row"
+              style={{ position: "absolute", inset: 0 }}
+              onMouseLeave={() => setHover(null)}
+            >
+              {data.map((p, i) => (
+                <span
+                  key={p.cycle}
+                  onMouseEnter={() => setHover(i)}
+                  data-hint={`${p.cycle} · ${p.lines.toLocaleString()} records matched · ${
+                    p.reviewerHours
+                  } reviewer hours`}
+                  style={{ flex: 1, minWidth: 0, height: "100%" }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-row" style={{ width: "100%", paddingTop: 8 }}>
+            {data.map((p, i) => (
+              <span
+                key={p.cycle}
+                className="flex justify-center min-w-0"
+                style={{
+                  flex: 1,
+                  fontSize: "var(--type-meta)",
+                  lineHeight: "var(--leading-ui)",
+                  fontWeight:
+                    i === focus ? "var(--weight-medium)" : "var(--weight-regular)",
+                  color: i === focus ? "var(--ink-primary)" : "var(--ink-tertiary)",
+                  transition: "color 140ms ease",
+                }}
+              >
+                {shortCycle(p.cycle)}
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
-      {showDivider && (
-        <div
-          style={{
-            width: "100%",
-            height: 1,
-            background: "var(--line-soft)",
-          }}
+
+        <AxisLabels
+          max={hoursMax}
+          ticks={TICKS}
+          height={H}
+          align="left"
+          suffix="h"
         />
-      )}
-    </>
-  );
-}
-
-function DecisionRow({ decision }: { decision: AIDecision }) {
-  const accepted = decision.outcome === "accepted";
-
-  return (
-    <div
-      className="flex flex-col"
-      style={{
-        padding: 16,
-        gap: 10,
-        background: "#FFFFFF",
-        border: "1px solid #ECEDEF",
-        borderRadius: 12,
-      }}
-    >
-      <div
-        className="flex flex-row items-center"
-        style={{ gap: 10 }}
-      >
-        <AgentBadge agent={decision.agent} />
-        <span
-          style={{
-            fontSize: 12,
-            lineHeight: "14px",
-            color: "var(--text-3)",
-          }}
-        >
-          Confidence {decision.confidence}%
-        </span>
-        <div className="flex-1" />
-        <OutcomeChip accepted={accepted} />
       </div>
-      <span
-        style={{
-          fontSize: 15,
-          lineHeight: "19px",
-          color: "var(--text-1)",
-          fontWeight: 500,
-        }}
-      >
-        {decision.title}
-      </span>
-      <span
-        style={{
-          fontSize: 13,
-          lineHeight: "18px",
-          color: "var(--text-2)",
-          fontStyle: "italic",
-        }}
-      >
-        “{decision.reason}”
-      </span>
     </div>
   );
 }
 
-function AgentBadge({ agent }: { agent: AIDecision["agent"] }) {
-  const label =
-    agent === "intake"
-      ? "Intake"
-      : agent === "reconciliation"
-      ? "Reconciliation"
-      : agent === "exception"
-      ? "Exception"
-      : "Summary";
+function AxisTitle({
+  label,
+  tone,
+  mark,
+  align,
+}: {
+  label: string;
+  tone: string;
+  /** The shape this axis measures, drawn at hint size beside its name. */
+  mark: "bar" | "line";
+  align: "left" | "right";
+}) {
+  const swatch =
+    mark === "bar" ? (
+      <span
+        aria-hidden
+        style={{
+          width: 8,
+          height: 10,
+          borderRadius: "2px 2px 0 0",
+          background: MARK_PAST_STRONG,
+          flexShrink: 0,
+        }}
+      />
+    ) : (
+      /* A stub of rule with the line's own open dot on it, which is exactly
+       * what the series draws. */
+      <span
+        aria-hidden
+        className="relative flex items-center"
+        style={{ width: 14, height: 10, flexShrink: 0 }}
+      >
+        <span style={{ width: "100%", height: 2, background: MARK_NOW }} />
+        <span
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            width: 3,
+            height: 3,
+            borderRadius: 999,
+            background: "#FFFFFF",
+            border: `2px solid ${MARK_NOW}`,
+            boxSizing: "content-box",
+          }}
+        />
+      </span>
+    );
 
   return (
     <span
+      className="flex flex-row items-center shrink-0"
       style={{
-        fontSize: 11,
-        lineHeight: "14px",
-        padding: "4px 8px",
-        background: "rgba(40, 86, 232, 0.08)",
-        color: "#1F47C2",
-        borderRadius: 6,
-        fontWeight: 500,
-        letterSpacing: "0.02em",
+        gap: "var(--space-3)",
+        flexDirection: align === "right" ? "row-reverse" : "row",
+        fontSize: "var(--type-meta)",
+        lineHeight: "var(--leading-ui)",
+        letterSpacing: "var(--tracking-meta)",
+        fontWeight: "var(--weight-medium)",
+        color: tone,
+        paddingBottom: "var(--space-3)",
       }}
     >
+      {swatch}
       {label}
     </span>
   );
 }
 
-function OutcomeChip({ accepted }: { accepted: boolean }) {
+/* One axis. Labels are positioned against the same percentage geometry the
+ * gridlines use, so a label and its rule can never drift apart. */
+function AxisLabels({
+  max,
+  ticks,
+  height,
+  align,
+  suffix = "",
+}: {
+  max: number;
+  ticks: number;
+  height: number;
+  align: "left" | "right";
+  suffix?: string;
+}) {
   return (
-    <span
+    <div style={{ position: "relative", height, width: 40, flexShrink: 0 }}>
+      {Array.from({ length: ticks + 1 }, (_, i) => (
+        <span
+          key={i}
+          className="nums"
+          style={{
+            position: "absolute",
+            top: `${(100 / ticks) * i}%`,
+            left: 0,
+            right: 0,
+            transform: "translateY(-50%)",
+            textAlign: align === "right" ? "right" : "left",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          {Math.round(max - (max / ticks) * i).toLocaleString()}
+          {suffix}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* Rounds an axis maximum up to the next clean interval, so the top gridline is a
+ * number a reader recognises rather than the data's own high-water mark. */
+function ceilTo(value: number, interval: number): number {
+  return Math.ceil(value / interval) * interval;
+}
+
+
+/* ================= Knowledge base ================= */
+
+/* Scope is a filter, not a section.
+ *
+ * Two stacked cards worked at four rules each and stops working the moment a
+ * team has forty: the reader scrolls past everything global to reach anything
+ * property-specific, and neither list is ever fully in view. One list with a
+ * scope switch and a search box scales, and it means there is one place to look
+ * rather than two to choose between.
+ *
+ * Scope is named by what it covers. "Portfolio-wide" carried a false precision —
+ * a portfolio is a real object in this product, with its own name on the
+ * Properties screen, and these rules are not scoped to one. */
+const SCOPE_LABEL: Record<RuleScope, string> = {
+  all: "All properties",
+  property: "Single property",
+};
+
+function KnowledgeTab({ cycle }: { cycle: string }) {
+  const [scope, setScope] = useState<RuleScope>("all");
+  const [query, setQuery] = useState("");
+  const [added, setAdded] = useState<KnowledgeRule[]>([]);
+  /* One dialog for both jobs. "new" composes a rule; a rule composes an edit of
+   * that rule. See RuleDialog for why they are the same dialog. */
+  const [dialog, setDialog] = useState<KnowledgeRule | "new" | null>(null);
+  /* Edits and removals against the seeded rules, held here rather than in each
+   * row: a row unmounts when the search or the scope changes, and a change that
+   * evaporates when the row does is not a change. Session-local — the prototype
+   * has no store behind it.
+   *
+   * A patch, not a string. Editing used to carry the rule's wording alone, so
+   * the two mistakes you cannot fix by rewriting the sentence — pointing a rule
+   * at the wrong agent, or at the wrong property — could only be fixed by
+   * deleting the rule and typing it again. Every field the dialog collects is a
+   * field the dialog can change. */
+  const [edited, setEdited] = useState<Record<string, Partial<KnowledgeRule>>>(
+    {}
+  );
+  const [removed, setRemoved] = useState<string[]>([]);
+
+  const everything = useMemo(
+    () =>
+      [...added, ...knowledgeRules]
+        .filter((r) => !removed.includes(r.id))
+        .map((r) => (edited[r.id] ? { ...r, ...edited[r.id] } : r)),
+    [added, edited, removed]
+  );
+
+  const counts = useMemo(
+    () => ({
+      all: everything.filter((r) => r.scope === "all").length,
+      property: everything.filter((r) => r.scope === "property").length,
+    }),
+    [everything]
+  );
+
+  /* Searches the rule text, the property and the agent's name together — a
+   * reader looking for "Westlake" and a reader looking for "fee" both expect the
+   * one box to find it. */
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return everything
+      .filter((r) => r.scope === scope)
+      .filter((r) => {
+        if (!q) return true;
+        const agent = aiAgents.find((a) => a.key === r.agent)?.name ?? "";
+        return `${r.rule} ${r.property ?? ""} ${agent}`.toLowerCase().includes(q);
+      });
+  }, [everything, scope, query]);
+
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--space-6)", width: "100%" }}>
+      {/* One line. What these are and how long they last — the two facts a
+        * first-time reader needs and the only two. */}
+      <p className="t-prose" style={{ color: "var(--ink-secondary)", margin: 0 }}>
+        Rules the AI reads before every run, and keeps reading until you remove
+        them.
+      </p>
+
+      <section
+        className="flex flex-col shrink-0"
+        style={{
+          width: "100%",
+          background: "var(--surface-card)",
+          borderRadius: "var(--radius-card)",
+          boxShadow: "var(--shadow-card)",
+          padding: "var(--space-6)",
+          gap: "var(--space-5)",
+        }}
+      >
+        <div className="flex flex-row items-center" style={{ gap: "var(--space-5)" }}>
+          <div className="flex flex-row items-center" style={{ gap: "var(--space-2)" }}>
+            {(["all", "property"] as RuleScope[]).map((s) => (
+              <ScopeTab
+                key={s}
+                label={SCOPE_LABEL[s]}
+                count={counts[s]}
+                active={scope === s}
+                onClick={() => setScope(s)}
+              />
+            ))}
+          </div>
+
+          <div className="flex-1" />
+
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder="Search rules, properties, agents"
+          />
+          <Button
+            size="md"
+            variant="secondary"
+            onClick={() => setDialog("new")}
+            leftIcon={<Plus size={14} strokeWidth={1.75} />}
+          >
+            Add rule
+          </Button>
+        </div>
+
+        <Sheet>
+          <RuleHeader scoped={scope === "property"} />
+          {rows.length === 0 ? (
+            <div
+              style={{
+                padding: "var(--space-7) 8px",
+                fontSize: "var(--type-body)",
+                lineHeight: "var(--leading-ui)",
+                color: "var(--ink-tertiary)",
+              }}
+            >
+              {query
+                ? `Nothing matches “${query.trim()}”.`
+                : "No rules here yet."}
+            </div>
+          ) : (
+            rows.map((r) => (
+              <RuleRow
+                key={r.id}
+                rule={r}
+                scoped={scope === "property"}
+                onEdit={() => setDialog(r)}
+                onRemove={() => setRemoved((prev) => [...prev, r.id])}
+              />
+            ))
+          )}
+        </Sheet>
+      </section>
+
+      <RuleDialog
+        open={dialog !== null}
+        /* A new rule takes the scope the reader is looking at; an existing one
+         * keeps its own, because a rule's scope is which list it lives in and
+         * changing it would be a move, not an edit. */
+        rule={dialog === "new" ? null : dialog}
+        scope={dialog === "new" || dialog === null ? scope : dialog.scope}
+        cycle={cycle}
+        onClose={() => setDialog(null)}
+        onAdd={(rule) => {
+          setAdded((prev) => [rule, ...prev]);
+          setDialog(null);
+        }}
+        onEdit={(id, patch) => {
+          setEdited((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+          setDialog(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function ScopeTab({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className="flex flex-row items-center"
       style={{
-        fontSize: 11,
-        lineHeight: "14px",
-        padding: "4px 10px",
-        background: accepted
-          ? "rgba(26, 112, 72, 0.10)"
-          : "rgba(163, 38, 38, 0.10)",
-        color: accepted ? "#1A7048" : "#A32626",
-        border: `1px solid ${
-          accepted ? "rgba(26, 112, 72, 0.22)" : "rgba(163, 38, 38, 0.22)"
-        }`,
-        borderRadius: 6,
-        fontWeight: 500,
+        height: "var(--control-md)",
+        padding: "0 10px",
+        gap: "var(--space-3)",
+        background: active ? "var(--surface-tab-active)" : "transparent",
+        border: active ? "1px solid #FFFFFF" : "1px solid transparent",
+        boxShadow: active ? "var(--shadow-chip)" : "none",
+        borderRadius: "var(--radius-control)",
+        cursor: "pointer",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        fontWeight: active ? "var(--weight-medium)" : "var(--weight-regular)",
+        color: active ? "var(--ink-primary)" : "var(--ink-tertiary)",
+        fontFamily: "inherit",
       }}
     >
-      {accepted ? "Accepted by reviewer" : "Overridden by reviewer"}
-    </span>
+      {label}
+      <span
+        className="nums"
+        style={{
+          fontSize: "var(--type-meta)",
+          color: active ? "var(--ink-secondary)" : "var(--ink-tertiary)",
+        }}
+      >
+        {count}
+      </span>
+    </button>
   );
+}
+
+function SearchBox({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label
+      className="flex flex-row items-center shrink-0"
+      style={{
+        height: "var(--control-md)",
+        width: 244,
+        padding: "0 10px",
+        gap: "var(--space-4)",
+        background: "var(--surface-list)",
+        border: "1px solid rgba(157, 179, 197, 0.35)",
+        borderRadius: "var(--radius-control)",
+      }}
+    >
+      <Search size={14} strokeWidth={1.75} color="var(--ink-tertiary)" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          background: "transparent",
+          border: "none",
+          outline: "none",
+          fontFamily: "inherit",
+          fontSize: "var(--type-body)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-primary)",
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="flex items-center justify-center shrink-0"
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: 999,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          <X size={14} strokeWidth={1.75} />
+        </button>
+      )}
+    </label>
+  );
+}
+
+
+
+/* Two grids: the property view carries a column the all-properties view has
+ * nothing to put in, and an empty cell is a hole a reader tries to interpret.
+ *
+ * The trailing 56px gutter holds the row's own actions. It is a fixed column
+ * rather than an absolutely-positioned overlay so revealing them on hover
+ * cannot reflow the columns beside them. */
+const RULE_GRID = "minmax(0, 1fr) 116px 104px 168px 56px";
+const RULE_GRID_SCOPED = "minmax(0, 1fr) 168px 116px 104px 168px 56px";
+
+/* Every column reads from the same left edge.
+ *
+ * They used to be left, then centre, then right across three adjacent columns,
+ * which gave a four-column band three different starting points and no rhythm
+ * at all. Centring and right-aligning earn their keep on figures — a column of
+ * numbers wants a shared decimal edge — but none of these columns holds a
+ * figure. They hold an agent's name, two words of state, and a person plus a
+ * month. Those are text, and text aligns left. */
+function RuleHeader({ scoped }: { scoped: boolean }) {
+  const cell: React.CSSProperties = {
+    fontSize: "var(--type-meta)",
+    lineHeight: "var(--leading-ui)",
+    fontWeight: "var(--weight-medium)",
+    letterSpacing: "var(--tracking-meta)",
+    color: "var(--ink-tertiary)",
+  };
+  return (
+    <div
+      className="list-row grid shrink-0"
+      style={{
+        gridTemplateColumns: scoped ? RULE_GRID_SCOPED : RULE_GRID,
+        gap: "var(--space-5)",
+        alignItems: "center",
+        padding: "var(--space-4) 8px",
+        /* The rows below carry a transparent 1px border so their hover state
+         * can paint one without shifting. The header had none, so every column
+         * label sat exactly one pixel left of the column under it. */
+        border: "1px solid transparent",
+      }}
+    >
+      <span style={cell}>Rule</span>
+      {scoped && <span style={cell}>Property</span>}
+      {/* "Used by" named the relationship from the rule's side and read as a
+        * question about consumption. The column holds one thing — which agent
+        * reads this rule — so it says so. */}
+      <span style={cell}>Agent</span>
+      {/* "Status" is the app's word for where a session stands, and reusing it
+        * for a cell that says In use / Never used borrowed a meaning this
+        * column does not have. What it reports is whether the rule is being
+        * used, so it says Usage. */}
+      <span style={cell}>Usage</span>
+      <span style={cell}>Added</span>
+      {/* The rows' action gutter. Empty here, present so the two grids agree. */}
+      <span />
+    </div>
+  );
+}
+
+function RuleRow({
+  rule,
+  scoped,
+  onEdit,
+  onRemove,
+}: {
+  rule: KnowledgeRule;
+  scoped: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const agent = aiAgents.find((a) => a.key === rule.agent);
+  const unused = rule.applied === 0;
+
+  const lifted = hover || confirming;
+
+  const cell: React.CSSProperties = {
+    fontSize: "var(--type-body)",
+    lineHeight: "var(--leading-prose)",
+    color: "var(--ink-secondary)",
+  };
+
+  return (
+    /* Auto height, not the 40px pitch the other tables use. A rule is a sentence
+     * and it has to be read in full: a truncated rule is worse than no rule,
+     * because a reader cannot tell what it does. */
+    <div
+      className="list-row grid"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        gridTemplateColumns: scoped ? RULE_GRID_SCOPED : RULE_GRID,
+        gap: "var(--space-5)",
+        alignItems: "start",
+        padding: "var(--space-5) 8px",
+        background: lifted ? "#FFFFFF" : "transparent",
+        border: lifted
+          ? "1px solid var(--line-row-hover)"
+          : "1px solid transparent",
+        boxShadow: lifted ? "var(--shadow-chip)" : "none",
+        borderRadius: "var(--radius-row)",
+        transition:
+          "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+      }}
+    >
+      <span
+        className="t-prose"
+        style={{ color: "var(--ink-primary)", maxWidth: "none" }}
+      >
+        {rule.rule}
+      </span>
+
+      {scoped && (
+        <span className="truncate" style={cell} data-hint={rule.property}>
+          {rule.property}
+        </span>
+      )}
+
+      {/* The agent's name, unaccompanied. It carried a colour dot while the
+        * agents had a palette; the name was always the thing being read. */}
+      <span className="truncate" style={cell}>
+        {agent?.name ?? rule.agent}
+      </span>
+
+      {/* This column used to print how many times the rule fired: 214, 88, 31,
+        * 6. Nobody acts on the difference between 214 and 88 — the counts told a
+        * reader the rule works, which they already assumed. What is worth
+        * knowing is the one case that contradicts the assumption, so the column
+        * carries that and drops the arithmetic. */}
+      <span
+        style={{
+          ...cell,
+          fontWeight: unused ? "var(--weight-medium)" : "var(--weight-regular)",
+          color: unused ? ALERT : "var(--ink-tertiary)",
+        }}
+        data-hint={
+          unused
+            ? "Has not matched anything this cycle"
+            : `Matched ${rule.applied} times this cycle`
+        }
+      >
+        {unused ? "Never used" : "In use"}
+      </span>
+
+      <span
+        className="nums truncate"
+        style={{ ...cell, color: "var(--ink-tertiary)" }}
+        data-hint={`Added by ${rule.addedBy}`}
+      >
+        {rule.addedBy} · {rule.addedOn}
+      </span>
+
+      {/* The two actions, in the open.
+        *
+        * They were behind an overflow menu, which is the right pattern when a
+        * row has five actions and no room. This row has two, and the gutter has
+        * room for both — so a reader who wants to edit a rule clicks edit,
+        * rather than clicking a menu to find out what the row can do. */}
+      <RuleActions
+        visible={hover || confirming}
+        confirming={confirming}
+        onEdit={onEdit}
+        onAskRemove={() => setConfirming(true)}
+        onCancelRemove={() => setConfirming(false)}
+        onConfirmRemove={onRemove}
+      />
+    </div>
+  );
+}
+
+/* Edit and remove, side by side in the row's gutter.
+ *
+ * Removal asks first, and asks in place: a rule is durable input a person
+ * wrote, and it is the only thing on this screen that cannot be recovered by
+ * reading something else. The confirm replaces the two icons rather than
+ * opening a popover over them, so the row never grows and nothing is covered. */
+function RuleActions({
+  visible,
+  confirming,
+  onEdit,
+  onAskRemove,
+  onCancelRemove,
+  onConfirmRemove,
+}: {
+  visible: boolean;
+  confirming: boolean;
+  onEdit: () => void;
+  onAskRemove: () => void;
+  onCancelRemove: () => void;
+  onConfirmRemove: () => void;
+}) {
+  if (confirming) {
+    return (
+      <div
+        className="flex flex-row items-center"
+        style={{ gap: "var(--space-2)", justifySelf: "end" }}
+      >
+        <IconAction
+          label="Confirm remove"
+          tone="danger"
+          onClick={onConfirmRemove}
+        >
+          <Check size={14} strokeWidth={1.75} />
+        </IconAction>
+        <IconAction label="Keep rule" onClick={onCancelRemove}>
+          <X size={14} strokeWidth={1.75} />
+        </IconAction>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-row items-center"
+      style={{
+        gap: "var(--space-2)",
+        justifySelf: "end",
+        /* Only the opacity changes, so revealing them cannot reflow the row. */
+        opacity: visible ? 1 : 0,
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 120ms ease",
+      }}
+    >
+      <IconAction label="Edit rule" onClick={onEdit}>
+        <Pencil size={14} strokeWidth={1.75} />
+      </IconAction>
+      <IconAction label="Remove rule" onClick={onAskRemove}>
+        <Trash2 size={14} strokeWidth={1.75} />
+      </IconAction>
+    </div>
+  );
+}
+
+function IconAction({
+  label,
+  tone,
+  onClick,
+  children,
+}: {
+  label: string;
+  tone?: "danger";
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  const ink =
+    tone === "danger" ? "var(--status-danger-ink)" : "var(--ink-tertiary)";
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-hint={label}
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex items-center justify-center shrink-0"
+      style={{
+        width: "var(--control-sm)",
+        height: "var(--control-sm)",
+        background: hover
+          ? tone === "danger"
+            ? "var(--status-danger-bg)"
+            : "var(--surface-control)"
+          : "transparent",
+        border: "none",
+        borderRadius: "var(--radius-row)",
+        cursor: "pointer",
+        color: hover && tone !== "danger" ? "var(--ink-secondary)" : ink,
+        transition: "background 120ms ease, color 120ms ease",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MenuItem({
+  label,
+  danger,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  danger?: boolean;
+  /* Set only when the item is one of a set the reader is choosing between —
+   * a listbox option rather than a command. Undefined leaves the tick gutter
+   * off entirely, so a two-item action menu is not padded for a mark it will
+   * never draw. */
+  selected?: boolean;
+  onSelect: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      role={selected === undefined ? "menuitem" : "option"}
+      aria-selected={selected}
+      onClick={onSelect}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="flex flex-row items-center"
+      style={{
+        height: "var(--row-md)",
+        padding: "0 8px",
+        gap: "var(--space-4)",
+        /* Translucent, because it sits on glass. An opaque hover on a
+         * translucent sheet reads as a rendering fault. */
+        background: hover ? "rgba(255, 255, 255, 0.7)" : "transparent",
+        border: "none",
+        borderRadius: "var(--radius-row)",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: "var(--type-body)",
+        lineHeight: "var(--leading-ui)",
+        fontWeight: selected ? "var(--weight-medium)" : "var(--weight-regular)",
+        color: danger
+          ? "var(--status-danger-ink)"
+          : selected
+          ? "var(--ink-primary)"
+          : "var(--ink-secondary)",
+        textAlign: "left",
+        whiteSpace: "nowrap",
+        transition: "background 120ms ease",
+      }}
+    >
+      <span className="flex-1">{label}</span>
+      {selected !== undefined && (
+        /* Fixed slot, so the labels line up whether or not a tick is drawn. */
+        <span
+          className="inline-flex shrink-0"
+          style={{ width: 14, justifyContent: "center" }}
+          aria-hidden
+        >
+          {selected && (
+            <Check size={14} strokeWidth={1.75} color="var(--ink-secondary)" />
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ---------- Write a rule ----------
+ *
+ * ONE dialog, for writing a rule and for changing one.
+ *
+ * They were two different things: adding opened a modal with three fields,
+ * editing turned the row's first column into a textarea with a second field
+ * bolted under it. That is two mental models for one task, and the inline one
+ * could only ever reach the fields that fit in a table cell — which is why the
+ * agent arrived late and the property never arrived at all. A reader who put a
+ * rule on the wrong property had to delete it and type it out again.
+ *
+ * The dialog is the survivor rather than the inline editor, for one reason: a
+ * rule is three facts, not one. Sentence, agent, and — when it is scoped to a
+ * property — which property. Three labelled fields do not fit in a table cell
+ * without the row growing to swallow the list, and a row that grows to 300px
+ * loses exactly the neighbouring rules that inline editing existed to keep in
+ * view. So the same surface collects all three either way, and Edit and Add put
+ * the reader in the same place looking at the same form.
+ *
+ * Save is disabled until the rule has text, because an empty rule is not a
+ * draft, it is a mistake; and, when editing, until something has actually
+ * changed. */
+function RuleDialog({
+  open,
+  rule,
+  scope,
+  cycle,
+  onClose,
+  onAdd,
+  onEdit,
+}: {
+  open: boolean;
+  /** The rule being changed, or null to compose a new one. */
+  rule: KnowledgeRule | null;
+  scope: RuleScope;
+  /* Stamped onto a new rule, so one written while viewing March is dated
+   * March rather than always "now". */
+  cycle: string;
+  onClose: () => void;
+  onAdd: (rule: KnowledgeRule) => void;
+  onEdit: (id: string, patch: Partial<KnowledgeRule>) => void;
+}) {
+  return (
+    <Overlay open={open} onDismiss={onClose}>
+      {open && (
+        /* Keyed, so opening the dialog on a different rule builds a fresh
+         * draft rather than showing the last one's. */
+        <RuleForm
+          key={rule?.id ?? "new"}
+          rule={rule}
+          scope={scope}
+          cycle={cycle}
+          onClose={onClose}
+          onAdd={onAdd}
+          onEdit={onEdit}
+        />
+      )}
+    </Overlay>
+  );
+}
+
+function RuleForm({
+  rule,
+  scope,
+  cycle,
+  onClose,
+  onAdd,
+  onEdit,
+}: {
+  rule: KnowledgeRule | null;
+  scope: RuleScope;
+  cycle: string;
+  onClose: () => void;
+  onAdd: (rule: KnowledgeRule) => void;
+  onEdit: (id: string, patch: Partial<KnowledgeRule>) => void;
+}) {
+  const editing = rule !== null;
+  const [text, setText] = useState(rule?.rule ?? "");
+  const [agent, setAgent] = useState<AIAgentKey>(rule?.agent ?? "reconciliation");
+  const [property, setProperty] = useState(
+    rule?.property ?? shortAddress(properties[0]?.address ?? "")
+  );
+
+  const ready =
+    text.trim().length > 0 &&
+    (!editing ||
+      text.trim() !== rule.rule ||
+      agent !== rule.agent ||
+      (scope === "property" && property !== rule.property));
+
+  const submit = () => {
+    if (!ready) return;
+    if (editing) {
+      onEdit(rule.id, {
+        rule: text.trim(),
+        agent,
+        ...(scope === "property" ? { property } : {}),
+      });
+      return;
+    }
+    onAdd({
+      /* Deterministic enough for a prototype and stable within a session. */
+      id: `kr-new-${text.length}-${agent}`,
+      scope,
+      property: scope === "property" ? property : undefined,
+      agent,
+      rule: text.trim(),
+      addedBy: "You",
+      addedOn: cycle,
+      /* A rule written now has not fired yet, and the table says so rather than
+       * pretending otherwise. */
+      applied: 0,
+    });
+  };
+
+  const title = editing ? "Edit rule" : "Add a rule";
+
+  return (
+    <OverlayCard width={560}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${title} for ${SCOPE_LABEL[scope].toLowerCase()}`}
+        className="flex flex-col scroll-thin"
+        style={{
+          padding: "var(--space-6)",
+          gap: "var(--space-6)",
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
+        }}
+      >
+        <div className="flex flex-row items-start" style={{ gap: "var(--space-5)" }}>
+          <div className="flex flex-col" style={{ gap: 2, flex: 1, minWidth: 0 }}>
+            <span className="t-title" style={{ color: "var(--ink-primary)" }}>
+              {title}
+            </span>
+            <span
+              style={{
+                fontSize: "var(--type-body)",
+                lineHeight: "var(--leading-ui)",
+                color: "var(--ink-tertiary)",
+              }}
+            >
+              {scope === "all"
+                ? "Applies to every reconciliation the AI runs"
+                : "Applies only to the property you name"}
+            </span>
+          </div>
+          {/* On the shared primitive rather than a hand-rolled round button
+            * with its own fill: it is an icon-only control, which is what
+            * IconButton is for, and its old fill was a one-off white wash
+            * instead of --surface-control. */}
+          <IconButton
+            variant="secondary"
+            size="md"
+            ariaLabel="Close"
+            onClick={onClose}
+          >
+            <X size={14} strokeWidth={1.75} />
+          </IconButton>
+        </div>
+
+        <Field label="Rule">
+          {/* Written in the reconciler's own words, so a textarea and not a
+            * builder. The placeholder is a real rule from the list, because an
+            * abstract placeholder teaches nobody the register to write in. */}
+          <textarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
+            }}
+            rows={3}
+            placeholder="Chase Operating charges a $42.50 account fee on the 3rd of every month. It is not a duplicate."
+            className="scroll-thin"
+            style={{
+              width: "100%",
+              resize: "vertical",
+              padding: "var(--space-5)",
+              background: "var(--surface-list)",
+              border: "1px solid rgba(157, 179, 197, 0.35)",
+              borderRadius: "var(--radius-control)",
+              fontFamily: "inherit",
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-prose)",
+              color: "var(--ink-primary)",
+              outline: "none",
+            }}
+          />
+        </Field>
+
+        {scope === "property" && (
+          <Field label="Property">
+            <Select
+              ariaLabel="Property this rule applies to"
+              value={property}
+              onChange={setProperty}
+              options={properties.map((p) => ({
+                value: shortAddress(p.address),
+                label: shortAddress(p.address),
+              }))}
+            />
+          </Field>
+        )}
+
+        {/* "Read by" named the same relationship the table now calls Agent.
+          * One word per concept, in the column heading and in the field that
+          * fills it. */}
+        <Field label="Agent">
+          <Select
+            ariaLabel="Agent that reads this rule"
+            value={agent}
+            onChange={(v) => setAgent(v as AIAgentKey)}
+            options={aiAgents.map((a) => ({ value: a.key, label: a.name }))}
+          />
+        </Field>
+
+        <div className="flex flex-row items-center" style={{ gap: "var(--space-4)" }}>
+          <div className="flex-1" />
+          <Button size="lg" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="lg" variant="primary" disabled={!ready} onClick={submit}>
+            {editing ? "Save changes" : "Add rule"}
+          </Button>
+        </div>
+      </div>
+    </OverlayCard>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex flex-col" style={{ gap: "var(--space-4)" }}>
+      <span className="t-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+/* The app's own select, not the browser's.
+ *
+ * A native <select> draws its own popup in OS chrome: a different font, a
+ * different corner radius, a different highlight colour, and on macOS an
+ * opaque menu that lands nothing like the frosted ones every other control on
+ * this page opens. It was the only control in the product that looked like it
+ * came from somewhere else — which mattered most in the rule editor, where a
+ * person is deciding which agent reads a rule they wrote.
+ *
+ * Same glass sheet and the same ticked options as the cycle and range pickers,
+ * so choosing an agent, a cycle and a window are one gesture learned once.
+ * Keyboard: Escape closes, and the trigger is a real button so it is reachable
+ * and announces its expanded state. */
+function Select({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const current = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative" style={{ width: "100%" }}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex flex-row items-center"
+        style={{
+          width: "100%",
+          height: "var(--control-lg)",
+          padding: "0 var(--space-4)",
+          gap: "var(--space-4)",
+          background: "var(--surface-list)",
+          border: `1px solid ${open ? "var(--line)" : "var(--line-menu)"}`,
+          borderRadius: "var(--radius-control)",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          textAlign: "left",
+          transition: "border-color 120ms ease",
+        }}
+      >
+        <span
+          className="flex-1 truncate"
+          style={{
+            fontSize: "var(--type-body)",
+            lineHeight: "var(--leading-ui)",
+            color: "var(--ink-primary)",
+          }}
+        >
+          {current?.label ?? value}
+        </span>
+        <ChevronDown
+          size={14}
+          strokeWidth={1.75}
+          color="var(--ink-tertiary)"
+          style={{
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 140ms ease",
+          }}
+        />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          className="glass flex flex-col"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            minWidth: "100%",
+            zIndex: 60,
+            borderRadius: "var(--radius-sheet)",
+            padding: 4,
+          }}
+        >
+          {options.map((o) => (
+            <MenuItem
+              key={o.value}
+              label={o.label}
+              selected={o.value === value}
+              onSelect={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= Shared ================= */
+
+/* "1849 Westlake Ave N, Seattle, WA 98109" -> "1849 Westlake Ave N, Seattle".
+ * Street and city, which is how every seeded rule names its property. Without
+ * it a rule added through the dialog carried the state and ZIP as well, so one
+ * row in the column was a different length from all the others and truncated. */
+function shortAddress(address: string): string {
+  return address.split(",").slice(0, 2).join(",").trim();
+}
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return String(n);
 }
