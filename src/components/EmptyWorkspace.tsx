@@ -137,13 +137,11 @@ function SessionAtRest() {
       <GhostSurface
         icon={<FileText size={14} strokeWidth={1.75} />}
         label="Statement"
-        widths={[100, 78, 90]}
       />
       <RestingWire />
       <GhostSurface
         icon={<Table size={14} strokeWidth={1.75} />}
         label="Ledger"
-        widths={[92, 100, 72]}
       />
       <style>{`
         @keyframes es-socket-breath { 0%, 100% { opacity: .4 } 50% { opacity: .85 } }
@@ -154,35 +152,39 @@ function SessionAtRest() {
   );
 }
 
-/* A ghosted, at-rest surface — a labeled header over skeleton rows, lifted on
- * the depth-2 shadow. Reads as "a document not yet loaded". */
+/* A ghosted, at-rest surface — a flat icon+label header over a single short
+ * skeleton line, lifted on the depth-2 shadow. Reads as "a document not yet
+ * loaded", and hugs its content so the scene stays quiet. */
 function GhostSurface({
   icon,
   label,
-  widths,
 }: {
   icon: React.ReactNode;
   label: string;
-  widths: number[];
 }) {
   return (
     <div
       className="flex flex-col"
       style={{
-        width: 158,
-        height: 118,
-        /* The card radius, since this is standing in for a card. */
+        width: 140,
+        /* No fixed height — the card hugs its header + skeleton line so there
+         * is no dead space below the content. */
         borderRadius: "var(--radius-card)",
         background: "var(--surface-card-glow)",
         border: "1px solid var(--line-soft)",
         boxShadow: "var(--shadow-depth-2)",
-        padding: "var(--pad-card)",
-        gap: 12,
+        padding: 12,
+        gap: 10,
       }}
     >
-      <div
+      {/* Header — icon + name, flat (no chip). */}
+      <span
         className="flex flex-row items-center"
-        style={{ gap: 7, color: "var(--ink-secondary)" }}
+        style={{
+          alignSelf: "flex-start",
+          gap: 6,
+          color: "var(--ink-secondary)",
+        }}
       >
         {icon}
         <span
@@ -195,33 +197,16 @@ function GhostSurface({
         >
           {label}
         </span>
-      </div>
-      <div className="flex flex-col" style={{ gap: 9 }}>
-        {widths.map((w, i) => (
-          <div
-            key={i}
-            className="flex flex-row items-center"
-            style={{ justifyContent: "space-between", gap: 10 }}
-          >
-            <span
-              style={{
-                height: 6,
-                width: w,
-                borderRadius: 3,
-                background: "rgba(98, 116, 131, 0.16)",
-              }}
-            />
-            <span
-              style={{
-                height: 6,
-                width: 22,
-                borderRadius: 3,
-                background: "rgba(98, 116, 131, 0.10)",
-              }}
-            />
-          </div>
-        ))}
-      </div>
+      </span>
+      {/* One at-rest skeleton line, kept short so it reads as a hint. */}
+      <span
+        style={{
+          height: 6,
+          width: "60%",
+          borderRadius: 3,
+          background: "rgba(98, 116, 131, 0.16)",
+        }}
+      />
     </div>
   );
 }
@@ -232,17 +217,17 @@ function GhostSurface({
  * visual language as the live canvas. */
 function RestingWire() {
   return (
-    <div style={{ width: 120, height: 118, flexShrink: 0 }}>
+    <div style={{ width: 120, height: 56, flexShrink: 0 }}>
       <svg
         width="100%"
         height="100%"
-        viewBox="0 0 120 118"
+        viewBox="0 0 120 56"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         style={{ display: "block" }}
       >
         <path
-          d="M16 59 Q 60 68 104 59"
+          d="M16 28 Q 60 32 104 28"
           stroke="rgba(98, 116, 131, 0.42)"
           strokeWidth={1.25}
           strokeLinecap="round"
@@ -251,7 +236,7 @@ function RestingWire() {
         />
         <circle
           cx={8}
-          cy={59}
+          cy={28}
           r={6}
           fill="none"
           stroke="rgba(98, 116, 131, 0.35)"
@@ -260,13 +245,13 @@ function RestingWire() {
         <circle
           className="es-socket"
           cx={8}
-          cy={59}
+          cy={28}
           r={2.2}
           fill="rgba(98, 116, 131, 0.6)"
         />
         <circle
           cx={112}
-          cy={59}
+          cy={28}
           r={6}
           fill="none"
           stroke="rgba(98, 116, 131, 0.35)"
@@ -275,7 +260,7 @@ function RestingWire() {
         <circle
           className="es-socket"
           cx={112}
-          cy={59}
+          cy={28}
           r={2.2}
           fill="rgba(98, 116, 131, 0.6)"
           style={{ animationDelay: "-2.3s" }}

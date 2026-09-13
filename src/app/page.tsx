@@ -10,6 +10,7 @@ import { DashboardCanvas } from "@/components/DashboardCanvas";
 import { AIQualityDetail } from "@/components/AIQualityDetail";
 import { PropertiesCanvas } from "@/components/PropertiesCanvas";
 import { EmptyWorkspace } from "@/components/EmptyWorkspace";
+import { WorkspaceDropZone } from "@/components/WorkspaceDropZone";
 import {
   CURRENT_CYCLE,
   banksFor,
@@ -168,10 +169,7 @@ export default function Page() {
                * around the AgentsPanel (top + right gap) reads as the same
                * light workspace gradient the canvas uses, rather than the
                * darker root gradient shown behind the rails. */}
-              <div
-                className="flex flex-row items-stretch flex-1 min-w-0"
-                style={{ background: "var(--bg-grad)" }}
-              >
+              <WorkspaceDropZone>
                 {canvasView === "upload" && (
                   <MainCanvas
                     onSelectSession={(id) => {
@@ -196,7 +194,7 @@ export default function Page() {
                     setAgentsCollapsed(true);
                   }}
                 />
-              </div>
+              </WorkspaceDropZone>
             </SessionProvider>
           )}
         </>

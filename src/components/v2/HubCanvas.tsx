@@ -56,7 +56,6 @@ import { Strands, type StrandSpec } from "./Strands";
 import { SessionHeader, type WorkspaceTab } from "./SessionHeader";
 import { PropertyKnowledge } from "./PropertyKnowledge";
 import { Activity, type AgentPillState } from "./ActivityFeed";
-import { SummaryBand } from "./SummaryBand";
 import { currentAction, useActivityLog } from "@/lib/v2/activity";
 import {
   propertyNotes,
@@ -332,6 +331,7 @@ export function HubCanvas({
         tab={tab}
         onTabChange={setTab}
         onSelectCycle={onSelectSession}
+        showTabs={false}
       />
 
       {tab === "knowledge" ? (
@@ -344,16 +344,8 @@ export function HubCanvas({
         * was reached, and the hub is the mechanism. Anything the run has not
         * produced yet simply isn't rendered, so the column shortens toward the
         * top rather than holding empty slots. */}
-      <div className="flex flex-col shrink-0" style={{ width: "100%", gap: 18, paddingTop: 20 }}>
-        <SummaryBand phase={phase} state={state} onViewRecords={onViewRecords} />
-        <Activity
-          entries={activity}
-          pills={pills}
-          current={present}
-          expanded={activityOpen}
-          onToggle={() => setActivityOpen((v) => !v)}
-        />
-      </div>
+      {/* The outcome summary and the activity record both live in the
+        * right-side agent panel now; the hub is just the mechanism. */}
 
       {/* `justify-center` on an overflowing row spills content out of *both*
         * sides, which pushed the statement column underneath the session nav
@@ -506,6 +498,10 @@ function DocColumn({
         /* Reserved so docking rows fill into existing space rather than growing
          * the column and shifting the core. */
         minHeight: COLUMN_H,
+        /* Centre the rows within that reserved height so any number of files
+         * sits level with the core rather than stacking from the top — the
+         * cards read as flowing out of the middle and staying there. */
+        justifyContent: "center",
         gap: ROW_GAP,
         zIndex: 1,
       }}

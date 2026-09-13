@@ -169,7 +169,7 @@ function Header({
       <CyclePicker value={cycle} options={cycleOptions} onChange={onCycleChange} />
       <Button
         variant="primary"
-        size="lg"
+        size="md"
         onClick={onStartRun}
         leftIcon={<Plus size={14} strokeWidth={1.75} />}
       >
@@ -766,21 +766,30 @@ function RunRow({
         alignItems: "center",
         height: 40,
         padding: "0 8px",
-        /* Hover-lifts to white, matching the property listing. The sheet under
-         * these rows is a hair off-white precisely so that there is somewhere
-         * whiter to go; the hairline border and the chip shadow are what carry
-         * the lift, since a 1.5% fill change on its own would not read. The
-         * resting border is transparent so nothing shifts on hover. */
-        background: hover ? "#FFFFFF" : "transparent",
-        border: hover
-          ? "1px solid var(--line-row-hover)"
-          : "1px solid transparent",
-        boxShadow: hover ? "var(--shadow-chip)" : "none",
-        borderRadius: "var(--radius-row)",
+        /* Hover is a flat tint bounded by the row separators, not a lifted
+         * rounded chip: no grey border, no shadow, square corners, so the fill
+         * runs edge to edge with the hairlines above and below it. The sheet is
+         * a hair off-white, so the tint goes to --surface-chip (a cool grey)
+         * rather than white — white on this sheet is too small a step to read
+         * once the border and shadow are gone. The transparent resting border
+         * is kept so nothing shifts on hover. */
+        /* The tint stops one pixel short of the row's foot so the separator
+         * hairline sits in the gap below it rather than inside the tinted band.
+         * A gradient painted as a sized background image does that with no extra
+         * element: solid --surface-chip, full width, one pixel shy of full
+         * height, anchored to the top. */
+        backgroundImage: hover
+          ? "linear-gradient(var(--surface-chip), var(--surface-chip))"
+          : "none",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "top",
+        backgroundSize: "100% calc(100% - 1px)",
+        border: "1px solid transparent",
+        boxShadow: "none",
+        borderRadius: 0,
         cursor: "pointer",
         fontFamily: "inherit",
-        transition:
-          "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+        transition: "background 120ms ease",
       }}
     >
       {/* Property leads, and carries the code it always had in the data and

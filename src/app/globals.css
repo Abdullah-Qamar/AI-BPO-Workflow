@@ -396,8 +396,11 @@
   --rail-icon-quiet: #8a95a2;
 
   --ink-primary: #2c353e;
-  --ink-secondary: #464f59;
-  --ink-tertiary: #616a75;
+  --ink-secondary: #414a54;
+  /* Muted text tone. Darkened from #616a75 for legibility: the old value read
+   * fine on white cards but dropped below the text-contrast floor on the app's
+   * bluish body gradient (the rail, the session nav, meta lines). */
+  --ink-tertiary: #525c67;
 
   /* Deprecated colour aliases. The old set had four near-identical mid-greys
    * (text-2/3/muted/placeholder all sat within one 20% luminance band), which

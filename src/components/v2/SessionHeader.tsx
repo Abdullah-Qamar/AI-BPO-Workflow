@@ -51,6 +51,7 @@ export function SessionHeader({
   tab,
   onTabChange,
   onSelectCycle,
+  showTabs = true,
 }: {
   cycle: string;
   phase: HubPhase;
@@ -62,6 +63,9 @@ export function SessionHeader({
   onTabChange: (t: WorkspaceTab) => void;
   /* Switching the cycle switches to that cycle's session on this property. */
   onSelectCycle?: (sessionId: string) => void;
+  /* The Workspace/Knowledge tabs are dropped on the route that carries the
+   * agent panel instead — the panel is the record now. */
+  showTabs?: boolean;
 }) {
   /* The property whose session is open. This used to read the module-level
    * `activeProperty`, so every property's header announced 1849 Westlake's
@@ -117,26 +121,28 @@ export function SessionHeader({
 
       {/* Tab strip sits on the stage's top edge; the hairline is what stops the
         * header reading as a floating label. */}
-      <div
-        className="flex flex-row items-end"
-        style={{
-          width: "100%",
-          gap: 4,
-          borderBottom: "1px solid rgba(157,179,197,0.34)",
-        }}
-      >
-        <Tab
-          label="Workspace"
-          active={tab === "workspace"}
-          onClick={() => onTabChange("workspace")}
-        />
-        <Tab
-          label="Knowledge"
-          count={noteCount}
-          active={tab === "knowledge"}
-          onClick={() => onTabChange("knowledge")}
-        />
-      </div>
+      {showTabs && (
+        <div
+          className="flex flex-row items-end"
+          style={{
+            width: "100%",
+            gap: 4,
+            borderBottom: "1px solid rgba(157,179,197,0.34)",
+          }}
+        >
+          <Tab
+            label="Workspace"
+            active={tab === "workspace"}
+            onClick={() => onTabChange("workspace")}
+          />
+          <Tab
+            label="Knowledge"
+            count={noteCount}
+            active={tab === "knowledge"}
+            onClick={() => onTabChange("knowledge")}
+          />
+        </div>
+      )}
     </div>
   );
 }

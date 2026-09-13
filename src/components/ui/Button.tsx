@@ -89,7 +89,7 @@ export function Button({
         gap: s.gap,
         fontSize: s.font,
         lineHeight: s.line,
-        borderRadius: 999,
+        borderRadius: "var(--radius-control)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         width: fullWidth ? "100%" : "auto",

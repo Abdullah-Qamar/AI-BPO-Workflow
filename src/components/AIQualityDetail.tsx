@@ -61,21 +61,25 @@ type Tab = "overview" | "knowledge";
  * takes a neutral ramp stepped by lightness alone: no hue is asserted, and the
  * legend is positioned under its own segment rather than keyed by colour, so
  * even the ramp is a courtesy rather than the mechanism. */
+/* A cool blue-slate ramp. The steps were near-neutral greys (#5A6B7D and up),
+ * which read as flat and a little lifeless against the page; carrying more
+ * chroma at roughly the same lightness keeps the ramp reading as a set of
+ * greys while giving each step some life. */
 const TOKEN_STEP: Record<AIAgentKey, string> = {
-  intake: "#5A6B7D",
-  reconciliation: "#8B99A9",
-  summary: "#C4CDD8",
+  intake: "#4C6B8E",
+  reconciliation: "#7A99B9",
+  summary: "#B8C9DE",
 };
 
 /* Chart marks. History is the page's own hairline blue-grey; the current cycle
  * takes the green the Dashboard already uses for close progress, so "the latest
  * bar" and "progress" are the same colour everywhere in the product. */
-const MARK_PAST = "rgba(157, 179, 197, 0.55)";
+const MARK_PAST = "rgba(142, 176, 207, 0.55)";
 /* Same hue with enough weight for the current bar to lead, and enough contrast
  * for the axis title to be legible as type. A 0.55-alpha grey-blue works as a
  * 40px bar and fails as an 11px word. */
-const MARK_PAST_STRONG = "rgba(125, 151, 176, 0.85)";
-const MARK_PAST_INK = "#5E7793";
+const MARK_PAST_STRONG = "rgba(108, 146, 184, 0.85)";
+const MARK_PAST_INK = "#4F76A0";
 const MARK_NOW = "var(--status-ok)";
 
 const GOOD = "var(--status-ok-ink)";
@@ -570,29 +574,38 @@ function AgentBlock({
           * rather than as a third line — it answers "of what" for the one reader
           * in ten who asks. */}
         <span
-          className="nums truncate"
-          style={{
-            fontSize: "var(--type-title)",
-            lineHeight: "var(--leading-ui)",
-            letterSpacing: "var(--tracking-title)",
-            color: "var(--ink-primary)",
-          }}
+          className="nums flex flex-row items-baseline"
+          style={{ gap: "var(--space-3)", width: "100%" }}
           /* The app's own hint. A native `title` renders as the OS's black
            * chip, which is the one surface in this product that comes from
            * somewhere else. */
           data-hint={`${agent.succeeded} of ${agent.runs} runs finished with no human correction`}
         >
-          {rate}% success rate
-        </span>
-        <span
-          className="nums truncate"
-          style={{
-            fontSize: "var(--type-body)",
-            lineHeight: "var(--leading-ui)",
-            color: "var(--ink-tertiary)",
-          }}
-        >
-          {fmtTokens(agent.tokens)} tokens · {agent.medianSeconds}s average
+          <span
+            className="truncate"
+            style={{
+              fontSize: "var(--type-title)",
+              lineHeight: "var(--leading-ui)",
+              letterSpacing: "var(--tracking-title)",
+              color: "var(--ink-primary)",
+            }}
+          >
+            {rate}% success rate
+          </span>
+          {/* The median run time rides alongside the rate rather than under it:
+            * the token figure it used to share a line with is already stated in
+            * the Token use band above, so with that gone the time is the only
+            * survivor and belongs next to the number it qualifies. */}
+          <span
+            className="shrink-0"
+            style={{
+              fontSize: "var(--type-body)",
+              lineHeight: "var(--leading-ui)",
+              color: "var(--ink-tertiary)",
+            }}
+          >
+            {agent.medianSeconds}s average
+          </span>
         </span>
       </span>
     </button>
@@ -614,33 +627,110 @@ function AgentBlock({
  * rest of the app uses to separate a section from the one above it, and a
  * single hairline down the left of the prompt itself — the typographic mark for
  * quoted material, and the lightest thing that will do the job. */
+/* Saved edits live for the session in a module-level map keyed by agent, so a
+ * prompt the reader changes survives collapsing the panel, switching agents and
+ * re-scoping the cycle — the seed stays the fallback. There is no backend to
+ * persist to yet; this map is the POC's stand-in for one. */
+const promptEdits = new Map<AIAgentKey, string>();
+
 function PromptPanel({ agent }: { agent: AIAgentProfile }) {
+  const base = promptEdits.get(agent.key) ?? agent.systemPrompt;
+  const [draft, setDraft] = useState(base);
+  const [saved, setSaved] = useState(base);
+  const [justSaved, setJustSaved] = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  /* Re-seed when a different agent's panel opens: the parent mounts one panel
+   * and swaps the agent under it. */
+  useEffect(() => {
+    const next = promptEdits.get(agent.key) ?? agent.systemPrompt;
+    setDraft(next);
+    setSaved(next);
+    setJustSaved(false);
+  }, [agent.key, agent.systemPrompt]);
+
+  const dirty = draft !== saved;
+
+  const commit = () => {
+    promptEdits.set(agent.key, draft);
+    setSaved(draft);
+    setJustSaved(true);
+  };
+
   return (
     <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
       <span
         aria-hidden
         style={{ height: 1, width: "100%", background: "var(--line-hair)" }}
       />
-      <span className="t-label">System prompt</span>
-      {/* Monospace, and the line breaks it was written with. A prompt reflowed
-        * as prose is a different document. */}
-      <pre
+
+      {/* Label and its controls on one line: the prompt is now editable, so the
+        * section that names it also owns the Save/Reset for it. */}
+      <div
+        className="flex flex-row items-center"
+        style={{ gap: "var(--space-4)" }}
+      >
+        <span className="t-label">System prompt</span>
+        <div style={{ flex: 1 }} />
+        {dirty ? (
+          <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
+            Unsaved changes
+          </span>
+        ) : justSaved ? (
+          <span className="t-meta" style={{ color: "var(--status-ok)" }}>
+            Saved
+          </span>
+        ) : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setDraft(saved)}
+          disabled={!dirty}
+        >
+          Reset
+        </Button>
+        <Button size="sm" variant="primary" onClick={commit} disabled={!dirty}>
+          Save
+        </Button>
+      </div>
+
+      {/* Editable, and in the app's own type rather than a monospace slab, so
+        * the prompt reads in the same voice as everything around it. It keeps
+        * the left hairline — the typographic mark for quoted material — and
+        * lifts to a faint field on focus so the edit affordance is legible.
+        * whiteSpace: pre-wrap keeps the line breaks it was written with. */}
+      <textarea
         className="scroll-thin"
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setJustSaved(false);
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        spellCheck={false}
+        aria-label={`${agent.name} system prompt`}
         style={{
           margin: 0,
-          padding: "0 0 0 var(--space-5)",
-          borderLeft: "1px solid var(--line-menu)",
-          background: "transparent",
-          fontFamily: "var(--font-mono)",
-          fontSize: "var(--type-meta)",
+          padding: "var(--space-3) var(--space-4) var(--space-3) var(--space-5)",
+          border: "none",
+          borderLeft: `1px solid ${
+            focused ? "var(--ink-tertiary)" : "var(--line-menu)"
+          }`,
+          borderRadius: "0 var(--radius-row) var(--radius-row) 0",
+          background: focused ? "rgba(255, 255, 255, 0.6)" : "transparent",
+          fontFamily: "inherit",
+          fontSize: "var(--type-body)",
           lineHeight: "var(--leading-prose)",
-          color: "var(--ink-secondary)",
+          color: "var(--ink-primary)",
           whiteSpace: "pre-wrap",
-          overflowX: "auto",
+          resize: "vertical",
+          minHeight: 220,
+          width: "100%",
+          outline: "none",
+          transition: "background 120ms ease, border-color 120ms ease",
         }}
-      >
-        {agent.systemPrompt}
-      </pre>
+      />
     </div>
   );
 }
@@ -895,55 +985,54 @@ function Reading({
     </div>
   );
 }
-
-/* Bars for lines reconciled against the left axis, a line for reviewer hours
- * against the right. The crossing is the point of the chart: work rising while
- * the effort behind it falls.
+/* One series, one axis: records matched per reviewer hour — the efficiency the
+ * card's readings add up to.
  *
- * Bars, points and gridlines are HTML positioned in percentages; only the
- * connecting polyline is SVG. A single stretched SVG was the obvious build and
- * it was wrong — a viewBox 100 units wide scaled to ~900px turns every point
- * circle into an ellipse, and `vectorEffect` fixes stroke width, not geometry.
- * Percentages do not stretch, and an HTML rule stays 1px at any width. */
+ * It replaces a dual-axis combo that plotted records (left axis) against
+ * reviewer hours (right axis): two units on two independently auto-scaled axes,
+ * so where the line sat relative to the bars was an accident of rounding, not a
+ * relationship — and the "crossing" it implied was not in the data, which was
+ * flat-then-falling records over falling hours, two parallel declines. Their
+ * ratio is the real story, it rises, and one honest ascending series says it
+ * without a secondary axis a reader cannot read.
+ *
+ * Bars and gridlines are HTML positioned in percentages; no SVG now that the
+ * connecting line is gone. Percentages do not stretch, and an HTML rule stays
+ * 1px at any width. */
 function ComboChart({ data }: { data: AIThroughputPoint[] }) {
   const H = 196;
   const TICKS = 4;
   const last = data.length - 1;
 
   /* Which column the reader is asking about. Nothing hovered means the current
-   * cycle, which is what the card answers when nobody has asked anything — so
-   * the plot has one emphasised column at all times and hovering moves it
+   * cycle, so the plot always has one emphasised column and hovering moves it
    * rather than switching an effect on. */
   const [hover, setHover] = useState<number | null>(null);
   const focus = hover ?? last;
 
-  /* Both scales start at zero, so a bar's height and a point's position are both
-   * honest ratios, and both round up to a clean interval so every gridline is a
-   * number a reader recognises. */
-  const linesMax = ceilTo(Math.max(...data.map((p) => p.lines)), 400);
-  const hoursMax = ceilTo(Math.max(...data.map((p) => p.reviewerHours)), 20);
-
-  const topPct = (v: number, max: number) => (1 - v / max) * 100;
+  /* Records matched per reviewer hour. Both inputs are already stated in the
+   * readings above, so the chart shows what they mean rather than restating
+   * either one. */
+  const eff = (p: AIThroughputPoint) => p.lines / p.reviewerHours;
+  const effMax = ceilTo(Math.max(...data.map(eff)), 10);
   const cxPct = (i: number) => ((i + 0.5) / data.length) * 100;
+  const topPct = (v: number) => (1 - v / effMax) * 100;
 
   return (
     <div className="flex flex-col" style={{ width: "100%" }}>
-      {/* Axis titles stand in for a legend: one word each, in its series'
-        * colour, sitting directly over the axis that measures it. A legend band
-        * put the key three inches from the marks it explained.
-        *
-        * Each carries a swatch shaped like its own mark — a stub of bar, a stub
-        * of line — because colour alone asks the reader to remember which of
-        * two greys-and-greens went with which shape, and the shape is the thing
-        * they are actually looking at. */}
-      <div className="flex flex-row" style={{ width: "100%", gap: "var(--space-5)" }}>
-        <AxisTitle label="Records" tone={MARK_PAST_INK} mark="bar" align="left" />
-        <div style={{ flex: 1, minWidth: 0 }} />
-        <AxisTitle label="Hours" tone={MARK_NOW} mark="line" align="right" />
+      {/* One title in place of a legend: a single series needs naming, not
+        * keying. It sits over the axis that measures it. */}
+      <div className="flex flex-row" style={{ width: "100%" }}>
+        <AxisTitle
+          label="Records per reviewer hour"
+          tone={MARK_PAST_INK}
+          mark="bar"
+          align="left"
+        />
       </div>
 
       <div className="flex flex-row" style={{ width: "100%", gap: "var(--space-5)" }}>
-        <AxisLabels max={linesMax} ticks={TICKS} height={H} align="right" />
+        <AxisLabels max={effMax} ticks={TICKS} height={H} align="right" />
 
         <div className="flex flex-col" style={{ flex: 1, minWidth: 0 }}>
           <div style={{ position: "relative", height: H, width: "100%" }}>
@@ -963,9 +1052,8 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
               />
             ))}
 
-            {/* The guide. It runs the full height of the plot at the focused
-              * column's centre, which is what lets a reader carry a bar's top
-              * edge across to the right-hand axis without a ruler. */}
+            {/* The guide, at the focused column's centre, so a reader can carry
+              * a bar's top edge across to the axis. */}
             <span
               aria-hidden
               style={{
@@ -981,8 +1069,10 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
               }}
             />
 
-            {/* Bars. Wider than the first build, which drew them at 34% of the
-              * slot and read as mostly gap. */}
+            {/* Bars. The current cycle carries the green the Dashboard uses for
+              * close progress, so "this month" is the same colour everywhere in
+              * the product; a hovered past month lifts from the resting slate to
+              * the stronger one. */}
             <div
               className="flex flex-row items-end"
               style={{ position: "absolute", inset: 0 }}
@@ -998,8 +1088,13 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
                     style={{
                       width: "52%",
                       maxWidth: 60,
-                      height: `${(p.lines / linesMax) * 100}%`,
-                      background: i === focus ? MARK_PAST_STRONG : MARK_PAST,
+                      height: `${(eff(p) / effMax) * 100}%`,
+                      background:
+                        i === last
+                          ? MARK_NOW
+                          : i === focus
+                          ? MARK_PAST_STRONG
+                          : MARK_PAST,
                       borderRadius: "3px 3px 0 0",
                       transition: "background 140ms ease",
                     }}
@@ -1008,58 +1103,14 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
               ))}
             </div>
 
-            <svg
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              width="100%"
-              height={H}
-              aria-hidden
-              style={{ position: "absolute", inset: 0, display: "block" }}
-            >
-              <polyline
-                points={data
-                  .map((p, i) => `${cxPct(i)},${topPct(p.reviewerHours, hoursMax)}`)
-                  .join(" ")}
-                fill="none"
-                stroke={MARK_NOW}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-
-            {data.map((p, i) => (
-              <span
-                key={p.cycle}
-                aria-hidden
-                style={{
-                  position: "absolute",
-                  left: `${cxPct(i)}%`,
-                  top: `${topPct(p.reviewerHours, hoursMax)}%`,
-                  transform: "translate(-50%, -50%)",
-                  width: i === focus ? 8 : 6,
-                  height: i === focus ? 8 : 6,
-                  borderRadius: 999,
-                  background: "#FFFFFF",
-                  border: `2px solid ${MARK_NOW}`,
-                  boxSizing: "content-box",
-                  transition: "width 140ms ease, height 140ms ease",
-                }}
-              />
-            ))}
-
-            {/* One label, on the focused column. Labelling all six duplicated
-              * two axes that already name every value; labelling none left the
-              * reader estimating against a gridline. It sits on the current
-              * cycle at rest and follows the pointer. */}
+            {/* One value, on the focused bar. */}
             <span
               className="nums"
               aria-hidden
               style={{
                 position: "absolute",
                 left: `${cxPct(focus)}%`,
-                top: `${topPct(data[focus].lines, linesMax)}%`,
+                top: `${topPct(eff(data[focus]))}%`,
                 transform: "translate(-50%, -140%)",
                 fontSize: "var(--type-meta)",
                 lineHeight: "var(--leading-ui)",
@@ -1069,16 +1120,11 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
                 transition: "left 140ms ease, top 140ms ease",
               }}
             >
-              {data[focus].lines.toLocaleString()}
+              {Math.round(eff(data[focus]))}
             </span>
 
-            {/* The hit areas, last so they sit over every mark.
-              *
-              * One full-height column per cycle rather than a target on each
-              * bar and each point: the reader is asking about a month, not
-              * about a rectangle, and a 6px dot is not a pointer target. The
-              * exact figures ride on the app's own hint rather than a bespoke
-              * tooltip drawn inside the plot. */}
+            {/* Hit areas, last so they sit over every mark. One full-height
+              * column per cycle; the exact figures ride on the app's own hint. */}
             <div
               className="flex flex-row"
               style={{ position: "absolute", inset: 0 }}
@@ -1088,9 +1134,11 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
                 <span
                   key={p.cycle}
                   onMouseEnter={() => setHover(i)}
-                  data-hint={`${p.cycle} · ${p.lines.toLocaleString()} records matched · ${
+                  data-hint={`${p.cycle} · ${Math.round(
+                    eff(p)
+                  )} records per reviewer hour · ${p.lines.toLocaleString()} matched in ${
                     p.reviewerHours
-                  } reviewer hours`}
+                  }h`}
                   style={{ flex: 1, minWidth: 0, height: "100%" }}
                 />
               ))}
@@ -1117,14 +1165,6 @@ function ComboChart({ data }: { data: AIThroughputPoint[] }) {
             ))}
           </div>
         </div>
-
-        <AxisLabels
-          max={hoursMax}
-          ticks={TICKS}
-          height={H}
-          align="left"
-          suffix="h"
-        />
       </div>
     </div>
   );
@@ -1360,7 +1400,7 @@ function KnowledgeTab({ cycle }: { cycle: string }) {
           />
           <Button
             size="md"
-            variant="secondary"
+            variant="primary"
             onClick={() => setDialog("new")}
             leftIcon={<Plus size={14} strokeWidth={1.75} />}
           >
@@ -1623,14 +1663,25 @@ function RuleRow({
         gap: "var(--space-5)",
         alignItems: "start",
         padding: "var(--space-5) 8px",
-        background: lifted ? "#FFFFFF" : "transparent",
-        border: lifted
-          ? "1px solid var(--line-row-hover)"
-          : "1px solid transparent",
-        boxShadow: lifted ? "var(--shadow-chip)" : "none",
-        borderRadius: "var(--radius-row)",
-        transition:
-          "background 120ms ease, border-color 120ms ease, box-shadow 120ms ease",
+        /* Flat tint bounded by the row separators, not a lifted rounded chip:
+         * no grey border, no shadow, square corners, edge to edge with the
+         * hairlines above and below. --surface-chip (a cool grey) carries it
+         * because white on this near-white sheet is too small a step to read
+         * once the border and shadow are gone. */
+        /* The tint stops one pixel short of the row's foot so the separator
+         * hairline sits in the gap below it, not inside the tinted band — a
+         * gradient painted as a sized background image, one pixel shy of full
+         * height, anchored to the top. */
+        backgroundImage: lifted
+          ? "linear-gradient(var(--surface-chip), var(--surface-chip))"
+          : "none",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "top",
+        backgroundSize: "100% calc(100% - 1px)",
+        border: "1px solid transparent",
+        boxShadow: "none",
+        borderRadius: 0,
+        transition: "background 120ms ease",
       }}
     >
       <span

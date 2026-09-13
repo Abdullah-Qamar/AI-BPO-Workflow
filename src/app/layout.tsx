@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Reconciliation · BPO",
+  title: "Reconciler",
   description: "Property-accounting reconciliation workspace",
 };
 

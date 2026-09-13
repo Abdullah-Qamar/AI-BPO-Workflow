@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Image from "next/image";
+import { ThinkingOrb } from "thinking-orbs";
+import { AGENT_ORB } from "@/lib/v2/orb";
 import {
   ArrowRight,
   Check,
@@ -118,10 +127,18 @@ type DerivedAgent = Omit<AgentSectionData, "timeline" | "collapsedLine"> & {
   collapsedLine?: DerivedLine;
 };
 
+/* The agent avatar artwork. The `/` workspace uses the dot-grid marks; the
+ * `/v2` hub reuses this whole panel but wants its own ThinkingOrb avatars, so
+ * the variant rides a context rather than threading a prop through
+ * AgentList → AgentSection → AgentAvatar. */
+type AvatarVariant = "dotGrid" | "orb";
+const AvatarVariantContext = createContext<AvatarVariant>("dotGrid");
+
 export function AgentsPanel({
   collapsed = false,
   onToggle,
   onInspect,
+  avatarVariant = "dotGrid",
 }: {
   collapsed?: boolean;
   onToggle?: () => void;
@@ -129,12 +146,20 @@ export function AgentsPanel({
    * one of Reconciliation's per-account rows. The host (page.tsx) responds by
    * swapping the canvas to ReviewCanvas. */
   onInspect?: () => void;
+  /* Which agent artwork to draw — dot-grid on `/`, ThinkingOrb on `/v2`. */
+  avatarVariant?: AvatarVariant;
 }) {
   const [tab, setTab] = useState<Tab>("agents");
 
-  if (collapsed) return <CollapsedAgentsRail onToggle={onToggle} />;
+  if (collapsed)
+    return (
+      <AvatarVariantContext.Provider value={avatarVariant}>
+        <CollapsedAgentsRail onToggle={onToggle} />
+      </AvatarVariantContext.Provider>
+    );
 
   return (
+    <AvatarVariantContext.Provider value={avatarVariant}>
     <aside
       className="flex flex-col items-stretch shrink-0 relative overflow-hidden"
       style={{
@@ -148,8 +173,8 @@ export function AgentsPanel({
         height: "calc(100vh - 24px)",
         margin: "12px 12px 12px 0",
         width: 360,
-        padding: "20px 16px 20px 20px",
-        gap: 16,
+        padding: "14px 13px 14px 14px",
+        gap: 12,
         background: "var(--surface-card)",
         borderRadius: "var(--radius-panel)",
         boxShadow: "var(--shadow-card)",
@@ -161,7 +186,7 @@ export function AgentsPanel({
         style={{
           width: "100%",
           minHeight: 0,
-          gap: 16,
+          gap: 12,
         }}
       >
         {/* Collapse chevron — absolutely positioned so it stays at the exact
@@ -189,30 +214,29 @@ export function AgentsPanel({
         </div>
 
         {/* Scrollable body so the CTAs at the bottom of Summary don't push
-         * the whole panel taller than the viewport.
-         *
-         * The padding and the matching negative margin are for the focus ring,
-         * not for the content: a scroll container clips at its padding box, and
-         * every row in here is full-width, so a 2px ring at 2px offset on the
-         * agent headers and the guidance cards was being sliced off on the left
-         * (and on the top, for whatever sat first). The pair cancels out — the
-         * content column stays exactly where it was — and only the clip
-         * rectangle grows. */}
+         * the whole panel taller than the viewport. */}
         <div
           className="flex flex-col items-start flex-1 overflow-y-auto scroll-thin"
           style={{
-            /* Wider than its parent by exactly the padding it gains, so the
-             * content column keeps the width it had. */
-            width: "calc(100% + 8px)",
+            width: "100%",
             minHeight: 0,
-            padding: "4px 8px 4px 4px",
-            margin: "-4px -4px 0",
           }}
         >
-          {tab === "agents" ? <AgentList onInspect={onInspect} /> : <KnowledgePanel />}
+          {tab === "agents" ? (
+            <div
+              className="flex flex-col items-start"
+              style={{ width: "100%", gap: 12 }}
+            >
+              <PanelOutcome />
+              <AgentList onInspect={onInspect} />
+            </div>
+          ) : (
+            <KnowledgePanel />
+          )}
         </div>
       </div>
     </aside>
+    </AvatarVariantContext.Provider>
   );
 }
 
@@ -271,6 +295,120 @@ function TabButton({
   );
 }
 
+/* The run's outcome, compiled into the panel head on the `/v2` hub (its centre
+ * no longer carries a summary band). Self-gates: only the orb variant renders
+ * it, and only once there is an outcome to state. Figures only — the Review /
+ * Post actions already live on the Summary agent below, so no CTA is repeated
+ * here. */
+function formatSignedAmount(n: number): string {
+  const abs = Math.abs(n).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${n < 0 ? "−" : ""}$${abs}`;
+}
+
+function OutcomeFigure({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <div className="flex flex-col" style={{ gap: 2 }}>
+      <span
+        style={{
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-tertiary)",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        className="nums"
+        style={{
+          fontSize: "var(--type-title)",
+          lineHeight: "var(--leading-tight)",
+          color: tone ?? "var(--ink-primary)",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function PanelOutcome() {
+  const variant = useContext(AvatarVariantContext);
+  const { state, records } = useSession();
+  if (variant !== "orb") return null;
+  const rs = state.runState;
+  if (rs !== "review" && rs !== "updating-yardi" && rs !== "complete")
+    return null;
+
+  const approved = state.bankOrder.reduce(
+    (n, id) => n + (state.banks[id]?.approvedCount ?? 0),
+    0
+  );
+  const exceptions = state.bankOrder.reduce(
+    (n, id) => n + (state.banks[id]?.exceptionCount ?? 0),
+    0
+  );
+  const total = approved + exceptions;
+  const net = records
+    .filter((r) => (state.recordStatusOverrides[r.id] ?? r.status) === "flagged")
+    .reduce((n, r) => n + r.amount, 0);
+
+  const status =
+    rs === "complete"
+      ? { text: "Posted to Yardi", tone: "var(--status-ok)", done: true }
+      : rs === "updating-yardi"
+      ? { text: "Posting to Yardi", tone: "var(--ink-tertiary)", done: false }
+      : { text: "Ready for review", tone: "var(--ink-tertiary)", done: false };
+
+  return (
+    <div
+      className="flex flex-col"
+      style={{
+        width: "100%",
+        gap: 10,
+        padding: "10px 12px",
+        borderRadius: "var(--radius-sheet)",
+        background: "var(--surface-card-glow)",
+        boxShadow: "var(--shadow-chip)",
+      }}
+    >
+      <div className="flex flex-row" style={{ gap: 18 }}>
+        <OutcomeFigure label="Reconciled" value={String(total)} />
+        <OutcomeFigure
+          label="Open"
+          value={String(exceptions)}
+          tone={exceptions > 0 ? "var(--status-warn-ink)" : undefined}
+        />
+        <OutcomeFigure label="Net difference" value={formatSignedAmount(net)} />
+      </div>
+      <div className="flex flex-row items-center" style={{ gap: 6 }}>
+        {status.done && (
+          <Check size={13} strokeWidth={2} color={status.tone} />
+        )}
+        <span
+          style={{
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            color: status.done ? "var(--ink-secondary)" : status.tone,
+          }}
+        >
+          {status.text}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function AgentList({ onInspect }: { onInspect?: () => void }) {
   /* Live agents derived from session state. The seed's three-agent shape stays
    * the same — what changes is each agent's lifecycle (idle / working / done /
@@ -309,6 +447,14 @@ function AgentList({ onInspect }: { onInspect?: () => void }) {
     [state, property, session, banks, records, demoState]
   );
 
+  /* On the `/v2` hub an agent stays out of the panel until its work starts —
+   * an idle agent is a step the run has not reached yet, so it is noise. The
+   * `/` workspace keeps the full pipeline visible (idle agents shown greyed),
+   * so this only applies to the orb variant. */
+  const variant = useContext(AvatarVariantContext);
+  const shown =
+    variant === "orb" ? derived.filter((a) => a.state !== "idle") : derived;
+
   /* Records still waiting on a person, counted off the same list the review
    * canvas renders — so the collapsed badge and the panel's own figures cannot
    * disagree. */
@@ -337,9 +483,9 @@ function AgentList({ onInspect }: { onInspect?: () => void }) {
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", gap: 24 }}
+      style={{ width: "100%", gap: 16 }}
     >
-      {derived.map((a) => (
+      {shown.map((a) => (
         <AgentSection
           key={a.id}
           data={a}
@@ -1323,14 +1469,14 @@ function AgentSection({
         className="flex flex-row items-center text-left transition"
         style={{
           width: "100%",
-          /* No inset. The avatar is 44 and the gap is 12, so a flush header
-           * puts the agent's name on 56 — the same column the timeline dots,
+          /* No inset. The avatar is 36 and the gap is 12, so a flush header
+           * puts the agent's name on 48 — the same column the timeline dots,
            * the insight paragraph and the CTAs below it all indent to. The 2px
            * that used to be here pushed the name off that axis by exactly
            * itself. */
           paddingLeft: 0,
           gap: 12,
-          minHeight: 44,
+          minHeight: 36,
           background: "transparent",
           border: "none",
           cursor: canToggle ? "pointer" : "default",
@@ -1437,7 +1583,7 @@ function ErrorBody({
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", paddingLeft: 56, gap: 10 }}
+      style={{ width: "100%", paddingLeft: 48, gap: 10 }}
     >
       <div
         className="flex flex-col items-start"
@@ -1478,14 +1624,14 @@ function ErrorBody({
 
 /* ---------- Body — idle (greyed-out placeholder) ---------- */
 
-/* Idle agents keep the same 56 px indent + leading dot + body column geometry
+/* Idle agents keep the same 48 px indent + leading dot + body column geometry
  * as the working/done states so the panel doesn't reflow when the agent
  * activates. */
 function IdleBody({ hint }: { hint: string }) {
   return (
     <div
       className="flex flex-row items-start"
-      style={{ width: "100%", paddingLeft: 56, gap: 6 }}
+      style={{ width: "100%", paddingLeft: 48, gap: 6 }}
     >
       <div className="shrink-0 flex items-center justify-center" style={{ width: 14, height: 14 }}>
         <span
@@ -1530,7 +1676,7 @@ function CollapsedBody({
   return (
     <div
       className="flex flex-row items-start"
-      style={{ width: "100%", paddingLeft: 56, gap: 6 }}
+      style={{ width: "100%", paddingLeft: 48, gap: 6 }}
     >
       <LeadingIndicator
         dotState={line.dotState}
@@ -1588,7 +1734,7 @@ function TimelineBody({
           <div
             key={line.id}
             className="flex flex-row items-start"
-            style={{ width: "100%", paddingLeft: 56, gap: 6 }}
+            style={{ width: "100%", paddingLeft: 48, gap: 6 }}
           >
             <LeadingIndicator
               dotState={line.dotState}
@@ -1945,6 +2091,7 @@ function AgentAvatar({
   agentId: AgentSectionData["id"];
   agentState: AgentSectionData["state"];
 }) {
+  const variant = useContext(AvatarVariantContext);
   const visual = AGENT_VISUAL[agentId];
   const idle = agentState === "idle";
   const error = agentState === "error";
@@ -1971,37 +2118,61 @@ function AgentAvatar({
   }[tone];
   return (
     <div
-      className="shrink-0 overflow-hidden"
+      className="shrink-0 overflow-hidden flex items-center justify-center"
       style={{
-        width: 44,
-        height: 44,
+        width: 36,
+        height: 36,
         borderRadius: "var(--radius-sheet)",
-        background: error ? "var(--status-danger-bg)" : "var(--surface-card)",
-        border: error
-          ? "1px solid var(--chip-failed-border)"
-          : "1px solid transparent",
+        /* No red container in the error state — the failure already reads in the
+         * greyed orb, the danger-ink name, and the "Run stopped" card below. */
+        background: variant === "orb" ? "transparent" : "var(--surface-card)",
+        border: "1px solid transparent",
       }}
     >
-      <DotGridAvatar
-        key={tone}
-        size={44}
-        pattern={visual.pattern}
-        paused={idle || error}
-        spacing={4}
-        baseRadius={0.42}
-        amp={1.35}
-        baseAlpha={idle || error ? 0.2 : 0.26}
-        peakAlpha={idle || error ? 0.55 : 1.0}
-        edgeFadeFrac={0.09}
-        style={{ color: inkForTone }}
-      />
+      {variant === "orb" ? (
+        /* The `/v2` hub's own agent artwork. thinking-orbs ships only a 20px
+         * and a 64px preset; the 20 reads too small and faint here, so the mark
+         * is the richer 64px design scaled down to ~29px — clearly bigger than
+         * the native inline preset. The 64px layout box is clipped by the
+         * tile's overflow:hidden. It keeps animating in every state (the hub's
+         * agents "breathe" when done); error greys and the wrapper tints red. */
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transform: "scale(0.46)",
+            transformOrigin: "center",
+            opacity: idle ? 0.5 : 1,
+            filter: error ? "grayscale(0.4)" : undefined,
+          }}
+        >
+          <ThinkingOrb state={AGENT_ORB[agentId]} size={64} theme="light" />
+        </div>
+      ) : (
+        <DotGridAvatar
+          key={tone}
+          size={36}
+          pattern={visual.pattern}
+          paused={idle || error}
+          spacing={4}
+          baseRadius={0.42}
+          amp={1.35}
+          baseAlpha={idle || error ? 0.2 : 0.26}
+          peakAlpha={idle || error ? 0.55 : 1.0}
+          edgeFadeFrac={0.09}
+          style={{ color: inkForTone }}
+        />
+      )}
     </div>
   );
 }
 
 /* ---------- Summary deliverables ---------- */
 
-/* All deliverable surfaces share the same 56 px left indent so they align with
+/* All deliverable surfaces share the same 48 px left indent so they align with
  * the timeline column above. Each one is single-purpose and visually distinct
  * from the timeline so they don't read as additional status lines. */
 
@@ -2018,7 +2189,7 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
       className="flex flex-col items-start"
       style={{
         width: "100%",
-        paddingLeft: 56,
+        paddingLeft: 48,
         paddingTop: 2,
         paddingBottom: 2,
       }}
@@ -2046,7 +2217,7 @@ function SignoffLine({ signoff }: { signoff: AgentSignoff }) {
   return (
     <div
       className="flex flex-row items-center"
-      style={{ width: "100%", paddingLeft: 56, paddingTop: 2 }}
+      style={{ width: "100%", paddingLeft: 48, paddingTop: 2 }}
     >
       <span className="t-meta" style={{ color: "var(--ink-tertiary)" }}>
         Closed by {signoff.by} · {signoff.at}
@@ -2069,7 +2240,7 @@ function ReviewPrimaryButton({
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", paddingLeft: 56 }}
+      style={{ width: "100%", paddingLeft: 48 }}
     >
       <Button
         variant="primary"
@@ -2097,7 +2268,7 @@ function PostToYardiSecondary({ action }: { action: AgentAction }) {
   return (
     <div
       className="flex flex-col items-start"
-      style={{ width: "100%", paddingLeft: 56 }}
+      style={{ width: "100%", paddingLeft: 48 }}
     >
       <ConfirmPopoverButton
         label={action.label}
@@ -2118,7 +2289,7 @@ function PostToYardiSecondary({ action }: { action: AgentAction }) {
         }
         confirmLabel="Post to Yardi"
         onConfirm={startYardiUpdate}
-        /* Right, not left: the button is indented 56px into a 360px panel, so
+        /* Right, not left: the button is indented 48px into a 360px panel, so
          * a popover anchored to its left edge runs 36px past the panel and is
          * clipped by the panel's own overflow. */
         align="right"
@@ -2147,7 +2318,7 @@ function UtilityRow({
   return (
     <div
       className="flex flex-row items-center"
-      style={{ width: "100%", paddingLeft: 56, gap: 8, paddingTop: 2 }}
+      style={{ width: "100%", paddingLeft: 48, gap: 8, paddingTop: 2 }}
     >
       {/* The seed's artifact is the promise that a report exists; its filename
        * and "14 pages · 2.3 MB" described a PDF nothing produced, so the

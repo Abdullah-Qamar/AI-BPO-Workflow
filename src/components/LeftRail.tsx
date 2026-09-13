@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
-import { TieoutMark } from "./TieoutMark";
 
 type Route = "dashboard" | "workspace" | "properties" | "observability";
 
@@ -58,6 +57,25 @@ const COLLAPSED_W = 60;
  * Measured, not guessed: that bar needs ~977px of canvas, so 220 + 977 = ~1197.
  * Matches the lower threshold in useResponsiveLayout. */
 const AUTO_COLLAPSE_W = 1200;
+
+/* The app mark, flat: logo.svg drawn straight onto the rail with no tile
+ * behind it. `brightness(0)` renders the single-colour glyph black regardless
+ * of the file's own fill while keeping its transparency. */
+function LogoMark({ size = 24 }: { size?: number }) {
+  return (
+    <img
+      src="/logo.svg"
+      alt=""
+      aria-hidden
+      width={size}
+      height={size}
+      className="shrink-0"
+      /* maxWidth:none overrides Tailwind preflight's `img{max-width:100%}`,
+       * which was capping the mark to its narrower slot and undoing the size. */
+      style={{ display: "block", filter: "brightness(0)", maxWidth: "none" }}
+    />
+  );
+}
 
 /* Left navigation.
  *
@@ -158,7 +176,7 @@ export function LeftRail({
           {logoHover ? (
             <PanelLeftOpen size={16} strokeWidth={1.5} />
           ) : (
-            <TieoutMark size={24} title="Tieout" />
+            <LogoMark size={24} />
           )}
         </button>
       ) : (
@@ -169,7 +187,7 @@ export function LeftRail({
              * the same vertical line as "Dashboard" below it. At 6 and 8 it
              * landed three pixels to their right — enough, in a 220px column of
              * four left-aligned labels, to read as a wobble. */
-            gap: 10,
+            gap: 8,
             height: "var(--row-md)",
             paddingLeft: 8,
             /* The nav items carry a 1px border in both states so the selected
@@ -179,15 +197,14 @@ export function LeftRail({
             marginBottom: "var(--space-4)",
           }}
         >
-          {/* The mark is 24 where the nav glyphs are 16. Centring it in a
-            * 16-wide slot lets it overhang symmetrically, which puts its
-            * optical centre on the icon column and its label on the label
-            * column — the two lines the eye actually reads down the rail. */}
+          {/* The mark, sized to sit at the wordmark's own height and centred in
+            * a slot a touch wider than the nav glyphs so it reads as the brand,
+            * not another nav item. */}
           <span
             className="flex items-center justify-center shrink-0"
-            style={{ width: 16 }}
+            style={{ width: 18 }}
           >
-            <TieoutMark size={24} title="Tieout" />
+            <LogoMark size={22} />
           </span>
           <span
             className="flex-1 truncate"
@@ -199,7 +216,7 @@ export function LeftRail({
               color: "var(--ink-primary)",
             }}
           >
-            Tieout
+            Reconciler
           </span>
           <button
             onClick={() => setAndStore(true)}
@@ -301,18 +318,12 @@ export function LeftRail({
                * is #c0c7d2. Against that, secondary is 4.89:1 and tertiary
                * 3.22:1, both clear of the 3.0 minimum for non-text UI.
                *
-               * The resting glyph goes lighter still when the rail is expanded,
-               * and only then. Expanded, the label beside it names the
-               * destination at full contrast and the glyph is decoration, so
-               * WCAG 1.4.11 does not apply to it and --rail-icon-quiet can sit
-               * below the non-text floor. Collapsed, the glyph IS the label and
-               * it keeps --ink-tertiary and its 3.22:1. See the token's note in
-               * globals.css. */
+               * The resting glyph holds --ink-tertiary in both states now, so
+               * it clears the non-text floor whether the rail is collapsed
+               * (where the glyph IS the label) or expanded. */
               color: active
                 ? "var(--ink-secondary)"
-                : collapsed
-                ? "var(--ink-tertiary)"
-                : "var(--rail-icon-quiet)",
+                : "var(--ink-tertiary)",
               fontFamily: "inherit",
               transition:
                 "color 140ms ease, background 140ms ease, border-color 140ms ease",
@@ -335,8 +346,11 @@ export function LeftRail({
                     : "var(--weight-regular)",
                   /* Set explicitly, not inherited: the button's `color` is now
                     * the glyph's quieter ink and the label must not follow it
-                    * down. */
-                  color: active ? "var(--ink-primary)" : "var(--ink-secondary)",
+                    * down. Both states sit at --ink-primary so the labels read
+                    * at full strength against the rail's bluish backdrop; the
+                    * active row is still marked by its medium weight, chip fill
+                    * and border. */
+                  color: "var(--ink-primary)",
                 }}
               >
                 {item.label}

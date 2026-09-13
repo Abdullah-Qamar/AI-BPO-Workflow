@@ -20,6 +20,7 @@ import { LeftRail } from "@/components/LeftRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { HubCanvas } from "@/components/v2/HubCanvas";
 import { ReviewDrawer } from "@/components/v2/ReviewDrawer";
+import { AgentsPanel } from "@/components/AgentsPanel";
 import { SessionProvider } from "@/lib/session/SessionProvider";
 import { EmptyWorkspace } from "@/components/EmptyWorkspace";
 import {
@@ -34,6 +35,7 @@ export default function V2Page() {
   const router = useRouter();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [agentsCollapsed, setAgentsCollapsed] = useState(false);
   const { navCollapsed, setNavCollapsed } = useResponsiveLayout();
 
   return (
@@ -89,6 +91,15 @@ export default function V2Page() {
                 setSelectedSessionId(id);
                 setReviewOpen(false);
               }}
+            />
+            {/* The `/` workspace's agent panel, reused here on the right with
+             * this route's own ThinkingOrb avatars. It replaces the hub's
+             * centre Activity block. */}
+            <AgentsPanel
+              avatarVariant="orb"
+              collapsed={agentsCollapsed}
+              onToggle={() => setAgentsCollapsed((v) => !v)}
+              onInspect={() => setReviewOpen(true)}
             />
             <ReviewDrawer open={reviewOpen} onClose={() => setReviewOpen(false)} />
           </div>

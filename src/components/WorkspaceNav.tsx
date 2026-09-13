@@ -646,7 +646,6 @@ function WorkspaceItem({
           <Building2 size={16} strokeWidth={1.5} color="var(--ink-tertiary)" />
           <StatusDot
             status={workspace.state}
-            ring
             style={{ position: "absolute", right: -3, bottom: -3 }}
           />
         </div>
