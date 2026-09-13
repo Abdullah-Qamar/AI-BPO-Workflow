@@ -7,32 +7,44 @@
  * on the wire; hover isolation is the agreed compensation, so it is not
  * decoration here — it is the only way a user can tell which strand is whose.
  *
- * Four states carry meaning:
- *   ghost      dotted          no file in that slot
- *   idle       thin, drawn in  file landed, nothing happening
- *   working    a bead of light glides along the path toward (or from) the core
- *   settled    white chrome    done or flagged — the verdict lives on the rows,
- *                              not the wire; tinting the strands flooded the
- *                              canvas whenever several banks carried flags
+ * Five states, each visually distinct at a glance — differentiated by hue AND
+ * behaviour, never hue alone:
+ *   ghost      faint dotted grey    no file in that slot yet (waiting)
+ *   idle       thin slate cable     connected, nothing happening ("not working")
+ *   working    slate + indigo comet a luminous droplet glides toward the core
+ *   done       chrome cable, steady complete & clean (finished)
+ *   exception  fine amber + pulse   complete but needs a human (attention)
  *
- * Direction is meaningful: the light travels toward the node during intake and
- * reconcile, and away from it while posting to Yardi.
+ * Per-state treatment is deliberate. Earlier the wire stayed neutral and the
+ * verdict lived only on the rows — but the wire is now asked to express state on
+ * its own. done is a polished, NON-green chrome cable (the app minimises green),
+ * confident and steady, reading as "finished". exception is a FINE amber line
+ * (from --status-warn) with a slow amber pulse — attention carried by hue and
+ * motion, deliberately kept thin so it never shouts. The two never read alike
+ * (chrome+steady vs amber+pulsing) and don't lean on colour alone.
  *
- * Motion design (2026 pass):
+ * Direction is meaningful: the working light travels toward the node during
+ * intake and reconcile, and away from it while posting to Yardi.
+ *
+ * Motion design:
  *   - The base wire carries a directional gradient — faint at the row, firmer
- *     at the node — so even at rest the strand leans toward the core.
+ *     at the node — so even at rest the strand leans toward the core. Its hue
+ *     is per-state: slate for idle/working, chrome for done, amber for exception.
  *   - The travelling energy is a luminous comet — a bright indigo droplet with
  *     a soft glow and a trailing streak, not a repeating dash: light lives
  *     *inside* the wire, the way WireConnector's chrome cable does. The glow is
  *     built from stacked translucent strokes rather than an SVG blur, so eight
  *     comets stay cheap to paint. Each strand is phase-staggered so eight of
  *     them never pulse in lockstep.
- *   - Settled strands are polished chrome over a dark keyline, matching the V1
- *     wire's house style.
+ *   - Settled cables sit on a soft keyline for depth: dark slate under the chrome
+ *     done cable, a thin amber ink under exception.
+ *   - exception adds one slow breathing amber halo — the only settled state
+ *     that moves — so "needs attention" is unmistakable beside steady done.
  *   - Nodes read as collector ports: a steady core with a ripple that breathes
  *     outward while any strand is working.
  *   - prefers-reduced-motion drops every strand to a calm static state (the
- *     energy freezes as a soft band mid-wire; nothing sweeps or pulses).
+ *     comet freezes mid-wire, the amber halo holds at a mid opacity; nothing
+ *     sweeps or pulses).
  *
  * Geometry note: the SVG viewBox is 1:1 with its pixel box (HubCanvas sizes it
  * from the client rect), so strokes are already crisp; vectorEffect keeps them
@@ -66,6 +78,45 @@ const GHOST_STROKE = "rgba(98,116,131,0.32)";
 const ENERGY_GLOW = "rgba(72,104,214,0.44)"; /* tight glow hugging the head    */
 const ENERGY_CORE = "rgba(40,58,150,0.95)"; /*  the deep droplet of current   */
 const ENERGY_WAKE = "rgba(78,110,210,0.3)"; /*  the trailing motion streak    */
+
+/* done — deliberately NON-green (the app minimises green). A polished chrome
+ * cable — light steel → white → light steel — over a dark keyline reads as
+ * "finished / settled" the way the V1 wire does, calm and neutral. */
+const DONE_INK = "#25313f"; /*  dark keyline under the bright chrome          */
+
+/* exception — the attention state. Amber from the app's --status-warn family,
+ * but kept as a FINE line: the meaning is carried by hue + a slow pulse, not by
+ * weight, so it never shouts. The mid stop is the token; the ends are a lighter
+ * row-side tint and a deeper node-side tone. */
+const WARN = "#d08616"; /*      --status-warn              */
+const WARN_LIGHT = "#e7b25c"; /* row-side tint               */
+const WARN_DEEP = "#c17b10"; /*  node-side tone             */
+const WARN_INK = "#8a5300"; /*   --status-warn-ink (shadow)  */
+const WARN_HALO = "#d9962e"; /*  the slow attention pulse    */
+
+/* Directional slate for idle / working — quiet at the row, firmer at the node. */
+const SLATE_STOPS: Array<[string, string]> = [
+  ["0", "rgba(98,116,131,0.4)"],
+  ["0.55", "rgba(90,107,124,0.6)"],
+  ["1", "rgba(78,94,112,0.82)"],
+];
+
+function gradStops(state: StrandState): Array<[string, string]> {
+  if (state === "done")
+    /* Polished chrome — the V1 cable's look, neutral and finished. */
+    return [
+      ["0", "#b4bfcd"],
+      ["0.5", "#ffffff"],
+      ["1", "#c2ccd8"],
+    ];
+  if (state === "exception")
+    return [
+      ["0", WARN_LIGHT],
+      ["0.55", WARN],
+      ["1", WARN_DEEP],
+    ];
+  return SLATE_STOPS;
+}
 
 /* One capsule always on the wire, with rests between passes. on + gap = TOTAL,
  * and the flow keyframes advance stroke-dashoffset by exactly TOTAL so the loop
@@ -132,46 +183,31 @@ export function Strands({
             <feGaussianBlur stdDeviation="1.4" />
           </filter>
 
-          {strands.map((s, i) => {
-            const settled = s.state === "done" || s.state === "exception";
-            const grad = `${uid}-grad-${i}`;
-            return settled ? (
-              /* Polished chrome, oriented along the run — the V1 cable's look. */
-              <linearGradient
-                key={grad}
-                id={grad}
-                gradientUnits="userSpaceOnUse"
-                x1={s.from.x}
-                y1={s.from.y}
-                x2={s.to.x}
-                y2={s.to.y}
-              >
-                <stop offset="0" stopColor="#B4BFCD" />
-                <stop offset="0.5" stopColor="#FFFFFF" />
-                <stop offset="1" stopColor="#C2CCD8" />
-              </linearGradient>
-            ) : (
-              /* Directional slate — leans toward the node. */
-              <linearGradient
-                key={grad}
-                id={grad}
-                gradientUnits="userSpaceOnUse"
-                x1={s.from.x}
-                y1={s.from.y}
-                x2={s.to.x}
-                y2={s.to.y}
-              >
-                <stop offset="0" stopColor="rgba(98,116,131,0.4)" />
-                <stop offset="0.55" stopColor="rgba(90,107,124,0.6)" />
-                <stop offset="1" stopColor="rgba(78,94,112,0.82)" />
-              </linearGradient>
-            );
-          })}
+          {/* One directional gradient per strand, hued by state: slate for
+            * idle/working, neutral chrome for done, warn-amber for exception.
+            * (Ghost paints a flat dotted stroke and ignores its gradient.) */}
+          {strands.map((s, i) => (
+            <linearGradient
+              key={`${uid}-grad-${i}`}
+              id={`${uid}-grad-${i}`}
+              gradientUnits="userSpaceOnUse"
+              x1={s.from.x}
+              y1={s.from.y}
+              x2={s.to.x}
+              y2={s.to.y}
+            >
+              {gradStops(s.state).map(([o, c]) => (
+                <stop key={o} offset={o} stopColor={c} />
+              ))}
+            </linearGradient>
+          ))}
         </defs>
 
         {strands.map((s, i) => {
           const d = pathFor(s.from, s.to);
-          const settled = s.state === "done" || s.state === "exception";
+          const done = s.state === "done";
+          const exception = s.state === "exception";
+          const settled = done || exception;
           const ghost = s.state === "ghost";
           const grad = `url(#${uid}-grad-${i})`;
           const opacity = s.dim ? 0.14 : 1;
@@ -179,21 +215,40 @@ export function Strands({
            * index keeps the canvas from beating as one. */
           const phase = -(i * 0.29) + "s";
           const drawDelay = Math.min(i * 55, 240) + "ms";
+          /* Settled/hover cables sit on a soft dark keyline for depth against the
+           * near-white canvas — the chrome done cable needs it to read as a
+           * lifted cable; exception uses its own amber ink, kept thin. */
+          const keyline = exception ? WARN_INK : DONE_INK;
 
           return (
             <g key={s.key} style={{ opacity, transition: "opacity 220ms ease" }}>
-              {/* White/chrome ink needs an edge against a near-white canvas, so
-                * a settled strand carries a soft dark keyline underneath — the
-                * same trick that keeps the white card borders legible. It
-                * doubles as the hover highlight, widening when the strand is lit. */}
+              {/* Dark (or amber, for exception) shadow beneath a settled/hovered
+                * cable — gives the wire weight and doubles as the hover highlight.
+                * Exception's is kept thinner so that state stays light. */}
               {(settled || s.lit) && (
                 <path
                   d={d}
-                  stroke="#25313F"
-                  strokeWidth={s.lit ? 4.6 : 3.2}
+                  stroke={keyline}
+                  strokeWidth={s.lit ? 4.6 : exception ? 2.6 : 3.4}
                   strokeLinecap="round"
-                  opacity={s.lit ? 0.2 : 0.13}
+                  opacity={s.lit ? 0.22 : exception ? 0.13 : 0.16}
                   filter={`url(#${uid}-soft)`}
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+
+              {/* exception: one slow breathing amber halo — the only settled
+                * state that moves, so "needs a human" is legible at a glance and
+                * never mistaken for the steady chrome of done. Kept slim so the
+                * state reads as attention, not weight. */}
+              {exception && (
+                <path
+                  className="strand-attn"
+                  d={d}
+                  pathLength={1}
+                  stroke={WARN_HALO}
+                  strokeWidth={s.lit ? 4.6 : 3.6}
+                  strokeLinecap="round"
                   vectorEffect="non-scaling-stroke"
                 />
               )}
@@ -206,7 +261,7 @@ export function Strands({
                 d={d}
                 pathLength={1}
                 stroke={ghost ? GHOST_STROKE : grad}
-                strokeWidth={s.lit ? 2.1 : settled ? 1.5 : 1.15}
+                strokeWidth={s.lit ? 2.4 : done ? 1.7 : exception ? 1.35 : 1.15}
                 strokeLinecap="round"
                 strokeDasharray={ghost ? "0.006 0.018" : undefined}
                 vectorEffect="non-scaling-stroke"
@@ -340,12 +395,29 @@ export function Strands({
             opacity: 1;
           }
         }
+        .strand-attn {
+          opacity: 0.24;
+          animation: strand-attn 2600ms ease-in-out infinite;
+        }
+        @keyframes strand-attn {
+          0%,
+          100% {
+            opacity: 0.12;
+          }
+          50% {
+            opacity: 0.36;
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
           .strand-base,
           .strand-flow,
           .node-ripple,
-          .node-core {
+          .node-core,
+          .strand-attn {
             animation: none;
+          }
+          .strand-attn {
+            opacity: 0.24;
           }
         }
       `}</style>
