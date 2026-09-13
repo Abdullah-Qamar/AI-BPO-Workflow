@@ -1062,7 +1062,11 @@ export interface KnowledgeRule {
   /** Which agent reads this rule. */
   agent: AIAgentKey;
   rule: string;
-  addedBy: string;
+  /* When the rule was added, as an ISO datetime ("2026-02-12T14:24:00"). Stored
+   * ISO rather than a pre-formatted label so the row formats it (and could sort
+   * by it) instead of sorting formatted text lexicographically. There is no
+   * author field: this app has no accounts or roles, so a rule is dated, not
+   * signed. */
   addedOn: string;
   /** Times it fired this cycle. Rendered as a status, not as a number. */
   applied: number;
@@ -1075,8 +1079,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     scope: "all",
     agent: "reconciliation",
     rule: "Do not approve a match when the payee names differ, even if the amount and date are exact. Send it for review instead.",
-    addedBy: "Priya Raman",
-    addedOn: "Feb 2026",
+    addedOn: "2026-02-12T14:24:00",
     applied: 214,
   },
   {
@@ -1084,8 +1087,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     scope: "all",
     agent: "intake",
     rule: 'Bank fee codes FX-011 through FX-039 post to GL 6210, Bank Charges. Codes outside that range are new and need a mapping decision.',
-    addedBy: "Hassan Ali",
-    addedOn: "Jan 2026",
+    addedOn: "2026-01-08T09:47:00",
     applied: 31,
   },
   {
@@ -1093,8 +1095,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     scope: "all",
     agent: "reconciliation",
     rule: "When there is no ledger entry at any amount, report a missing journal entry. Do not list near matches; the fix is a booking, not a match.",
-    addedBy: "Priya Raman",
-    addedOn: "Jan 2026",
+    addedOn: "2026-01-21T16:05:00",
     applied: 88,
   },
   {
@@ -1102,8 +1103,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     scope: "all",
     agent: "summary",
     rule: "Do not post to Yardi on the last business day of the month. Hold approved records and post on the first of the next.",
-    addedBy: "Dana Okafor",
-    addedOn: "Mar 2026",
+    addedOn: "2026-03-04T11:32:00",
     applied: 6,
   },
   // --- one named property, captured on properties other than the anchor ---
@@ -1113,8 +1113,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     property: "871 Broadway, Oakland",
     agent: "reconciliation",
     rule: "Chase Operating charges a $42.50 account fee on the 3rd of every month. It is not a duplicate.",
-    addedBy: "Hassan Ali",
-    addedOn: "Apr 2026",
+    addedOn: "2026-04-09T15:18:00",
     applied: 2,
   },
   {
@@ -1123,8 +1122,7 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
     property: "5200 Christie Ave, Emeryville",
     agent: "reconciliation",
     rule: "Wells Fargo exports this property's ledger with the memo and reference columns transposed. Read them in reverse before matching.",
-    addedBy: "Dana Okafor",
-    addedOn: "Apr 2026",
+    addedOn: "2026-04-23T10:41:00",
     applied: 41,
   },
 ];
@@ -1135,6 +1133,20 @@ const PORTFOLIO_RULES: KnowledgeRule[] = [
  * by different authors, on different dates, with different application counts,
  * so the same rule read as two rules that disagreed about itself. The knowledge
  * base now includes them by reference. */
+/* A stable business-hours time (HH:MM:SS) derived from a seed string. The
+ * guidance entries carry a capture date but no clock time; this gives each row a
+ * time so the column reads as a real timestamp, and derives it deterministically
+ * — the same seed always yields the same time — so it does not differ between
+ * the server and the client and trip hydration the way Math.random would. */
+function synthTime(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const hour = 9 + (h % 8); // 09–16, within a working day
+  const minute = (h >> 3) % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(hour)}:${pad(minute)}:00`;
+}
+
 const ANCHOR_PROPERTY_RULES: KnowledgeRule[] = guidanceEntries
   .filter((g) => !g.archived)
   .map((g) => ({
@@ -1143,8 +1155,9 @@ const ANCHOR_PROPERTY_RULES: KnowledgeRule[] = guidanceEntries
     property: "1849 Westlake Ave N, Seattle",
     agent: g.agent,
     rule: g.rule,
-    addedBy: g.capturedBy,
-    addedOn: g.capturedFromSessionLabel,
+    /* The ISO capture date plus a stable time, so the row shows a full
+     * timestamp. No author: the app has no roles to attribute it to. */
+    addedOn: `${g.capturedOn}T${synthTime(g.id)}`,
     applied: g.totalApplied,
   }));
 

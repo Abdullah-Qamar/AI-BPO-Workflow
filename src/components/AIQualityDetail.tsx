@@ -128,7 +128,7 @@ export function AIQualityDetail() {
         {tab === "overview" ? (
           <OverviewTab cycle={cycle} point={point} />
         ) : (
-          <KnowledgeTab cycle={cycle} />
+          <KnowledgeTab />
         )}
       </div>
     </main>
@@ -1306,7 +1306,41 @@ const SCOPE_LABEL: Record<RuleScope, string> = {
   property: "Single property",
 };
 
-function KnowledgeTab({ cycle }: { cycle: string }) {
+const ADDED_MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/* Renders a rule's `addedOn` ISO datetime as "Feb 12, 2026 · 2:24 PM". Parsed by
+ * hand rather than through Date/toLocaleString so it formats identically on the
+ * server and the client — a locale- or timezone-formatted date drifts between
+ * the two and trips hydration. A value with no time part (or an unparseable
+ * legacy label) falls back to the date alone, then to the raw string. */
+function formatAddedOn(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(iso);
+  if (!m) return iso;
+  const [, y, mo, d, hh, mm] = m;
+  const month = ADDED_MONTHS[Number(mo) - 1] ?? mo;
+  const date = `${month} ${Number(d)}, ${y}`;
+  if (hh == null) return date;
+  const h24 = Number(hh);
+  const h12 = h24 % 12 || 12;
+  return `${date} · ${h12}:${mm} ${h24 < 12 ? "AM" : "PM"}`;
+}
+
+/* The current local time as an ISO datetime, for a rule added right now. Built
+ * from local fields rather than Date.toISOString() (which is UTC) so the stamp
+ * matches the clock the reader is looking at. */
+function nowIsoLocal(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+  );
+}
+
+function KnowledgeTab() {
   const [scope, setScope] = useState<RuleScope>("all");
   const [query, setQuery] = useState("");
   const [added, setAdded] = useState<KnowledgeRule[]>([]);
@@ -1444,7 +1478,6 @@ function KnowledgeTab({ cycle }: { cycle: string }) {
          * changing it would be a move, not an edit. */
         rule={dialog === "new" ? null : dialog}
         scope={dialog === "new" || dialog === null ? scope : dialog.scope}
-        cycle={cycle}
         onClose={() => setDialog(null)}
         onAdd={(rule) => {
           setAdded((prev) => [rule, ...prev]);
@@ -1723,12 +1756,14 @@ function RuleRow({
         {unused ? "Never used" : "In use"}
       </span>
 
+      {/* When the rule was added. This app has no accounts or roles, so the
+        * column dates the rule rather than naming an author. */}
       <span
         className="nums truncate"
         style={{ ...cell, color: "var(--ink-tertiary)" }}
-        data-hint={`Added by ${rule.addedBy}`}
+        data-hint={formatAddedOn(rule.addedOn)}
       >
-        {rule.addedBy} · {rule.addedOn}
+        {formatAddedOn(rule.addedOn)}
       </span>
 
       {/* The two actions, in the open.
@@ -1946,7 +1981,6 @@ function RuleDialog({
   open,
   rule,
   scope,
-  cycle,
   onClose,
   onAdd,
   onEdit,
@@ -1955,9 +1989,6 @@ function RuleDialog({
   /** The rule being changed, or null to compose a new one. */
   rule: KnowledgeRule | null;
   scope: RuleScope;
-  /* Stamped onto a new rule, so one written while viewing March is dated
-   * March rather than always "now". */
-  cycle: string;
   onClose: () => void;
   onAdd: (rule: KnowledgeRule) => void;
   onEdit: (id: string, patch: Partial<KnowledgeRule>) => void;
@@ -1971,7 +2002,6 @@ function RuleDialog({
           key={rule?.id ?? "new"}
           rule={rule}
           scope={scope}
-          cycle={cycle}
           onClose={onClose}
           onAdd={onAdd}
           onEdit={onEdit}
@@ -1984,14 +2014,12 @@ function RuleDialog({
 function RuleForm({
   rule,
   scope,
-  cycle,
   onClose,
   onAdd,
   onEdit,
 }: {
   rule: KnowledgeRule | null;
   scope: RuleScope;
-  cycle: string;
   onClose: () => void;
   onAdd: (rule: KnowledgeRule) => void;
   onEdit: (id: string, patch: Partial<KnowledgeRule>) => void;
@@ -2027,8 +2055,9 @@ function RuleForm({
       property: scope === "property" ? property : undefined,
       agent,
       rule: text.trim(),
-      addedBy: "You",
-      addedOn: cycle,
+      /* Stamped with the moment it was added. The app has no author to record,
+       * only a time. */
+      addedOn: nowIsoLocal(),
       /* A rule written now has not fired yet, and the table says so rather than
        * pretending otherwise. */
       applied: 0,
