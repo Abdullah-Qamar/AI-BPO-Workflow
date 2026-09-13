@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   Building2,
+  ChevronRight,
   Gauge,
   GitCompareArrows,
   LayoutDashboard,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
+import { aiAgents, aiObservability } from "@/lib/seed";
 
 type Route = "dashboard" | "workspace" | "properties" | "observability";
 
@@ -33,19 +33,14 @@ type Route = "dashboard" | "workspace" | "properties" | "observability";
  * that is what the rail says. */
 type NavItem = { key: Route; Icon: LucideIcon; label: string };
 
-/* Two groups, because they are two kinds of destination. The first three are
- * where work happens and a reader moves between them all day. AI Performance is
- * where you go to check on the system — occasional, and never in the middle of a
- * close — so it sits apart at the foot of the rail rather than as a fourth peer
- * competing for the same glance. */
+/* The day-to-day destinations. AI Performance is not among them: it is where
+ * you go to check on the system rather than to do work, so it lives at the foot
+ * of the rail as a live status widget (see PerformanceWidget) rather than a
+ * fourth peer competing for the same glance. */
 const ITEMS: NavItem[] = [
   { key: "dashboard", Icon: LayoutDashboard, label: "Dashboard" },
   { key: "workspace", Icon: GitCompareArrows, label: "Reconciliation" },
   { key: "properties", Icon: Building2, label: "Properties" },
-];
-
-const FOOT_ITEMS: NavItem[] = [
-  { key: "observability", Icon: Gauge, label: "AI Performance" },
 ];
 
 const STORAGE_KEY = "tieout.nav.collapsed";
@@ -74,6 +69,209 @@ function LogoMark({ size = 24 }: { size?: number }) {
        * which was capping the mark to its narrower slot and undoing the size. */
       style={{ display: "block", filter: "brightness(0)", maxWidth: "none" }}
     />
+  );
+}
+
+/* Formats a token count compactly for the rail: 1_240_000 -> "1.24M". */
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M`;
+  if (n >= 1_000) return `${Math.round(n / 1000)}K`;
+  return String(n);
+}
+
+/* Two figure columns, fixed-width so the header labels line up over the agents'
+ * numbers. */
+const WIDGET_AGENTS = ["intake", "reconciliation", "summary"] as const;
+const COL_PCT = 40;
+const COL_TOK = 46;
+
+function AgentStatRow({ id }: { id: (typeof WIDGET_AGENTS)[number] }) {
+  const a = aiAgents.find((x) => x.key === id);
+  if (!a) return null;
+  const pct = a.runs > 0 ? Math.round((a.succeeded / a.runs) * 100) : 0;
+  return (
+    <div className="flex flex-row items-center" style={{ width: "100%", gap: 8 }}>
+      <span
+        className="flex-1 truncate"
+        style={{
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-primary)",
+        }}
+      >
+        {a.name}
+      </span>
+      <span
+        className="nums shrink-0"
+        style={{
+          width: COL_PCT,
+          textAlign: "right",
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-ui)",
+          fontWeight: "var(--weight-medium)",
+          color: "var(--ink-primary)",
+        }}
+      >
+        {pct}%
+      </span>
+      <span
+        className="nums shrink-0"
+        style={{
+          width: COL_TOK,
+          textAlign: "right",
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-ui)",
+          color: "var(--ink-secondary)",
+        }}
+      >
+        {fmtTokens(a.tokens)}
+      </span>
+    </div>
+  );
+}
+
+/* The rail foot's AI status widget — a compact per-agent table: each agent's
+ * first-pass success rate and token spend, under column headers that name the
+ * two figures. The whole card opens AI Performance. Figures are portfolio-level
+ * (aiAgents) since the rail lives outside any one session; collapsed, it falls
+ * back to a single icon button. */
+function PerformanceWidget({
+  collapsed,
+  active,
+  onClick,
+}: {
+  collapsed: boolean;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const [hover, setHover] = useState(false);
+
+  if (collapsed) {
+    return (
+      <Tooltip
+        label={`AI Performance · ${aiObservability.accuracy}% first-pass · ${fmtTokens(
+          aiObservability.tokensUsed
+        )} tokens`}
+        side="right"
+        tone={active ? "info" : "neutral"}
+      >
+        <button
+          onClick={onClick}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          aria-label="AI Performance"
+          aria-current={active ? "page" : undefined}
+          className="flex items-center justify-center shrink-0"
+          style={{
+            width: "var(--row-md)",
+            height: "var(--row-md)",
+            borderRadius: "var(--radius-row)",
+            background: active || hover ? "var(--surface-chip)" : "transparent",
+            border: active ? "1px solid #FFFFFF" : "1px solid transparent",
+            boxShadow: active ? "var(--shadow-chip)" : "none",
+            cursor: "pointer",
+            color: active ? "var(--ink-primary)" : "var(--ink-secondary)",
+            transition: "background 140ms ease",
+          }}
+        >
+          <Gauge size={18} strokeWidth={1.75} />
+        </button>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      aria-label="Open AI Performance"
+      aria-current={active ? "page" : undefined}
+      className="flex flex-col text-left shrink-0"
+      style={{
+        width: "100%",
+        gap: 5,
+        padding: 10,
+        borderRadius: "var(--radius-sheet)",
+        /* A soft translucent panel rather than an opaque near-white card, so it
+         * settles into the rail's bluish ground instead of pulling the eye; it
+         * only brightens on hover / when active. */
+        background: active
+          ? "rgba(255,255,255,0.72)"
+          : hover
+          ? "rgba(255,255,255,0.55)"
+          : "rgba(255,255,255,0.34)",
+        border: `1px solid ${
+          active ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.45)"
+        }`,
+        boxShadow: active ? "var(--shadow-chip)" : "none",
+        cursor: "pointer",
+        transition: "background 140ms ease, box-shadow 140ms ease",
+      }}
+    >
+      {/* Column headers name the two figures. */}
+      <div
+        className="flex flex-row items-center"
+        style={{ width: "100%", gap: 8, marginBottom: 1 }}
+      >
+        <span
+          className="flex-1 truncate"
+          style={{
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-meta)",
+            textTransform: "uppercase",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          Agents
+        </span>
+        <span
+          style={{
+            width: COL_PCT,
+            textAlign: "right",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-meta)",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          Success
+        </span>
+        <span
+          style={{
+            width: COL_TOK,
+            textAlign: "right",
+            fontSize: "var(--type-meta)",
+            lineHeight: "var(--leading-ui)",
+            letterSpacing: "var(--tracking-meta)",
+            color: "var(--ink-tertiary)",
+          }}
+        >
+          Tokens
+        </span>
+      </div>
+
+      {WIDGET_AGENTS.map((id) => (
+        <AgentStatRow key={id} id={id} />
+      ))}
+
+      <div
+        className="flex flex-row items-center"
+        style={{
+          gap: 2,
+          marginTop: 2,
+          fontSize: "var(--type-meta)",
+          lineHeight: "var(--leading-ui)",
+          fontWeight: "var(--weight-medium)",
+          color: "var(--ink-secondary)",
+        }}
+      >
+        View details
+        <ChevronRight size={12} strokeWidth={1.75} />
+      </div>
+    </button>
   );
 }
 
@@ -133,8 +331,8 @@ export function LeftRail({
       style={{
         width: collapsed ? COLLAPSED_W : EXPANDED_W,
         padding: collapsed
-          ? "var(--space-5) 0 44px"
-          : "var(--space-5) var(--space-5) 44px var(--space-4)",
+          ? "var(--space-5) 0"
+          : "var(--space-5) var(--space-5) var(--space-5) var(--space-4)",
         gap: "var(--space-2)",
         borderRight: "1px solid var(--line)",
         /* Sticky so the rail is anchored to the viewport as the canvas scrolls
@@ -244,28 +442,11 @@ export function LeftRail({
       {/* Pushes everything below it to the rail's foot. */}
       <div className="flex-1" />
 
-      {FOOT_ITEMS.map((item) => renderItem(item))}
-
-      {/* Sits directly under the nav rather than pinned to the rail's foot.
-        * Pinned at the bottom it landed underneath Next's dev-tools badge,
-        * which renders in a portal at the bottom-left corner above everything —
-        * the switch was measurably in the right place and still unclickable.
-        * The aside carries extra bottom padding for the same reason, so the foot
-        * group clears the badge. */}
-      <span
-        aria-hidden
-        style={{
-          width: collapsed ? "var(--row-md)" : "100%",
-          height: 1,
-          /* A structural divider, so --line-soft. It was on --line-row-hover's
-           * value, which is the border a listing row paints when it lifts — a
-           * different job, and borrowing it here meant a rule and a hover state
-           * could never be tuned apart. */
-          background: "var(--line-soft)",
-          margin: "var(--space-3) 0",
-        }}
+      <PerformanceWidget
+        collapsed={collapsed}
+        active={route === "observability"}
+        onClick={() => onNavigate("observability")}
       />
-      <VersionSwitch collapsed={collapsed} />
 
       {/* Hover feedback lives in CSS rather than onMouseEnter handlers so it
         * survives the pointer leaving during a route change, which left the
@@ -375,56 +556,4 @@ export function LeftRail({
           </div>
         );
   }
-}
-
-/* Flips between the shipped workspace and the V2 experiment. Both routes render
- * this same rail, so the switch reads its own direction from the path rather
- * than taking a prop. */
-function VersionSwitch({ collapsed }: { collapsed: boolean }) {
-  const pathname = usePathname();
-  const onV2 = pathname?.startsWith("/v2") ?? false;
-  const label = onV2 ? "Switch to V1 workspace" : "Switch to V2 workspace";
-
-  const link = (
-    <Link
-      href={onV2 ? "/" : "/v2"}
-      aria-label={label}
-      className={`flex items-center transition ${
-        collapsed ? "justify-center" : "flex-row"
-      }`}
-      style={{
-        width: collapsed ? "var(--row-md)" : "100%",
-        height: "var(--control-sm)",
-        padding: collapsed ? 0 : "0 8px",
-        gap: collapsed ? 0 : 10,
-        borderRadius: "var(--radius-row)",
-        background: onV2 ? "var(--action-primary)" : "rgba(255,255,255,0.62)",
-        border: `1px solid ${
-          onV2 ? "var(--action-primary)" : "rgba(255,255,255,0.9)"
-        }`,
-        boxShadow: "var(--shadow-chip)",
-        fontSize: "var(--type-meta)",
-        lineHeight: "var(--leading-ui)",
-        letterSpacing: "var(--tracking-meta)",
-        fontWeight: "var(--weight-medium)",
-        color: onV2 ? "var(--action-on-primary)" : "var(--ink-secondary)",
-        textDecoration: "none",
-      }}
-    >
-      {/* Labels the destination, not the current route — it's an action. */}
-      {collapsed ? (onV2 ? "V1" : "V2") : onV2 ? "V1 workspace" : "V2 workspace"}
-    </Link>
-  );
-
-  return collapsed ? (
-    <Tooltip
-      label={onV2 ? "Back to the V1 workspace" : "Open Workspace V2 (experimental)"}
-      side="right"
-      tone={onV2 ? "info" : "neutral"}
-    >
-      {link}
-    </Tooltip>
-  ) : (
-    link
-  );
 }
