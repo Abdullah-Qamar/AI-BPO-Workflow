@@ -1,0 +1,744 @@
+<title>Reconciler Portfolio Playbook</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #EDEFF3;
+    --surface: #F7F8FA;
+    --surface-2: #FFFFFF;
+    --line: #D3D8E0;
+    --line-soft: #E2E6EC;
+    --ink: #262E37;
+    --ink-2: #4A5460;
+    --ink-3: #6B7684;
+    --accent: #3B5A80;
+    --accent-ink: #2E4766;
+    --accent-bg: #E3EAF3;
+    --ok: #2E7D57;
+    --ok-bg: #E1F0E8;
+    --warn: #A86A12;
+    --warn-bg: #F6EBD6;
+    --danger: #B0413E;
+    --danger-bg: #F5E1E0;
+    --agent-intake: #4C6B8E;
+    --agent-recon: #4E8A7A;
+    --agent-summary: #7A6A9E;
+    --human: #A86A12;
+    --shadow: 0 1px 2px rgba(38,46,55,.06), 0 8px 24px rgba(38,46,55,.06);
+    --radius: 10px;
+    --font-display: "Bricolage Grotesque", "Geist", system-ui, sans-serif;
+    --font-body: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #15191F;
+      --surface: #1C2229;
+      --surface-2: #232A33;
+      --line: #343D48;
+      --line-soft: #2B333D;
+      --ink: #E4E8ED;
+      --ink-2: #B6BFCA;
+      --ink-3: #8B96A3;
+      --accent: #8FB0D6;
+      --accent-ink: #A9C4E4;
+      --accent-bg: #253243;
+      --ok: #7CC6A0;
+      --ok-bg: #1F3529;
+      --warn: #E0B063;
+      --warn-bg: #3A2F1A;
+      --danger: #E08A87;
+      --danger-bg: #3D2424;
+      --agent-intake: #86A6CB;
+      --agent-recon: #7FBBAA;
+      --agent-summary: #AB9BD0;
+      --human: #E0B063;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #15191F;
+    --surface: #1C2229;
+    --surface-2: #232A33;
+    --line: #343D48;
+    --line-soft: #2B333D;
+    --ink: #E4E8ED;
+    --ink-2: #B6BFCA;
+    --ink-3: #8B96A3;
+    --accent: #8FB0D6;
+    --accent-ink: #A9C4E4;
+    --accent-bg: #253243;
+    --ok: #7CC6A0;
+    --ok-bg: #1F3529;
+    --warn: #E0B063;
+    --warn-bg: #3A2F1A;
+    --danger: #E08A87;
+    --danger-bg: #3D2424;
+    --agent-intake: #86A6CB;
+    --agent-recon: #7FBBAA;
+    --agent-summary: #AB9BD0;
+    --human: #E0B063;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-ink); text-decoration-color: var(--line); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 48px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 32px 96px;
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; gap: 24px; padding: 24px 18px 72px; }
+    .toc { position: static !important; }
+  }
+
+  /* ---- TOC ---- */
+  .toc {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    font-size: 13px;
+  }
+  .toc .brand {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .toc .sub { color: var(--ink-3); font-size: 12px; margin-bottom: 20px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .toc a {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 6px 8px; border-radius: 6px;
+    color: var(--ink-2); text-decoration: none;
+  }
+  .toc a:hover { background: var(--surface-2); color: var(--ink); }
+  .toc a .n { font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); min-width: 16px; }
+
+  /* ---- Main ---- */
+  main { min-width: 0; }
+  .eyebrow {
+    font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(30px, 4vw, 42px);
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    margin: 8px 0 14px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 17px; color: var(--ink-2); max-width: 62ch; margin: 0 0 8px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 64px; scroll-margin-top: 24px; }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  h2 .n { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); font-weight: 400; letter-spacing: 0; display: block; margin-bottom: 8px; }
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    margin: 36px 0 8px;
+  }
+  h4 { font-size: 14px; font-weight: 600; margin: 24px 0 6px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  ul, ol { margin: 0 0 14px; padding-left: 22px; max-width: 68ch; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--ink-3); }
+  .intro { color: var(--ink-2); font-size: 16px; max-width: 64ch; }
+
+  code, .mono { font-family: var(--font-mono); font-size: .9em; }
+  code { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 4px; padding: 1px 5px; color: var(--ink); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 14px 18px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 20px 0;
+    max-width: 72ch;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.warn { border-color: var(--warn); }
+  .callout.ok { border-color: var(--ok); }
+  .callout .label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+
+  /* ---- Tables ---- */
+  .tablewrap { overflow-x: auto; margin: 16px 0 24px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--surface-2); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); }
+  th { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); background: var(--surface); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-weight: 600; white-space: nowrap; }
+  td .mono { font-size: 12px; color: var(--ink-2); }
+  .tc { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  .nums { font-variant-numeric: tabular-nums; }
+
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px;
+    background: var(--accent-bg); color: var(--accent-ink); white-space: nowrap;
+  }
+  .pill.human { background: var(--warn-bg); color: var(--warn); }
+  .pill.agent { background: var(--ok-bg); color: var(--ok); }
+  .pill.gap { background: var(--danger-bg); color: var(--danger); }
+
+  /* ---- Term grid ---- */
+  .terms { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin: 18px 0 8px; }
+  .term { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 14px 16px; }
+  .term .t { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .term .d { font-size: 13.5px; color: var(--ink-2); margin-bottom: 8px; }
+  .term .y { font-size: 12.5px; color: var(--ink-3); border-top: 1px dashed var(--line-soft); padding-top: 8px; }
+  .term .y b { color: var(--accent-ink); font-weight: 500; }
+
+  /* ---- Diagram ---- */
+  figure { margin: 20px 0 28px; }
+  figure .frame { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 18px; overflow-x: auto; }
+  figcaption { font-size: 12.5px; color: var(--ink-3); margin-top: 8px; max-width: 68ch; }
+  svg text { font-family: var(--font-body); }
+  .lbl { font-size: 12px; fill: var(--ink); font-weight: 500; }
+  .lbl-s { font-size: 10.5px; fill: var(--ink-3); }
+  .lbl-m { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-3); }
+  .box { fill: var(--surface); stroke: var(--line); }
+  .box-agent { fill: var(--surface); }
+  .gate { fill: var(--warn-bg); stroke: var(--warn); }
+  .arrow { stroke: var(--ink-3); fill: none; stroke-width: 1.25; }
+  .arrowhead { fill: var(--ink-3); }
+
+  /* ---- Script ---- */
+  .script { display: flex; flex-direction: column; gap: 10px; margin: 18px 0 8px; }
+  .beat {
+    display: grid; grid-template-columns: 72px 1fr; gap: 16px;
+    background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 14px 16px;
+  }
+  @media (max-width: 640px) { .beat { grid-template-columns: 1fr; gap: 6px; } }
+  .beat .time { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); padding-top: 3px; }
+  .beat .title { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .beat .row { display: grid; grid-template-columns: 76px 1fr; gap: 10px; font-size: 13.5px; margin-top: 6px; }
+  .beat .row .h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+  .beat .say { color: var(--ink); }
+  .beat .screen { color: var(--ink-2); }
+  .beat .say em { font-style: normal; background: var(--accent-bg); color: var(--accent-ink); padding: 0 4px; border-radius: 3px; }
+
+  /* ---- Checklist ---- */
+  .check { list-style: none; padding: 0; max-width: 72ch; }
+  .check li { display: grid; grid-template-columns: 18px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); margin: 0; }
+  .check li::before { content: ""; width: 14px; height: 14px; border: 1.5px solid var(--line); border-radius: 4px; margin-top: 4px; }
+  .check li b { font-weight: 600; }
+
+  .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 16px; font-size: 13.5px; max-width: 72ch; margin: 12px 0 20px; }
+  .kv dt { color: var(--ink-3); }
+  .kv dd { margin: 0; }
+
+  .foot { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink-3); max-width: 68ch; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="brand">Reconciler Portfolio Playbook</div>
+    <div class="sub">How to present a supervised multi-agent product</div>
+    <ol>
+      <li><a href="#thesis"><span class="n">1</span>The positioning thesis</a></li>
+      <li><a href="#vocab"><span class="n">2</span>Vocabulary you should own</a></li>
+      <li><a href="#map"><span class="n">3</span>What you built, in that vocabulary</a></li>
+      <li><a href="#artifacts"><span class="n">4</span>Artifacts to produce</a></li>
+      <li><a href="#video"><span class="n">5</span>Video walkthrough script</a></li>
+      <li><a href="#casestudy"><span class="n">6</span>Written case study structure</a></li>
+      <li><a href="#decisions"><span class="n">7</span>Decisions worth telling</a></li>
+      <li><a href="#interview"><span class="n">8</span>Questions you will be asked</a></li>
+      <li><a href="#gaps"><span class="n">9</span>Gaps to own as roadmap</a></li>
+      <li><a href="#record"><span class="n">10</span>Pre-recording checklist</a></li>
+      <li><a href="#reading"><span class="n">11</span>Frameworks and reading</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="eyebrow">Portfolio case study · Reconciler · property accounting close</div>
+    <h1>Present Reconciler as a designed human-agent contract, not a screen tour</h1>
+    <p class="lede">Most "AI product" portfolios show a chat box with a sparkle icon. You built something rarer: a <strong>supervised multi-agent pipeline</strong> where three agents do the work, a person approves at exactly the points that carry risk, and the person's decisions teach the system. The walkthrough should make that architecture visible. The screens are evidence, not the story.</p>
+    <p class="lede">Everything below is grounded in the actual build: the reducer, the seed, the design decisions log, the V2 workspace spec, and the running app.</p>
+
+    <!-- 1 -->
+    <section id="thesis">
+      <h2><span class="n">01</span>The positioning thesis</h2>
+      <p class="intro">A senior hiring panel is not judging whether you can lay out a dashboard. They are judging whether you can decide <strong>what an agent should do alone, what it must show, where a human must decide, and how the human's decisions change the agent</strong>. Say that sentence early, then spend the rest of the walkthrough proving each clause.</p>
+
+      <div class="callout">
+        <div class="label">The one-liner to open with</div>
+        <p>"Reconciler is a monthly bank-close product for property accountants. Three agents read statements and ledgers, match them, and post the result back to Yardi. My job was to design the contract between those agents and the controller who signs off: what runs unattended, what needs a signature, what the system has to prove, and how a reviewer's correction becomes a rule the agents follow next month."</p>
+      </div>
+
+      <h3>Four clauses, four proofs</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Clause</th><th>What it means in agentic design</th><th>Where Reconciler proves it</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Autonomy boundary</td><td>Which steps run without a person, and why those steps are safe to delegate.</td><td>Intake and matching run unattended. Reconciliation runs the four accounts in parallel. Posting to Yardi never starts without a click.</td></tr>
+            <tr><td class="k">Legibility</td><td>The person can always answer "what is it doing, what did it do, why."</td><td>Present-tense core, append-only activity log, per-record reason and evidence, agent timelines, confidence per match.</td></tr>
+            <tr><td class="k">Approval gates</td><td>Human decisions sit at the frontier of the work, on the irreversible actions.</td><td>"Start reconciliation", "Review N records", "Post to Yardi". The CTA lives where the work stopped.</td></tr>
+            <tr><td class="k">Learning loop</td><td>A correction is captured as durable guidance, and the system reports whether it ever fires.</td><td>Reviewer notes, "Teach this rule", Knowledge base with scope and "applied N× this cycle", stale rules flagged at zero.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section id="vocab">
+      <h2><span class="n">02</span>Vocabulary you should own</h2>
+      <p class="intro">Use these terms in the voiceover and the case study. Each card names the concept, defines it plainly, and points at the thing in your product that embodies it. Never use a term you cannot point at.</p>
+
+      <div class="terms">
+        <div class="term"><div class="t">Agentic workflow vs. chatbot</div><div class="d">A chatbot answers. An agentic workflow takes a goal, runs multi-step work with tools, and returns a result. The interface is about supervision, not conversation.</div><div class="y">Yours: <b>no chat surface at all.</b> The user drops documents and reviews a verdict.</div></div>
+        <div class="term"><div class="t">Orchestration and handoff</div><div class="d">Splitting work into specialised agents that pass state to each other in a fixed order.</div><div class="y">Yours: <b>Intake → Reconciliation → Summary</b>, each with its own role line, prompt, and timeline.</div></div>
+        <div class="term"><div class="t">Human-in-the-loop (HITL)</div><div class="d">A person is a required step in the pipeline, not an optional observer.</div><div class="y">Yours: <b>the "review" run state.</b> Nothing posts until a person opens the records.</div></div>
+        <div class="term"><div class="t">Approval gate</div><div class="d">A deliberate stop before a consequential action. The action is offered where the work paused.</div><div class="y">Yours: <b>"Post to Yardi" in the review drawer header</b>, only while run state is review.</div></div>
+        <div class="term"><div class="t">Levels of autonomy</div><div class="d">A ladder from "suggest" to "act and inform" to "act silently". Each step in a pipeline can sit at a different rung.</div><div class="y">Yours: intake acts and informs, matching acts and routes low confidence to a person, posting waits for a signature.</div></div>
+        <div class="term"><div class="t">Confidence and approval floor</div><div class="d">The agent scores each decision; below a threshold it defers to a human instead of acting.</div><div class="y">Yours: <b>per-record confidence chips (19% to 52%)</b> and the prompt rule "below the property's approval floor goes to a reviewer".</div></div>
+        <div class="term"><div class="t">Calibrated trust</div><div class="d">The user trusts the system exactly as much as it deserves: neither over-relying nor ignoring it.</div><div class="y">Yours: <b>"Settled on its own" is frozen from the agent's verdict</b> and cannot improve when a human approves leftovers.</div></div>
+        <div class="term"><div class="t">Observability</div><div class="d">The system exposes its internal progress and history so a person can follow and audit it.</div><div class="y">Yours: activity log, agent timelines, strand states, "Matching 4 accounts · 2 complete".</div></div>
+        <div class="term"><div class="t">Explainability</div><div class="d">Each decision comes with the reason and the evidence it rests on, in the user's language.</div><div class="y">Yours: <b>Reason + Evidence on every exception</b>: "No matching ledger entry within ±3 days · Statement line 47".</div></div>
+        <div class="term"><div class="t">Provenance</div><div class="d">Where a fact or rule came from, and when.</div><div class="y">Yours: rules carry capture date, the session they came from, and the record title that prompted them.</div></div>
+        <div class="term"><div class="t">Append-only audit log</div><div class="d">History is never rewritten. Later human edits do not alter what the agent originally reported.</div><div class="y">Yours: <b>activity entries keep their reconcile-time counts</b> after a reviewer moves records.</div></div>
+        <div class="term"><div class="t">Steerability and memory</div><div class="d">How a person changes agent behaviour, and what the agent carries between runs.</div><div class="y">Yours: <b>Knowledge base rules in prose</b>, scoped to portfolio or property, read before every run. No numeric settings anywhere.</div></div>
+        <div class="term"><div class="t">Guardrails</div><div class="d">Hard constraints the agent cannot cross regardless of its own judgement.</div><div class="y">Yours: "Post only records a human has approved." "Never report a total you have not been given." "Never infer a date or an amount."</div></div>
+        <div class="term"><div class="t">Tool use and side effects</div><div class="d">An agent calling an external system. Writes are the dangerous class of call.</div><div class="y">Yours: <b>Yardi posting is the one write</b>, and it gets the only hard gate, plus a hold rule for month-end.</div></div>
+        <div class="term"><div class="t">Blast radius and reversibility</div><div class="d">How much damage a wrong action can do, and whether it can be undone. Autonomy should shrink as blast radius grows.</div><div class="y">Yours: record moves have Undo toasts; posting has no undo, so it has a gate.</div></div>
+        <div class="term"><div class="t">Graceful failure</div><div class="d">Failure is a designed state with a route back, not a blank screen.</div><div class="y">Yours: <b>"failed" run state with the system's note</b>, "Rerun", and the distinction between an exception and an unclassified file.</div></div>
+        <div class="term"><div class="t">Evaluation</div><div class="d">Measuring whether the agent is right, not just whether it ran.</div><div class="y">Yours: first-pass accuracy, success rate per agent, records per reviewer hour, six-cycle trend.</div></div>
+        <div class="term"><div class="t">Cost per unit of work</div><div class="d">Tokens are the bill. Cost only means something against output.</div><div class="y">Yours: <b>tokens split in / out / cached per agent</b>, and "tokens per record" as the trend figure.</div></div>
+        <div class="term"><div class="t">Progressive disclosure of agent work</div><div class="d">Show the present at a glance; keep the full record one click away.</div><div class="y">Yours: the core shows one agent; the log collapses to four rows; timelines expand on demand.</div></div>
+        <div class="term"><div class="t">Honest state (no premature certainty)</div><div class="d">Never display something the system has not learned yet.</div><div class="y">Yours: <b>"Identity is an output of intake, not an input."</b> Rows appear only after a document is read and resolved.</div></div>
+        <div class="term"><div class="t">Ironies of automation</div><div class="d">The better automation gets, the less practice the human has for the cases it hands back. Reviewer skill must be protected.</div><div class="y">Yours: reviewer hours down 57%, so exceptions carry full evidence for a person who now sees fewer of them.</div></div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section id="map">
+      <h2><span class="n">03</span>What you built, in that vocabulary</h2>
+      <p class="intro">Two diagrams carry the whole architecture story. Recreate them cleanly in Figma for the case study; the versions here show the content each one needs.</p>
+
+      <h3>Diagram A: the pipeline with its human gates</h3>
+      <figure>
+        <div class="frame">
+          <svg viewBox="0 0 980 300" width="980" height="300" role="img" aria-label="Three agents in sequence with human approval gates between them">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+            </defs>
+            <!-- lane labels -->
+            <text x="16" y="70" class="lbl-s">AGENTS</text>
+            <text x="16" y="215" class="lbl-s">PERSON</text>
+            <line x1="16" y1="150" x2="964" y2="150" stroke="var(--line-soft)" stroke-dasharray="3 4"/>
+
+            <!-- Draft input -->
+            <rect x="80" y="40" width="120" height="64" rx="8" class="box"/>
+            <text x="140" y="66" text-anchor="middle" class="lbl">Documents</text>
+            <text x="140" y="84" text-anchor="middle" class="lbl-s">statements + ledgers</text>
+
+            <!-- Intake -->
+            <rect x="240" y="40" width="150" height="64" rx="8" class="box-agent" stroke="var(--agent-intake)" stroke-width="1.5"/>
+            <text x="315" y="62" text-anchor="middle" class="lbl">Intake</text>
+            <text x="315" y="78" text-anchor="middle" class="lbl-s">read · resolve · pair · parse</text>
+            <text x="315" y="93" text-anchor="middle" class="lbl-m">42s · 412K tok</text>
+
+            <!-- Reconciliation -->
+            <rect x="470" y="40" width="170" height="64" rx="8" class="box-agent" stroke="var(--agent-recon)" stroke-width="1.5"/>
+            <text x="555" y="62" text-anchor="middle" class="lbl">Reconciliation</text>
+            <text x="555" y="78" text-anchor="middle" class="lbl-s">match ×4 in parallel · explain</text>
+            <text x="555" y="93" text-anchor="middle" class="lbl-m">144s · 724K tok</text>
+
+            <!-- Summary -->
+            <rect x="720" y="40" width="150" height="64" rx="8" class="box-agent" stroke="var(--agent-summary)" stroke-width="1.5"/>
+            <text x="795" y="62" text-anchor="middle" class="lbl">Summary</text>
+            <text x="795" y="78" text-anchor="middle" class="lbl-s">write close · post approved</text>
+            <text x="795" y="93" text-anchor="middle" class="lbl-m">9s · 104K tok</text>
+
+            <!-- Yardi -->
+            <rect x="900" y="40" width="64" height="64" rx="8" class="box"/>
+            <text x="932" y="76" text-anchor="middle" class="lbl">Yardi</text>
+
+            <!-- arrows across agents -->
+            <path d="M200,72 L240,72" class="arrow" marker-end="url(#ah)"/>
+            <path d="M390,72 L470,72" class="arrow" marker-end="url(#ah)"/>
+            <path d="M640,72 L720,72" class="arrow" marker-end="url(#ah)"/>
+            <path d="M870,72 L900,72" class="arrow" marker-end="url(#ah)"/>
+
+            <!-- Gates -->
+            <rect x="380" y="185" width="100" height="44" rx="22" class="gate"/>
+            <text x="430" y="204" text-anchor="middle" class="lbl">Gate 1</text>
+            <text x="430" y="219" text-anchor="middle" class="lbl-s">Start reconciliation</text>
+            <path d="M430,104 L430,185" class="arrow" marker-end="url(#ah)" stroke-dasharray="3 3"/>
+
+            <rect x="610" y="185" width="140" height="44" rx="22" class="gate"/>
+            <text x="680" y="204" text-anchor="middle" class="lbl">Gate 2 · Review</text>
+            <text x="680" y="219" text-anchor="middle" class="lbl-s">move · note · teach rule</text>
+            <path d="M680,104 L680,185" class="arrow" marker-end="url(#ah)" stroke-dasharray="3 3"/>
+
+            <rect x="800" y="185" width="110" height="44" rx="22" class="gate"/>
+            <text x="855" y="204" text-anchor="middle" class="lbl">Gate 3</text>
+            <text x="855" y="219" text-anchor="middle" class="lbl-s">Post to Yardi</text>
+            <path d="M885,185 L885,104" class="arrow" marker-end="url(#ah)" stroke-dasharray="3 3"/>
+
+            <!-- Knowledge loop -->
+            <path d="M610,207 C 520,207 480,260 315,260 C 290,260 290,104 315,104" class="arrow" stroke="var(--human)" marker-end="url(#ah)"/>
+            <path d="M610,207 C 560,207 560,260 555,260 C 540,260 540,104 555,104" class="arrow" stroke="var(--human)" marker-end="url(#ah)"/>
+            <text x="440" y="278" text-anchor="middle" class="lbl-s">Knowledge: notes and rules read before the next run</text>
+
+            <text x="140" y="215" class="lbl-s">Drop files. No manifest,</text>
+            <text x="140" y="230" class="lbl-s">no pre-labelled rows.</text>
+          </svg>
+        </div>
+        <figcaption>Three agents on the top lane, one person on the bottom. The gates sit on the actions that carry risk: releasing the match, judging exceptions, writing to the ledger system. The amber return path is the learning loop: a decision in review becomes a note or a rule that Intake and Reconciliation read next cycle. Figures are the seed's May 2026 medians.</figcaption>
+      </figure>
+
+      <h3>Diagram B: the state machine as a design artifact</h3>
+      <p>Designers rarely show state machines. Yours is the reason the product never contradicts itself, so show it. Two machines nest: the run, and each bank inside the run.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Run state</th><th>Who is acting</th><th>What the workspace shows</th><th>Exit</th></tr></thead>
+          <tbody>
+            <tr><td class="k mono">draft</td><td><span class="pill human">person</span></td><td>Core is the dropzone. No ghost rows. Header states standing facts only.</td><td>Files land</td></tr>
+            <tr><td class="k mono">running</td><td><span class="pill agent">Intake</span></td><td>Anonymous stack → read → resolve → dock. Rows materialise, strands draw inward.</td><td>All pairs normalised, then Gate 1</td></tr>
+            <tr><td class="k mono">reconciling</td><td><span class="pill agent">Reconciliation</span></td><td>Four banks matching in parallel, unsynchronised finish, "Matching 62%".</td><td>Every bank reconciled</td></tr>
+            <tr><td class="k mono">review</td><td><span class="pill human">person</span></td><td>Summary band with the four figures. Drawer over the hub. Counts burn down live.</td><td>Gate 3</td></tr>
+            <tr><td class="k mono">updating-yardi</td><td><span class="pill agent">Summary</span></td><td>Strands flow outward. "Posting 196 entries · exceptions flagged, not posted."</td><td>Auto</td></tr>
+            <tr><td class="k mono">complete</td><td>nobody</td><td>"Posted to Yardi · cycle closed." Autonomy figure unchanged by review.</td><td>Next cycle</td></tr>
+            <tr><td class="k mono">failed</td><td>system</td><td>Failure note in log register ("Ledger export timed out"), Rerun offered.</td><td>Rerun → draft</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Bank stages beneath it: <code>empty → statement-ready → pair-ready → scanning → parsing → normalizing → normalized → comparing → reconciled → posting → posted</code>. Point out that the statement side and ledger side are busy at different moments, which is why each strand lights independently.</p>
+
+      <h3>The autonomy ladder</h3>
+      <p>This table is the single most persuasive artifact for an agentic-design role. It shows you decided autonomy per step rather than globally.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Step</th><th>Agent does</th><th>Person does</th><th>Reversible?</th><th>Why this rung</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Identify documents</td><td>Reads contents, resolves bank, side, account. Ignores filenames.</td><td>Watches. Targeted drop onto a row is the repair path.</td><td>Yes</td><td>Wrong identification is visible immediately and cheap to fix.</td></tr>
+            <tr><td class="k">Release matching</td><td>Reports "8 documents paired across 4 accounts".</td><td>Clicks Start. Gate 1.</td><td>Yes</td><td>Confirms the input set before spending the expensive agent (58% of tokens).</td></tr>
+            <tr><td class="k">Match records</td><td>Matches, scores confidence, routes low confidence to review, applies notes.</td><td>Nothing.</td><td>Yes</td><td>Output is a proposal, not a write. Autonomy is safe.</td></tr>
+            <tr><td class="k">Judge exceptions</td><td>Supplies reason, evidence, confidence, suggested cause.</td><td>Approve, flag, note, teach rule. Undo available.</td><td>Yes</td><td>Judgement calls with money attached. Human owns them.</td></tr>
+            <tr><td class="k">Post to Yardi</td><td>Posts only what was approved. Quotes Yardi's own errors.</td><td>Clicks Post. Gate 3.</td><td>No</td><td>External write with no undo. Lowest autonomy in the product.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section id="artifacts">
+      <h2><span class="n">04</span>Artifacts to produce</h2>
+      <p class="intro">Senior portfolios show thinking artifacts alongside screens. You already have most of the raw material in the repo. Turn these into presentable pieces.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Artifact</th><th>Source you already have</th><th>What it signals</th><th>Effort</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Pipeline + gates diagram</td><td>Diagram A above; <span class="mono">PRODUCT.md</span> agent roles</td><td>You think in systems, not screens.</td><td>2 h</td></tr>
+            <tr><td class="k">State machine poster</td><td><span class="mono">session/types.ts</span>, <span class="mono">v2/hub.ts</span></td><td>You design behaviour, and it holds together.</td><td>2 h</td></tr>
+            <tr><td class="k">Autonomy ladder</td><td>Table above</td><td>Deliberate autonomy per step.</td><td>1 h</td></tr>
+            <tr><td class="k">Trust surface map</td><td>Annotated workspace + review + AI Performance screenshots</td><td>Every place the UI proves what the AI did and why.</td><td>2 h</td></tr>
+            <tr><td class="k">Intake sequence storyboard</td><td>"Land → Read → Resolve → Dock → Pair → Parse" from <span class="mono">WORKSPACE_V2.md</span></td><td>You refuse premature certainty. Strong differentiator.</td><td>3 h</td></tr>
+            <tr><td class="k">Motion language spec</td><td>Strand states ghost / idle / working / done / exception; inward vs outward flow</td><td>Motion carries state, not decoration.</td><td>2 h</td></tr>
+            <tr><td class="k">Vocabulary contract</td><td><span class="mono">decisions.md</span> §1</td><td>Content design rigour: one word per concept.</td><td>1 h</td></tr>
+            <tr><td class="k">Prompts as designed artifacts</td><td>Three system prompts in <span class="mono">seed.ts</span></td><td>You design the agent's instructions, not only its chrome.</td><td>1 h</td></tr>
+            <tr><td class="k">Metrics model</td><td>AI Performance page figures</td><td>You define success for an AI feature in operational terms.</td><td>2 h</td></tr>
+            <tr><td class="k">Failure catalogue</td><td>Failed state, unclassified files, conflicting rules, month-end hold</td><td>Maturity. Juniors show happy paths.</td><td>2 h</td></tr>
+            <tr><td class="k">V1 → V2 comparison</td><td>The three complaints that drove V2; 4 columns → 3</td><td>You iterate on evidence and can kill your own work.</td><td>2 h</td></tr>
+            <tr><td class="k">Design system decisions</td><td>Agent identity ≠ status colour; 13px density rule; type ramp</td><td>Systems thinking at token level.</td><td>1 h</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The trust surface map, spelled out</h3>
+      <p>One annotated composite. Number each callout and use the same numbers in the video.</p>
+      <ol>
+        <li><b>Header</b>: standing facts only. "4 accounts · 8 documents · 204 records · 8 open". Never narrates.</li>
+        <li><b>Core</b>: present tense, one agent, animated field that never pauses. Draft is the exception: it is the dropzone.</li>
+        <li><b>Activity log</b>: past tense, append-only, deduped. Notes that changed an outcome appear as "Applied note · …" next to the work they changed.</li>
+        <li><b>Agent timelines</b>: what each of the three did, with the two unclassified files named.</li>
+        <li><b>Summary band</b>: Reconciled, Settled on its own, Need review, Net difference. Net difference can veto the others.</li>
+        <li><b>Record row</b>: confidence chip, reason, evidence lines, reviewer note, approve / flag with Undo.</li>
+        <li><b>Knowledge</b>: rule text, agent it steers, scope, "Applied 6× this cycle" or "Not applied this cycle".</li>
+        <li><b>AI Performance</b>: token split, success rate per agent, records per reviewer hour trend.</li>
+      </ol>
+    </section>
+
+    <!-- 5 -->
+    <section id="video">
+      <h2><span class="n">05</span>Video walkthrough script</h2>
+      <p class="intro">Target 7 to 8 minutes for the full cut and a 60-second cut for the portfolio hero and LinkedIn. Structure it by lifecycle, because the lifecycle is the argument. Each beat lists what is on screen and what you say. Speak in first person, past tense for decisions, present tense for what the product does.</p>
+
+      <div class="callout warn">
+        <div class="label">Rule for the voiceover</div>
+        <p>Every beat must contain one decision and the reason for it. "Here is the dashboard" is a tour. "I moved the primary action to the header because the dashboard's only job is triage and the old 64px bar competed with the list it served" is a portfolio.</p>
+      </div>
+
+      <div class="script">
+        <div class="beat">
+          <div class="time">0:00</div>
+          <div>
+            <div class="title">Cold open: the problem</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Black. Then the Dashboard: "First-pass accuracy 90%", "5 of 12 posted to Yardi".</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Every month a property accountant reconciles bank statements against the ledger for every property they manage. Four bank accounts, hundreds of lines, and a controller who has to sign the close. Reconciler puts three agents on that work. <em>I designed the contract between those agents and the person who signs.</em>"</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">0:35</div>
+          <div>
+            <div class="title">Thesis and architecture</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Diagram A. Highlight the three agents, then the three gates, then the amber knowledge loop.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Three agents in sequence: Intake reads and normalises, Reconciliation matches and explains, Summary writes the close and posts. Four questions drove every screen: <em>what runs alone, what must it show, where does a person decide, and how does that decision change next month's run.</em> Autonomy is set per step. Matching runs unattended because its output is a proposal. Posting waits for a signature because it is an external write with no undo."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">1:30</div>
+          <div>
+            <div class="title">Draft: the honest empty state</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Open a not-started property (1500 Park St). Workspace with the core alone. Drop eight files.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"The session opens with one square and nothing else. No ghost rows, no checklist. That was a deliberate reversal. My first version pre-drew a row per bank with the logo and account number already on it, so the moment a file landed it looked identified. <em>The system had not read anything yet.</em> Identity is an output of intake, not an input, so now the canvas only shows what the agent actually knows: a filename and a size."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">2:20</div>
+          <div>
+            <div class="title">Intake: land, read, resolve, dock</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Let the intake sequence play. Rows fly out. Strands draw. Hover a row to show hover isolation. Open the activity log: "Received 8 documents · Filenames only · nothing read yet."</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Watch the order. A document lands anonymous, the core reads it, resolves the institution and whether it is a statement or a ledger, then it docks to its bank and side. The first file is a ledger whose statement has not arrived, so it waits. Filenames like <em>document (4).pdf</em> are on purpose: intake reads contents, it does not trust labels. The activity log underneath is append-only and in the past tense. The core is the present tense. One surface for each, never both."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">3:15</div>
+          <div>
+            <div class="title">Gate 1 and parallel matching</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">"8 documents paired across 4 accounts" with Start reconciliation in the core. Click. Four banks matching at different speeds.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"The first gate. Reconciliation is 58% of the token bill, so the person confirms the input set before it runs. Then four accounts match in parallel. The first build ran them one at a time because the controller was sequential, and the canvas claimed three banks were idle while one worked. <em>The UI was describing the code, not the work.</em> They now finish at different moments, because a synchronised finish reads as fake."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">4:00</div>
+          <div>
+            <div class="title">Summary band: four numbers, one decision</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Summary band. Point at each figure. Hover "Settled on its own".</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"The controller is deciding one thing: can I close this cycle. So the band shows four numbers and refuses everything else. Reconciled is the denominator. Settled on its own is the autonomy figure. Need review is the work owed. Net difference can veto the other three, because a reconciliation that does not tie is not finished. <em>Settled on its own is frozen from the agent's verdict.</em> If the reviewer approves all eight leftovers it still says 96%. It is a claim about the agent, and it must not flatter itself."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">4:50</div>
+          <div>
+            <div class="title">Gate 2: review with evidence</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Review drawer. Exceptions filter. Expand "Stripe payout": Reason, Evidence, confidence 32%. Approve one. Show the Undo toast and the header count dropping from 8 to 7. Type a reviewer note.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Every exception carries the reason, the evidence lines, and the confidence the agent had. Right amount and wrong vendor is the failure this product exists to catch, so counterparty similarity is never enough on its own. Decisions live in the session state, not the drawer. <em>A decision that evaporates when the panel closes is not a decision.</em> Move a record and the header, the band, and the bank row all update, with Undo. The log keeps its original counts. History is not rewritten."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">5:45</div>
+          <div>
+            <div class="title">The learning loop</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Knowledge tab: "Stripe payouts post 2 banking days after settlement · Reconciliation · Applied 6× this cycle". Then the "Not applied this cycle" rule. Cut to AI Performance › Knowledge base with portfolio and property scopes.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"This is the only place a person changes how the agents behave. No sliders, no thresholds. Rules are written in the reconciler's own words, scoped to one property or the whole portfolio, and read before every run. Each rule reports how often it fired. <em>A rule at zero has never matched</em>, which means it is redundant or worded too narrowly, and someone should look at it. That is observability applied to the human's input, not just the agent's output."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">6:30</div>
+          <div>
+            <div class="title">Gate 3: the irreversible write</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Post to Yardi. Strands flow outward. "Posting 196 entries · exceptions are flagged, not posted." Then "Posted to Yardi · cycle closed."</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Posting is the one external write, so it has the lowest autonomy in the product. It is offered in the drawer header, where the work stopped. The agent's own instructions say it: <em>post only records a human has approved, and if the set changed after approval, stop and ask again.</em> Light flows outward now. Direction on the wires is meaningful: inward while reading, outward while writing."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">7:05</div>
+          <div>
+            <div class="title">Measuring the system</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">AI Performance overview: token split, three agent cards, trend chart "Records per reviewer hour".</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"An AI feature needs its own scorecard. Tokens are split by agent and by input, output and cached, because output is the expensive part and that is where you cut. Success rate is runs with no human correction. The trend figure I chose is records per reviewer hour, because <em>that is the number a controller takes to their own manager.</em> Reviewer hours are down 57% in six cycles. Which raises the risk that reviewers see fewer hard cases and lose practice, so every exception carries full evidence."</div></div>
+          </div>
+        </div>
+
+        <div class="beat">
+          <div class="time">7:45</div>
+          <div>
+            <div class="title">What is next, and the close</div>
+            <div class="row"><div class="h">Screen</div><div class="screen">Failure catalogue slide: failed run, unclassified file, missing eighth document, conflicting rules.</div></div>
+            <div class="row"><div class="h">Say</div><div class="say">"Open work: a designed state for a document intake cannot identify, a missing document at the gate, and an audit trail that names who approved what. The principle behind all of it: <em>the agent does the work, the person owns the decisions, and the product has to prove the difference.</em>"</div></div>
+          </div>
+        </div>
+      </div>
+
+      <h3>The 60-second cut</h3>
+      <p>Cold open (0:00), the drop-and-identify sequence at 1.5× (0:10), the summary band with the frozen autonomy line (0:30), one exception expanded with evidence (0:40), Post to Yardi with outward flow (0:50), the closing principle (0:55). No architecture diagram; the motion carries it.</p>
+    </section>
+
+    <!-- 6 -->
+    <section id="casestudy">
+      <h2><span class="n">06</span>Written case study structure</h2>
+      <p class="intro">Around 1,800 to 2,400 words. Readers skim the headings and the pull quotes, so make each heading a claim.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Section</th><th>Words</th><th>Content</th></tr></thead>
+          <tbody>
+            <tr><td class="k">Context</td><td class="nums">120</td><td>Property accounting close, Yardi, monthly cadence, the controller as the signer. State your role plainly: product design, interaction design, content design, front-end prototype.</td></tr>
+            <tr><td class="k">The problem with "AI does it"</td><td class="nums">200</td><td>Why a chat interface fails here. The work is batch, high-stakes, auditable. The user needs supervision tools, not conversation.</td></tr>
+            <tr><td class="k">Thesis</td><td class="nums">120</td><td>The four questions. Autonomy boundary, legibility, gates, learning loop.</td></tr>
+            <tr><td class="k">Architecture</td><td class="nums">250</td><td>Diagram A, Diagram B, autonomy ladder. Note the Exception agent was merged into Reconciliation because explaining a non-match is part of matching.</td></tr>
+            <tr><td class="k">Decision 1: Identity is an output</td><td class="nums">250</td><td>Intake storyboard. The three lies of the first pass. Filenames that cannot be trusted.</td></tr>
+            <tr><td class="k">Decision 2: Present tense vs past tense</td><td class="nums">200</td><td>Core vs log vs header. Why the caption duplicates the newest log row.</td></tr>
+            <tr><td class="k">Decision 3: A metric that cannot flatter itself</td><td class="nums">200</td><td>Frozen agent counts. One list, one truth: three surfaces used to disagree about 68 records.</td></tr>
+            <tr><td class="k">Decision 4: Review decisions belong to the session</td><td class="nums">180</td><td>Reducer not drawer. Live burn-down. Undo. Append-only log.</td></tr>
+            <tr><td class="k">Decision 5: Knowledge in the user's words</td><td class="nums">200</td><td>Prose rules, scope, hit counts as status, stale rule detection. Notes appear in the log next to what they changed.</td></tr>
+            <tr><td class="k">Decision 6: Motion carries state</td><td class="nums">150</td><td>Strand states, inward vs outward, why settled strands are not tinted, hover isolation.</td></tr>
+            <tr><td class="k">System</td><td class="nums">180</td><td>Vocabulary contract, agent identity vs status colour, 13px density with a reason, no italic, tabular figures for money.</td></tr>
+            <tr><td class="k">Measuring it</td><td class="nums">150</td><td>The four trend figures and why records per reviewer hour leads.</td></tr>
+            <tr><td class="k">What I would do next</td><td class="nums">150</td><td>The gaps section below, framed as roadmap.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Pull quotes to lift verbatim from your own decisions log</h4>
+      <ul>
+        <li>"Identity is an output of intake, not an input."</li>
+        <li>"Settled on its own does not improve when a human approves leftovers."</li>
+        <li>"A decision that evaporates when the drawer does is not a decision."</li>
+        <li>"The log is the record of what happened, not a view that rewrites history."</li>
+        <li>"Status colours must never be reused as agent identity."</li>
+        <li>"A rule at zero has never once matched, and someone should look at it."</li>
+        <li>"A chevron is a promise. There is no such thing as a decorative one."</li>
+      </ul>
+    </section>
+
+    <!-- 7 -->
+    <section id="decisions">
+      <h2><span class="n">07</span>Decisions worth telling, and how to tell them</h2>
+      <p class="intro">Use the same shape every time: the situation, the wrong version you shipped or considered, what was actually wrong with it, the fix, and what it cost. Reviewers trust a designer who names their own mistakes with precision.</p>
+
+      <h3>The Exception agent that disappeared</h3>
+      <p>Early docs list four agents: Intake, Reconciliation, Exception, Summary. The build has three. Say why: grouping exceptions and explaining a non-match is inseparable from matching, so a separate agent added a handoff without adding a decision. The token accounting moved with it (486K + 238K became one 724K line). This shows you simplify agent topologies rather than multiply them.</p>
+
+      <h3>V1 to V2: three complaints, one redesign</h3>
+      <p>The workspace read as four columns; the statement and ledger widgets were weak; the review transition was abrupt. V2 folded the agents into the canvas, shrank each document to a 68px row so four banks fit, converged all strands to a single node per side, and made review a drawer over the hub instead of a canvas swap. Then you adopted V2 and deleted V1. Show a side-by-side.</p>
+
+      <h3>Colour that lied</h3>
+      <p>Agents used to be coloured with the status palette, so a red dot sat beside Summary in a product where red means failed. You separated agent identity tokens from status tokens structurally. Then on the AI Performance page you removed agent hues entirely and used a lightness ramp for the token bar, because a hue per peer had readers hunting for a meaning that was not there.</p>
+
+      <h3>The wire that flooded the canvas</h3>
+      <p>Tinting settled strands amber meant a property with exceptions on every bank turned the whole composition amber, and the tint carried nothing the row glyphs and counts were not already carrying. Settled strands are now white over a soft dark keyline. The verdict lives on the rows. Say the principle: a state that is true everywhere discriminates nothing.</p>
+
+      <h3>Failure copy has a register</h3>
+      <p>A failed session's note is written by the system in the register of a log line, two or three words, no counts. Because a failure is raised by the pipeline before any agent has an opinion, copy that reads as a diagnosis claims reasoning that never happened. This is content design for agents: who is speaking, and what do they actually know.</p>
+    </section>
+
+    <!-- 8 -->
+    <section id="interview">
+      <h2><span class="n">08</span>Questions you will be asked</h2>
+      <p class="intro">Prepare a 30-second answer for each. The answer should end with a pointer to a specific surface in the product.</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Question</th><th>Answer shape</th></tr></thead>
+          <tbody>
+            <tr><td class="k">How did you decide what the agent does on its own?</td><td>Three tests: is the output a proposal or a write, is it reversible, how big is the blast radius. Matching passes all three, posting fails two, so posting gets the gate.</td></tr>
+            <tr><td class="k">How do you stop people over-trusting it?</td><td>Confidence on every decision, evidence lines, and an autonomy metric that cannot improve when a human cleans up after it.</td></tr>
+            <tr><td class="k">What happens when it is wrong?</td><td>Three kinds of wrong, three states: an exception (could not settle a record), an unclassified file (could not identify a document), a failed run (the pipeline broke). Each has different copy and a different route back.</td></tr>
+            <tr><td class="k">How does it get better?</td><td>Reviewer corrections become prose rules scoped to property or portfolio, read before every run, with hit counts so stale rules surface.</td></tr>
+            <tr><td class="k">How do you design for latency?</td><td>Reconciliation runs 144 seconds median. The core shows one live agent, the log fills in real time, per-bank percentages move, and the person is never staring at a spinner with no account of progress.</td></tr>
+            <tr><td class="k">How do you think about cost?</td><td>Tokens are split by agent and by in / out / cached, and the trend figure is tokens per record, because cost only means something against output.</td></tr>
+            <tr><td class="k">How would you evaluate it before shipping?</td><td>A golden set of closed cycles with known answers, measure first-pass accuracy and false approvals per agent, and gate the approval floor on that data rather than intuition.</td></tr>
+            <tr><td class="k">Did you write the prompts?</td><td>Yes, as design artifacts. Show "Post only records a human has approved" and "Where two instructions conflict, follow neither and route the line to a reviewer with both quoted." Those are interaction rules expressed in the agent's instructions.</td></tr>
+            <tr><td class="k">What did you cut?</td><td>The Exception agent, the fourth column, the Throughput tab, agent hues on the performance page, the 64px dashboard action bar, and an entire V1 workspace.</td></tr>
+            <tr><td class="k">What would you do with three more months?</td><td>The gaps in section 9, in this order: unclassified-file affordance, missing-document gate copy, named approvals in the audit trail, an offline eval harness.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section id="gaps">
+      <h2><span class="n">09</span>Gaps to own as roadmap</h2>
+      <p class="intro">Say these before anyone asks. Naming the edges of your own work is a seniority signal, and each one is already listed in your V2 spec as open.</p>
+      <ul>
+        <li><b>Unclassified document state.</b> The model supports a document that never docks, but there is no "could not read this, assign it manually" affordance at the core.</li>
+        <li><b>Missing eighth document.</b> Intake would finish with three banks paired and one half-open. The gate copy has no failing counterpart.</li>
+        <li><b>Named approvals.</b> Rules are dated, not signed, because the prototype has no accounts. A real close needs who approved what, when.</li>
+        <li><b>Conflicting rules surfaced in the UI.</b> The prompt says route with both quoted. The review row does not yet show the two quoted rules.</li>
+        <li><b>Sequential intake is a legibility choice.</b> Real intake would fan out. Say so, and say why you kept it readable in the prototype.</li>
+        <li><b>Start next cycle.</b> The provider supports it; the canvas does not offer it after complete.</li>
+        <li><b>Evaluation harness.</b> The performance figures are seeded. Describe how you would generate them.</li>
+        <li><b>Reviewer deskilling.</b> Reviewer hours fell 57%. Propose a periodic "shadow review" of auto-approved matches to keep calibration honest.</li>
+      </ul>
+    </section>
+
+    <!-- 10 -->
+    <section id="record">
+      <h2><span class="n">10</span>Pre-recording checklist</h2>
+      <p class="intro">Things observed in the running app today that will show up on camera if you do not handle them first.</p>
+      <ul class="check">
+        <li><span><b>Commit or stash the working tree.</b> Several files are deleted but uncommitted (the V2 route, MainCanvas, PhaseCTA, UploadPair and others). Record from a known commit so the build is reproducible.</span></li>
+        <li><span><b>Record at 1440px wide or more.</b> At 1024px the workspace showed only the core with no document rows or strands. The hub needs 980px of canvas after the rail and sessions panel. Confirm rows render before you start.</span></li>
+        <li><span><b>Hide the Next.js dev indicator.</b> The "N" button sits on top of the AI Performance rail button and opened its menu twice during my pass. Set <code>devIndicators: false</code> in <span class="mono">next.config.ts</span>, or record a production build.</span></li>
+        <li><span><b>Use 1500 Park St for the full lifecycle.</b> It is the only Not started property, so it opens in draft and lets you show drop → intake → gates → post end to end. Use 1849 Westlake for the review deep-dive since it has 8 handwritten exceptions with reasons.</span></li>
+        <li><span><b>Keep the tab visible while recording.</b> Chrome throttles timers and pauses animation frames in hidden tabs. Your own notes say the intake cadence looks three times slower when the pane is hidden.</span></li>
+        <li><span><b>Font check.</b> Your typography doc records that TASA Orbiter was not loading and everything fell back to Geist. Decide which face is on camera and make sure it is the one that renders.</span></li>
+        <li><span><b>Sessions panel collapsed for the hub, expanded for navigation beats.</b> Collapsed gives the hub room; expanded shows the property-to-session hierarchy.</span></li>
+        <li><span><b>Capture hover isolation deliberately.</b> Hover one row for a full second so the other seven strands visibly drop to 20%.</span></li>
+        <li><span><b>Record the Undo toast.</b> Approve a record, let the toast appear, then click Undo. That single interaction proves reversibility.</span></li>
+        <li><span><b>Screen at 2× device pixel ratio, export at 1920×1080 or 2560×1440, 60 fps.</b> The strand animation and the dot-field avatars smear at 30 fps.</span></li>
+        <li><span><b>Cursor.</b> Slow, deliberate, no wiggling. Pause on each number you name.</span></li>
+        <li><span><b>Voice.</b> Record narration separately and cut the screen to it. Screen recordings narrated live run long and hesitate.</span></li>
+      </ul>
+    </section>
+
+    <!-- 11 -->
+    <section id="reading">
+      <h2><span class="n">11</span>Frameworks and reading to cite</h2>
+      <p class="intro">Cite two or three of these by name in the case study. It signals you are working inside a discipline, not inventing vocabulary. Read the source before citing it and describe it in your own words.</p>
+      <dl class="kv">
+        <dt>Levels of automation</dt><dd>Parasuraman, Sheridan and Wickens' model of automation levels across information acquisition, analysis, decision, and action. Your autonomy ladder is this idea applied per pipeline step.</dd>
+        <dt>Human-AI interaction guidelines</dt><dd>Microsoft's HAX guidelines (Amershi et al.) and Google's People + AI Guidebook. Both cover making capabilities clear, showing why the system did what it did, supporting efficient correction, and learning from user behaviour. Map your surfaces to specific guidelines.</dd>
+        <dt>Workflows vs agents</dt><dd>Anthropic's "Building effective agents" distinguishes predefined workflows from open-ended agents and describes patterns like prompt chaining and orchestrator-workers. Reconciler is a workflow with agentic steps, and saying so precisely is a credibility point.</dd>
+        <dt>Ironies of automation</dt><dd>Lisanne Bainbridge's 1983 paper on how automation leaves humans with the hardest cases and the least practice. Cite it when you discuss the 57% drop in reviewer hours.</dd>
+        <dt>Gulfs of execution and evaluation</dt><dd>Don Norman. Observability closes the gulf of evaluation: the person can tell what state the system is in and whether their action worked.</dd>
+        <dt>Calibrated trust</dt><dd>Lee and See's work on trust in automation. Trust should track actual reliability. Your frozen autonomy metric is a calibration device.</dd>
+        <dt>AI pattern libraries</dt><dd>Shape of AI and similar pattern collections give you shared names for things like confidence indicators, citations, and undo. Use their names where they match yours.</dd>
+      </dl>
+    </section>
+
+    <div class="foot">
+      Compiled from the Reconciler repository on 13 September 2026: PRODUCT.md, WORKSPACE_V2.md, RECONCILIATION_FLOW_HANDOFF.md, docs/design-system/decisions.md and typography.md, src/lib/session, src/lib/v2, src/lib/seed.ts, and the running app. Figures quoted are the seed's May 2026 values.
+    </div>
+  </main>
+</div>
