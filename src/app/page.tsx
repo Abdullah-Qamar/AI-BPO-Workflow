@@ -3,14 +3,13 @@
 import { useMemo, useState } from "react";
 import { LeftRail } from "@/components/LeftRail";
 import { WorkspaceNav } from "@/components/WorkspaceNav";
-import { MainCanvas } from "@/components/MainCanvas";
-import { ReviewCanvas } from "@/components/ReviewCanvas";
+import { HubCanvas } from "@/components/v2/HubCanvas";
+import { ReviewDrawer } from "@/components/v2/ReviewDrawer";
 import { AgentsPanel } from "@/components/AgentsPanel";
 import { DashboardCanvas } from "@/components/DashboardCanvas";
 import { AIQualityDetail } from "@/components/AIQualityDetail";
 import { PropertiesCanvas } from "@/components/PropertiesCanvas";
 import { EmptyWorkspace } from "@/components/EmptyWorkspace";
-import { WorkspaceDropZone } from "@/components/WorkspaceDropZone";
 import {
   CURRENT_CYCLE,
   banksFor,
@@ -22,10 +21,6 @@ import { useResponsiveLayout } from "@/lib/useResponsiveLayout";
 import { SessionProvider } from "@/lib/session/SessionProvider";
 
 type Route = "dashboard" | "workspace" | "properties" | "observability";
-/* The canvas has two surfaces within the workspace route:
- *   upload — bank statement intake (default, hosts the live lifecycle)
- *   review — reconciled records, opened from Summary agent's inspect CTA */
-type CanvasView = "upload" | "review";
 
 export default function Page() {
   const [route, setRoute] = useState<Route>("dashboard");
@@ -34,7 +29,8 @@ export default function Page() {
    * the route never changed, so nothing reset. Bumping this key on every
    * navigation to the route remounts the canvas back to the roster. */
   const [propertiesKey, setPropertiesKey] = useState(0);
-  const [canvasView, setCanvasView] = useState<CanvasView>("upload");
+  /* Opens the reconciled-records drawer over the hub. */
+  const [reviewOpen, setReviewOpen] = useState(false);
   /* null = no session opened yet — the workspace renders an empty canvas
    * placeholder and hides the agents panel until the user picks a session.
    * Once selected, the SessionProvider mounts and the full lifecycle UI
@@ -97,7 +93,7 @@ export default function Page() {
   ) => {
     const property: PropertyRecord | undefined = propertyById[propertyId];
     setRoute("workspace");
-    setCanvasView("upload");
+    setReviewOpen(false);
     if (sessionId) {
       setSelectedSessionId(sessionId);
       setDraftPropertyId(null);
@@ -149,7 +145,7 @@ export default function Page() {
               // so each session starts on its own clean lifecycle.
               setSelectedSessionId(id);
               setDraftPropertyId(null);
-              setCanvasView("upload");
+              setReviewOpen(false);
             }}
             onStartSession={(propertyId) => openProperty(propertyId)}
             collapsed={navCollapsed}
@@ -164,37 +160,33 @@ export default function Page() {
               bankIds={banksFor(open.property).map((b) => b.id)}
               cycle={open.cycle}
               selectedSessionId={open.sessionId}
+              gateReconciliation
+              parallelReconciliation
             >
-              {/* Canvas + agents share one continuous surface so the strip
-               * around the AgentsPanel (top + right gap) reads as the same
-               * light workspace gradient the canvas uses, rather than the
-               * darker root gradient shown behind the rails. */}
-              <WorkspaceDropZone>
-                {canvasView === "upload" && (
-                  <MainCanvas
-                    onSelectSession={(id) => {
-                      setSelectedSessionId(id);
-                      setDraftPropertyId(null);
-                    }}
-                  />
-                )}
-                {canvasView === "review" && (
-                  <ReviewCanvas onBack={() => setCanvasView("upload")} />
-                )}
-                {/* Review is a focus mode — opening it auto-collapses the
-                 * agents panel to its sliver so the user lands on the records.
-                 * The collapse is a starting point, not a lock: the expand
-                 * chevron still drives `agentsCollapsed` so the user can pull
-                 * the panel back open while reviewing. */}
-                <AgentsPanel
-                  collapsed={agentsCollapsed}
-                  onToggle={() => setAgentsCollapsed(!agentsCollapsed)}
-                  onInspect={() => {
-                    setCanvasView("review");
-                    setAgentsCollapsed(true);
+              {/* Hub + agents share one continuous surface; relative so the
+               * review drawer positions against this column, not the viewport. */}
+              <div
+                className="flex flex-row items-stretch flex-1 min-w-0 relative"
+                style={{ background: "var(--bg-grad)" }}
+              >
+                <HubCanvas
+                  onViewRecords={() => setReviewOpen(true)}
+                  onSelectSession={(id) => {
+                    setSelectedSessionId(id);
+                    setDraftPropertyId(null);
                   }}
                 />
-              </WorkspaceDropZone>
+                <AgentsPanel
+                  avatarVariant="orb"
+                  collapsed={agentsCollapsed}
+                  onToggle={() => setAgentsCollapsed(!agentsCollapsed)}
+                  onInspect={() => setReviewOpen(true)}
+                />
+                <ReviewDrawer
+                  open={reviewOpen}
+                  onClose={() => setReviewOpen(false)}
+                />
+              </div>
             </SessionProvider>
           )}
         </>
