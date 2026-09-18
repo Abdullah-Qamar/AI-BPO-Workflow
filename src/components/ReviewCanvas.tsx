@@ -203,7 +203,7 @@ export function ReviewCanvas({ onBack }: { onBack: () => void }) {
         kind: nextStatus === "approved" ? "approved" : "exception",
         message:
           nextStatus === "approved"
-            ? "Moved to Approved"
+            ? "Moved to Matched"
             : "Moved to Exceptions",
         detail: r.title,
         onUndo: () => {
@@ -586,7 +586,7 @@ function StatsBand({
       <Stat label="Records" value={String(counts.all)} />
       <Divider />
       <Stat
-        label="Approved"
+        label="Matched"
         value={String(counts.approved)}
         tone="ok"
       />
@@ -681,7 +681,7 @@ function FiltersRow({
       tone: "danger",
       count: counts.exceptions,
     },
-    { key: "approved", label: "Approved", tone: "ok", count: counts.approved },
+    { key: "approved", label: "Matched", tone: "ok", count: counts.approved },
     { key: "all", label: "All", count: counts.all },
   ];
   return (
@@ -1095,7 +1095,7 @@ function RecordRow({
             * move. See the readOnly note at the top of the file. */}
           {!readOnly && (
             <ActionButton
-              label={isException ? "Move to approved" : "Move to exceptions"}
+              label={isException ? "Move to matched" : "Move to exceptions"}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleStatus();
@@ -1279,8 +1279,14 @@ function ConfidenceChip({ value }: { value: number }) {
   const tone = value >= 80 ? "ok" : value >= 50 ? "neutral" : "danger";
 
   return (
+    /* A bare "92%" is a quantity with no question attached: percent of what,
+     * and asserted by whom. The one-word label names the subject at the only
+     * scale a 13px row can afford, and the hint carries the full sentence for
+     * anyone who wants it. Unlabelled, the reader supplies their own reading
+     * — percent of the amount, percent matched — and both are wrong. */
     <span
-      className="shrink-0 inline-flex items-center nums"
+      data-hint="How sure the matcher is that this pairing is correct"
+      className="shrink-0 inline-flex items-center"
       style={{
         /* The chip scale, like every other chip in the app. 22 was a one-off
          * that left it sitting a pixel low against the 28px controls beside
@@ -1295,11 +1301,12 @@ function ConfidenceChip({ value }: { value: number }) {
         fontSize: "var(--type-meta)",
         lineHeight: "var(--leading-ui)",
         color: "var(--ink-primary)",
-        minWidth: 64,
+        minWidth: 96,
       }}
     >
       <StatusDot tone={tone} />
-      <span>{value}%</span>
+      <span style={{ color: "var(--ink-tertiary)" }}>Match</span>
+      <span className="nums">{value}%</span>
     </span>
   );
 }

@@ -1161,7 +1161,7 @@ function downloadSessionReport({
     ["Property code", property.code],
     ["Cycle", label],
     ["Records", records.length],
-    ["Approved", approved],
+    ["Matched", approved],
     ["Exceptions", records.length - approved],
     [],
     ["Date", "Account", "Record", "Amount", "Status", "Confidence", "Reason"],

@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>Reconciler Gap Teardown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B;
+    --soft:#5A6771;
+    --faint:#8D979E;
+    --ground:#F2F3EF;
+    --surface:#FFFFFF;
+    --rule:#D6DBD4;
+    --edge:#BDC5BE;
+    --warn:#A93A26;
+    --warn-bg:#F7E9E5;
+    --good:#2B6350;
+    --good-bg:#E4EFE9;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5;
+      --soft:#A1ACA5;
+      --faint:#7B8780;
+      --ground:#121816;
+      --surface:#1B2320;
+      --rule:#2D3833;
+      --edge:#3C4941;
+      --warn:#E2795F;
+      --warn-bg:#2E1E1A;
+      --good:#74BC98;
+      --good-bg:#16291F;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5;
+    --soft:#A1ACA5;
+    --faint:#7B8780;
+    --ground:#121816;
+    --surface:#1B2320;
+    --rule:#2D3833;
+    --edge:#3C4941;
+    --warn:#E2795F;
+    --warn-bg:#2E1E1A;
+    --good:#74BC98;
+    --good-bg:#16291F;
+    --accent:#7DAAC6;
+  }
+
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:880px;
+    margin:0 auto;
+    padding-inline:20px;
+    padding-block:56px 96px;
+  }
+
+  /* ---------- masthead ---------- */
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin:0;
+  }
+  h1{
+    font-family:Spectral,Georgia,serif;
+    font-weight:600;
+    font-size:clamp(2rem,6vw,3.1rem);
+    line-height:1.08;
+    letter-spacing:-.015em;
+    text-wrap:balance;
+    margin:.5rem 0 0;
+  }
+  .standfirst{
+    font-family:Spectral,Georgia,serif;
+    font-size:clamp(1.05rem,2.6vw,1.3rem);
+    line-height:1.5;
+    color:var(--soft);
+    max-width:34em;
+    margin:1.1rem 0 0;
+  }
+  .thesis{
+    margin:2.2rem 0 0;
+    padding:20px 22px;
+    background:var(--surface);
+    border:1px solid var(--rule);
+    border-left:3px solid var(--accent);
+    border-radius:3px;
+    max-width:36em;
+  }
+  .thesis p{margin:0;font-size:1.02rem;}
+  .thesis strong{font-weight:600;}
+
+  .rank-note{
+    margin-top:2.4rem;
+    padding-top:1.4rem;
+    border-top:1px solid var(--rule);
+    font-size:.92rem;
+    color:var(--soft);
+    max-width:40em;
+  }
+
+  /* ---------- findings ---------- */
+  .finding{
+    margin-top:72px;
+    padding-top:28px;
+    border-top:1px solid var(--rule);
+  }
+  .fnum{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--faint);
+    display:flex;
+    gap:14px;
+    align-items:baseline;
+    flex-wrap:wrap;
+  }
+  .fnum .sev{color:var(--warn);}
+  h2{
+    font-family:Spectral,Georgia,serif;
+    font-weight:600;
+    font-size:clamp(1.45rem,4vw,2rem);
+    line-height:1.15;
+    letter-spacing:-.01em;
+    text-wrap:balance;
+    margin:.35rem 0 0;
+  }
+
+  dl{margin:1.5rem 0 0;display:grid;gap:1.15rem;max-width:40em;}
+  dt{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--faint);
+    margin-bottom:.22rem;
+  }
+  dd{margin:0;}
+  dd.is-warn{color:var(--ink);}
+  dd strong{font-weight:600;}
+
+  /* ---------- figures ---------- */
+  figure{
+    margin:2.2rem 0 0;
+    background:var(--surface);
+    border:1px solid var(--rule);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .scroller{overflow-x:auto;padding:22px;}
+  figure svg{display:block;width:100%;min-width:560px;height:auto;color:var(--ink);}
+  figcaption{
+    padding:13px 22px 15px;
+    border-top:1px solid var(--rule);
+    font-size:.86rem;
+    line-height:1.5;
+    color:var(--soft);
+  }
+
+  /* svg helper classes */
+  .bx{fill:var(--surface);stroke:currentColor;stroke-opacity:.34;stroke-width:1;}
+  .bx-ghost{fill:none;stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:4 3;}
+  .bx-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1;}
+  .bx-good{fill:var(--good-bg);stroke:var(--good);stroke-width:1;}
+  .ln{stroke:currentColor;stroke-opacity:.45;stroke-width:1.2;fill:none;}
+  .ln-ghost{stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:4 3;fill:none;}
+  .ln-warn{stroke:var(--warn);stroke-width:1.4;fill:none;}
+  .ln-good{stroke:var(--good);stroke-width:1.4;fill:none;}
+  .div{stroke:currentColor;stroke-opacity:.16;stroke-width:1;}
+  text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12.5px;fill:currentColor;}
+  .t-lab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;fill:var(--faint);}
+  .t-mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;}
+  .t-sm{font-size:11px;fill:var(--soft);}
+  .t-warn{fill:var(--warn);font-size:11.5px;}
+  .t-good{fill:var(--good);font-size:11.5px;}
+  .t-strong{font-weight:600;}
+
+  /* ---------- close ---------- */
+  .close{
+    margin-top:80px;
+    padding-top:32px;
+    border-top:2px solid var(--ink);
+  }
+  .close h2{margin-top:.2rem;}
+  ol.order{
+    margin:1.6rem 0 0;
+    padding:0;
+    list-style:none;
+    counter-reset:step;
+    display:grid;
+    gap:.9rem;
+    max-width:40em;
+  }
+  ol.order li{
+    counter-increment:step;
+    display:grid;
+    grid-template-columns:2.1rem 1fr;
+    gap:.2rem;
+    align-items:baseline;
+  }
+  ol.order li::before{
+    content:counter(step,decimal-leading-zero);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;
+    color:var(--faint);
+    letter-spacing:.08em;
+  }
+  .signoff{
+    margin-top:2.4rem;
+    font-family:Spectral,Georgia,serif;
+    font-size:1.12rem;
+    line-height:1.55;
+    color:var(--soft);
+    max-width:34em;
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .finding,.close{scroll-margin-top:24px;}
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Design teardown · property accounting</p>
+    <h1>Where the design breaks against the real work</h1>
+    <p class="standfirst">Eight gaps between how Reconciler models bank reconciliation and how bank reconciliation actually behaves. Each one is a design decision with a consequence for whoever builds it.</p>
+
+    <div class="thesis">
+      <p><strong>The root of all eight:</strong> the design describes comparing two lists of transactions. Real reconciliation is proving that two balances agree, and that every difference between them is explained. Those are different jobs, and the second one needs things the first never asks for.</p>
+    </div>
+
+    <p class="rank-note">Ordered by severity, not by workflow. Gap 1 is structural — fixing it makes 2, 3 and 5 much easier. Gaps 7 and 8 are small and quick.</p>
+  </header>
+
+  <!-- ============ 1 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 01</span><span class="sev">Structural</span></p>
+    <h2>The reviewer can't fix a match</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>When the system is unsure, it says "I found two possible matches and can't choose." The only buttons are approve and flag. The two candidates exist only as words inside a note — so <strong>there is nothing to click.</strong></dd></div>
+      <div><dt>Why it hurts</dt><dd>Choosing the right answer when the machine is unsure is the most common thing a human does in this job. The product asks the question and then gives the person nowhere to answer it.</dd></div>
+      <div><dt>Fix</dt><dd>Make a match a real object with two sides — a bank side and a ledger side that can hold more than one row. Then the candidates become selectable, and one click resolves it.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 470" role="img" aria-label="Today a record stores only one side, so the two candidate ledger rows cannot be selected. Fixed, a match holds both sides and the reviewer picks the right candidate.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="44" width="164" height="48" rx="3"/>
+        <text x="14" y="66">Bank statement line</text>
+        <text class="t-mono" x="14" y="83">−$210.00</text>
+
+        <path class="ln" d="M164 68 L206 68" marker-end="url(#ar)"/>
+
+        <rect class="bx" x="212" y="34" width="190" height="112" rx="3"/>
+        <text class="t-lab" x="226" y="54">WHAT IS STORED</text>
+        <text x="226" y="76" class="t-strong">Refund #4912</text>
+        <text class="t-mono" x="226" y="95">−$210.00</text>
+        <text class="t-sm" x="226" y="116">2 candidates · ambiguous</text>
+        <text class="t-sm" x="226" y="133">confidence 48%</text>
+
+        <rect class="bx" x="212" y="162" width="88" height="27" rx="3"/>
+        <text x="235" y="180" class="t-sm">Approve</text>
+        <rect class="bx" x="308" y="162" width="88" height="27" rx="3"/>
+        <text x="340" y="180" class="t-sm">Flag</text>
+
+        <rect class="bx-ghost" x="452" y="42" width="176" height="38" rx="3"/>
+        <text class="t-sm" x="464" y="66">Ledger row 142 · −$210.00</text>
+        <rect class="bx-ghost" x="452" y="92" width="176" height="38" rx="3"/>
+        <text class="t-sm" x="464" y="116">Ledger row 154 · −$210.00</text>
+
+        <path class="ln-ghost" d="M402 84 L452 62"/>
+        <path class="ln-ghost" d="M402 96 L452 112"/>
+        <text class="t-sm" x="452" y="150">named in the note only</text>
+
+        <path class="ln-warn" d="M540 158 L540 184" marker-end="url(#arw)"/>
+        <text class="t-warn" x="452" y="204">Nothing here can be clicked</text>
+
+        <line class="div" x1="0" y1="238" x2="640" y2="238"/>
+        <text class="t-lab" x="0" y="268">FIXED</text>
+
+        <rect class="bx-good" x="0" y="286" width="628" height="164" rx="4"/>
+        <text class="t-lab" x="18" y="310">ONE MATCH · TWO SIDES</text>
+
+        <text class="t-sm" x="18" y="338">Bank side</text>
+        <text x="18" y="360">Line 88 · Refund #4912</text>
+        <text class="t-mono" x="18" y="379">−$210.00</text>
+
+        <line class="div" x1="246" y1="322" x2="246" y2="428"/>
+
+        <text class="t-sm" x="270" y="338">Ledger side — choose one</text>
+        <circle cx="280" cy="358" r="6" fill="var(--good)"/>
+        <circle cx="280" cy="358" r="2.2" fill="var(--good-bg)"/>
+        <text x="296" y="362">Row 142 · −$210.00 · ref 4912</text>
+        <circle cx="280" cy="384" r="6" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="296" y="388">Row 154 · −$210.00 · ref 4913</text>
+
+        <rect x="270" y="404" width="132" height="27" rx="3" fill="var(--good)"/>
+        <text x="288" y="422" fill="var(--good-bg)" class="t-strong" font-size="11.5">Confirm match</text>
+
+        <defs>
+          <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+          <marker id="arw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The candidates exist as text, not as choices. Giving a match two sides turns a dead end into a one-click decision.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 02</span><span class="sev">High</span></p>
+    <h2>Two buckets can't hold a normal month</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>Every item lands in one of two piles: approved, or flagged as a problem.</dd></div>
+      <div><dt>Why it hurts</dt><dd>A cheque written on the 28th usually hasn't cleared the bank yet. It matches nothing — <strong>and that is completely normal.</strong> With two piles it has to be called a problem. Once half the flags turn out to be nothing, people stop trusting the flag, and the product stops working.</dd></div>
+      <div><dt>Fix</dt><dd>Five outcomes instead of two, so "normal but unmatched" has its own home and the flag keeps its meaning.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 400" role="img" aria-label="Today four kinds of item are forced into two piles, so an uncleared cheque must be called a problem. Fixed, five outcomes give normal timing its own place.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="40" width="132" height="30" rx="3"/>
+        <text class="t-sm" x="12" y="59">Rent received</text>
+        <rect class="bx" x="148" y="40" width="112" height="30" rx="3"/>
+        <text class="t-sm" x="160" y="59">Bank fee</text>
+        <rect class="bx-warn" x="276" y="40" width="196" height="30" rx="3"/>
+        <text class="t-sm" x="288" y="59" fill="var(--warn)">Cheque #1042 · not cleared yet</text>
+        <rect class="bx" x="488" y="40" width="140" height="30" rx="3"/>
+        <text class="t-sm" x="500" y="59">Unknown deposit</text>
+
+        <path class="ln" d="M66 70 L120 108" marker-end="url(#ar2)"/>
+        <path class="ln" d="M204 70 L170 108" marker-end="url(#ar2)"/>
+        <path class="ln" d="M558 70 L470 108" marker-end="url(#ar2)"/>
+        <path class="ln-warn" d="M360 70 L210 108" marker-end="url(#ar2w)"/>
+        <path class="ln-warn" d="M380 70 L430 108" marker-end="url(#ar2w)"/>
+
+        <rect class="bx" x="60" y="114" width="200" height="52" rx="3"/>
+        <text x="122" y="145" class="t-strong">Approved</text>
+        <rect class="bx" x="380" y="114" width="200" height="52" rx="3"/>
+        <text x="452" y="145" class="t-strong">Flagged</text>
+
+        <text class="t-warn" x="182" y="192">Normal — but it has to be called a problem</text>
+
+        <line class="div" x1="0" y1="226" x2="640" y2="226"/>
+        <text class="t-lab" x="0" y="256">FIXED</text>
+
+        <rect class="bx" x="0" y="278" width="118" height="66" rx="3"/>
+        <text class="t-sm" x="14" y="306">Matched</text>
+        <text class="t-sm" x="14" y="324" fill="var(--faint)">both sides agree</text>
+
+        <rect class="bx" x="128" y="278" width="118" height="66" rx="3"/>
+        <text class="t-sm" x="142" y="306">Only on bank</text>
+        <text class="t-sm" x="142" y="324" fill="var(--faint)">not in the books</text>
+
+        <rect class="bx" x="256" y="278" width="118" height="66" rx="3"/>
+        <text class="t-sm" x="270" y="306">Only in ledger</text>
+        <text class="t-sm" x="270" y="324" fill="var(--faint)">not on statement</text>
+
+        <rect class="bx-good" x="384" y="278" width="118" height="66" rx="3"/>
+        <text class="t-sm" x="398" y="306" fill="var(--good)">Will clear soon</text>
+        <text class="t-sm" x="398" y="324" fill="var(--good)">normal timing</text>
+
+        <rect class="bx" x="512" y="278" width="116" height="66" rx="3"/>
+        <text class="t-sm" x="526" y="306">Needs fixing</text>
+        <text class="t-sm" x="526" y="324" fill="var(--faint)">a real problem</text>
+
+        <path class="ln-good" d="M443 258 L443 274" marker-end="url(#ar2g)"/>
+        <text class="t-good" x="330" y="248">the cheque belongs here</text>
+
+        <defs>
+          <marker id="ar2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+          <marker id="ar2w" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+          <marker id="ar2g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The uncleared cheque has no honest home in a two-pile model. A fifth outcome for normal timing is what keeps the flag trustworthy.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 03</span><span class="sev">High</span></p>
+    <h2>Problems have nowhere to go</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>A reviewer can move an item between the two piles and write a comment. That's the whole toolkit.</dd></div>
+      <div><dt>Why it hurts</dt><dd>The bank says $1,200 and the books say $1,275. Moving that to approved does not make the $75 go away — the books are still wrong by $75, and the system then sends it onward as approved. <strong>The product creates the feeling of finishing without the substance of it.</strong></dd></div>
+      <div><dt>Fix</dt><dd>Four real ways out, each one visibly changing the numbers. Approve should never be the answer to a genuine difference.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 420" role="img" aria-label="Today approving a mismatched item sends it onward with the difference intact. Fixed, four resolution actions each change the numbers, and a correcting entry closes the gap.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx-warn" x="0" y="42" width="208" height="62" rx="3"/>
+        <text class="t-sm" x="14" y="64" fill="var(--warn)">Amounts disagree</text>
+        <text class="t-mono" x="14" y="86" fill="var(--warn)">bank $1,200 · books $1,275</text>
+
+        <path class="ln" d="M208 73 L256 73" marker-end="url(#ar3)"/>
+        <rect class="bx" x="262" y="58" width="96" height="30" rx="3"/>
+        <text class="t-sm" x="284" y="77">Approve</text>
+
+        <path class="ln" d="M358 73 L412 73" marker-end="url(#ar3)"/>
+        <rect class="bx" x="418" y="50" width="210" height="46" rx="3"/>
+        <text x="432" y="78">Sent to the accounting system</text>
+
+        <path class="ln-warn" d="M523 96 L523 124" marker-end="url(#ar3w)"/>
+        <text class="t-warn" x="404" y="144">$75 difference still there · nobody fixed it</text>
+
+        <line class="div" x1="0" y1="180" x2="640" y2="180"/>
+        <text class="t-lab" x="0" y="210">FIXED</text>
+
+        <rect class="bx" x="0" y="232" width="152" height="62" rx="3"/>
+        <text class="t-sm" x="14" y="254">Amounts disagree</text>
+        <text class="t-mono" x="14" y="276">$1,200 · $1,275</text>
+
+        <path class="ln" d="M152 263 L192 263" marker-end="url(#ar3)"/>
+
+        <rect class="bx" x="198" y="220" width="180" height="26" rx="3"/>
+        <text class="t-sm" x="210" y="237">Accept as normal timing</text>
+        <rect class="bx" x="198" y="250" width="180" height="26" rx="3"/>
+        <text class="t-sm" x="210" y="267">Correct the match</text>
+        <rect class="bx-good" x="198" y="280" width="180" height="26" rx="3"/>
+        <text class="t-sm" x="210" y="297" fill="var(--good)">Add a correcting entry</text>
+        <rect class="bx" x="198" y="310" width="180" height="26" rx="3"/>
+        <text class="t-sm" x="210" y="327">Set aside, with a reason</text>
+
+        <path class="ln-good" d="M378 293 L420 293" marker-end="url(#ar3g)"/>
+        <rect class="bx-good" x="426" y="256" width="202" height="72" rx="3"/>
+        <text class="t-sm" x="440" y="280" fill="var(--good)">Correcting entry · bank fee</text>
+        <text class="t-mono" x="440" y="300" fill="var(--good)">+$75.00</text>
+        <text class="t-sm" x="440" y="318" fill="var(--good)">Difference now $0.00</text>
+
+        <text class="t-sm" x="198" y="360" fill="var(--faint)">Each action changes a number somewhere. That is what makes it a resolution.</text>
+
+        <defs>
+          <marker id="ar3" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+          <marker id="ar3w" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+          <marker id="ar3g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>Moving an item between piles changes a badge. Resolving it has to change a number.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 04</span><span class="sev">High · biggest addition</span></p>
+    <h2>The proof the month is closed is missing</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>The product shows counts, percentages and a "tied" label. It never shows the bank's balance beside the books' balance, the gap between them, and what explains the gap.</dd></div>
+      <div><dt>Why it hurts</dt><dd>That single view is the whole reason reconciliation exists, and it is what a controller signs. Without it the product looks like a clever sorting tool rather than something that closes a month.</dd></div>
+      <div><dt>Fix</dt><dd>One summary panel, ending in the number that matters: <strong>how much is still unexplained.</strong> When it reaches zero, the month is done.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 470" role="img" aria-label="Today three summary tiles show percentages but prove nothing. Fixed, a balance ladder walks from the bank balance to the book balance and ends at zero unexplained.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="42" width="196" height="58" rx="3"/>
+        <text class="t-sm" x="14" y="64" fill="var(--faint)">First-pass accuracy</text>
+        <text class="t-mono" x="14" y="86" font-size="16">96%</text>
+
+        <rect class="bx" x="212" y="42" width="196" height="58" rx="3"/>
+        <text class="t-sm" x="226" y="64" fill="var(--faint)">Exceptions</text>
+        <text class="t-mono" x="226" y="86" font-size="16">8</text>
+
+        <rect class="bx" x="424" y="42" width="204" height="58" rx="3"/>
+        <text class="t-sm" x="438" y="64" fill="var(--faint)">Tie-out</text>
+        <text class="t-mono" x="438" y="86" font-size="16">Tied</text>
+
+        <text class="t-warn" x="0" y="128">None of these prove the bank and the books agree. The last one is only a label.</text>
+
+        <line class="div" x1="0" y1="162" x2="640" y2="162"/>
+        <text class="t-lab" x="0" y="192">FIXED — THE PROOF</text>
+
+        <rect class="bx" x="0" y="210" width="628" height="238" rx="4"/>
+
+        <text class="t-sm" x="22" y="242">Bank statement balance, 31 May</text>
+        <text class="t-mono" x="606" y="242" text-anchor="end">412,880.19</text>
+
+        <text class="t-sm" x="22" y="272">Less cheques not yet cleared (6)</text>
+        <text class="t-mono" x="606" y="272" text-anchor="end">(18,240.50)</text>
+
+        <text class="t-sm" x="22" y="302">Plus deposits not yet landed (2)</text>
+        <text class="t-mono" x="606" y="302" text-anchor="end">9,315.00</text>
+
+        <line class="div" x1="22" y1="318" x2="606" y2="318"/>
+        <text x="22" y="344" class="t-strong">Adjusted bank balance</text>
+        <text class="t-mono t-strong" x="606" y="344" text-anchor="end">403,954.69</text>
+
+        <text class="t-sm" x="22" y="374">Balance in the books</text>
+        <text class="t-mono" x="606" y="374" text-anchor="end">408,945.94</text>
+
+        <text class="t-sm" x="22" y="400">Difference, explained by 8 items</text>
+        <text class="t-mono" x="606" y="400" text-anchor="end">(4,991.25)</text>
+
+        <rect class="bx-good" x="22" y="412" width="584" height="24" rx="3"/>
+        <text class="t-sm t-strong" x="34" y="429" fill="var(--good)">Still unexplained</text>
+        <text class="t-mono t-strong" x="594" y="429" text-anchor="end" fill="var(--good)">0.00</text>
+      </svg>
+      </div>
+      <figcaption>Example figures. The last line is the only one anybody signs — and it is the one line the product currently has no place for.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 05</span><span class="sev">Medium · best story</span></p>
+    <h2>A bounced payment is treated as a mystery</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>One of your own sample items is a tenant's payment being returned. The design reports it as "amounts don't match — $1,200 versus $1,275" and leaves the person to work it out.</dd></div>
+      <div><dt>Why it hurts</dt><dd>That $75 is almost certainly the bank's fee for the bounced payment. This is an ordinary event that happens to property managers constantly — and the design has no idea it exists, so it labels a routine thing as a red flag. An accountant would spot that in seconds. The original payment is also sitting elsewhere with no link, so the person only ever sees half the story.</dd></div>
+      <div><dt>Fix</dt><dd>Recognise the pattern by name and show the three parts as one linked event. A scary flag becomes a two-second read.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 430" role="img" aria-label="Today the original payment and its return sit apart and the seventy-five dollar fee is unexplained. Fixed, all three parts are shown as one linked event that nets to zero.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="42" width="266" height="62" rx="3"/>
+        <text class="t-sm" x="14" y="64" fill="var(--faint)">In the approved pile · 3 May</text>
+        <text class="t-mono" x="14" y="86">Rent · unit 308 · +$1,275.00</text>
+
+        <rect class="bx-warn" x="362" y="42" width="266" height="62" rx="3"/>
+        <text class="t-sm" x="376" y="64" fill="var(--warn)">Flagged · 20 May</text>
+        <text class="t-mono" x="376" y="86" fill="var(--warn)">ACH return · −$1,200.00</text>
+
+        <path class="ln-ghost" d="M266 73 L362 73"/>
+        <text class="t-sm" x="286" y="68" fill="var(--faint)">no link</text>
+
+        <text class="t-warn" x="0" y="136">"Amount mismatch" · the $75 is never explained, and the reader has to guess</text>
+
+        <line class="div" x1="0" y1="170" x2="640" y2="170"/>
+        <text class="t-lab" x="0" y="200">FIXED — ONE EVENT</text>
+
+        <rect class="bx-good" x="0" y="218" width="628" height="188" rx="4"/>
+        <text x="22" y="248" class="t-strong" fill="var(--good)">Payment returned · unit 308</text>
+        <text class="t-sm" x="22" y="268" fill="var(--good)">A known pattern: a returned payment and the bank's fee for it.</text>
+
+        <circle cx="34" cy="296" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="300">3 May · tenant paid</text>
+        <text class="t-mono" x="606" y="300" text-anchor="end">+1,275.00</text>
+
+        <circle cx="34" cy="324" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="328">20 May · bank returned it</text>
+        <text class="t-mono" x="606" y="328" text-anchor="end">−1,200.00</text>
+
+        <circle cx="34" cy="352" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="356">20 May · return fee charged</text>
+        <text class="t-mono" x="606" y="356" text-anchor="end">−75.00</text>
+
+        <line class="div" x1="22" y1="368" x2="606" y2="368"/>
+        <text class="t-sm t-strong" x="22" y="390">Net effect · and the tenant now owes rent</text>
+        <text class="t-mono t-strong" x="606" y="390" text-anchor="end">0.00</text>
+      </svg>
+      </div>
+      <figcaption>The $1,200 and the $1,275 were never in conflict — $1,200 plus the $75 fee is the $1,275. The design just had no way to say so.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 6 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 06</span><span class="sev">Medium · deepest build impact</span></p>
+    <h2>Every month starts from nothing</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>Each month is treated as: take two files, compare them, done. Next month, two new files, start fresh.</dd></div>
+      <div><dt>Why it hurts</dt><dd>A cheque written on 28 March might not clear until May. It has to stay visible month after month until it does — and if it is still sitting there after nine months, that is its own problem worth raising. Right now it simply disappears.</dd></div>
+      <div><dt>Fix</dt><dd>Carry unfinished items forward with their age. This is the gap with the largest effect on whoever builds it: it turns the product from "compare two files" into "keep a running record per bank account", which changes the foundation.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 400" role="img" aria-label="Today three months are isolated and an uncleared cheque is lost. Fixed, the cheque carries forward with its age until it clears in May.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="42" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="14" y="64">MARCH</text>
+        <text class="t-sm" x="14" y="86">2 files in → result out</text>
+
+        <rect class="bx" x="220" y="42" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="234" y="64">APRIL</text>
+        <text class="t-sm" x="234" y="86">2 files in → result out</text>
+
+        <rect class="bx" x="440" y="42" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="454" y="64">MAY</text>
+        <text class="t-sm" x="454" y="86">2 files in → result out</text>
+
+        <path class="ln-warn" d="M94 114 L94 146" marker-end="url(#ar6w)"/>
+        <text class="t-warn" x="0" y="166">Cheque #1042, written 28 March, has not cleared — and is now gone</text>
+
+        <line class="div" x1="0" y1="200" x2="640" y2="200"/>
+        <text class="t-lab" x="0" y="230">FIXED — ONE CONTINUOUS RECORD</text>
+
+        <rect class="bx" x="0" y="250" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="14" y="272">MARCH</text>
+        <text class="t-sm" x="14" y="294">closes with 1 open item</text>
+
+        <rect class="bx" x="220" y="250" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="234" y="272">APRIL</text>
+        <text class="t-sm" x="234" y="294">opens with 1 carried in</text>
+
+        <rect class="bx" x="440" y="250" width="188" height="72" rx="3"/>
+        <text class="t-lab" x="454" y="272">MAY</text>
+        <text class="t-sm" x="454" y="294">cleared · closes with 0</text>
+
+        <path class="ln-good" d="M188 286 L214 286" marker-end="url(#ar6g)"/>
+        <path class="ln-good" d="M408 286 L434 286" marker-end="url(#ar6g)"/>
+
+        <rect class="bx-good" x="0" y="340" width="628" height="44" rx="3"/>
+        <text class="t-sm" x="18" y="367" fill="var(--good)">Cheque #1042 · carried forward</text>
+        <text class="t-mono" x="330" y="367" fill="var(--good)">34 days</text>
+        <text class="t-mono" x="430" y="367" fill="var(--good)">64 days</text>
+        <text class="t-mono" x="536" y="367" fill="var(--good)">cleared</text>
+
+        <defs>
+          <marker id="ar6w" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+          <marker id="ar6g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>An item that outlives one month is normal. A design that cannot carry it forward is describing a different job.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 7 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 07</span><span class="sev">Quick · contradicts your own argument</span></p>
+    <h2>The one step that can't fail is the dangerous one</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>Reading the files can fail, and there is a proper screen for it. Sending everything to the accounting system has no failure state at all. It only succeeds.</dd></div>
+      <div><dt>Why it hurts</dt><dd>This is backwards. Reading a file is safe and easy to repeat. Writing into the accounting system is the step that permanently changes something — most likely to go wrong, hardest to undo. If it stops halfway, some records are in and some aren't, and nobody knows which. <strong>It also contradicts your own case study,</strong> which argues that this step deserves the strongest protection because it can't be taken back.</dd></div>
+      <div><dt>Fix</dt><dd>A half-finished state, a retry that can't send anything twice, and a visible undo. The undo is the strongest trust feature in the whole product.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 360" role="img" aria-label="Today the read step has a failure branch but the send step has only one exit. Fixed, sending has three outcomes plus safe retry and undo.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="0" y="52" width="130" height="38" rx="3"/>
+        <text class="t-sm" x="26" y="76">Read the files</text>
+        <path class="ln" d="M130 71 L172 71" marker-end="url(#ar7)"/>
+        <rect class="bx" x="178" y="52" width="130" height="38" rx="3"/>
+        <text class="t-sm" x="216" y="76">Match them</text>
+        <path class="ln" d="M308 71 L350 71" marker-end="url(#ar7)"/>
+        <rect class="bx-warn" x="356" y="52" width="150" height="38" rx="3"/>
+        <text class="t-sm" x="376" y="76" fill="var(--warn)">Send to accounting</text>
+        <path class="ln" d="M506 71 L548 71" marker-end="url(#ar7)"/>
+        <rect class="bx" x="554" y="52" width="74" height="38" rx="3"/>
+        <text class="t-sm" x="578" y="76">Done</text>
+
+        <path class="ln" d="M65 90 L65 118" marker-end="url(#ar7)"/>
+        <rect class="bx" x="0" y="122" width="130" height="32" rx="3"/>
+        <text class="t-sm" x="34" y="143">Failed →  retry</text>
+
+        <text class="t-warn" x="356" y="130">Only one way out.</text>
+        <text class="t-warn" x="356" y="148">The risky step cannot fail.</text>
+
+        <line class="div" x1="0" y1="188" x2="640" y2="188"/>
+        <text class="t-lab" x="0" y="218">FIXED</text>
+
+        <rect class="bx-good" x="0" y="238" width="160" height="42" rx="3"/>
+        <text class="t-sm" x="18" y="264" fill="var(--good)">Send to accounting</text>
+
+        <path class="ln-good" d="M160 244 L204 226" marker-end="url(#ar7g)"/>
+        <path class="ln-good" d="M160 259 L204 259" marker-end="url(#ar7g)"/>
+        <path class="ln-good" d="M160 274 L204 292" marker-end="url(#ar7g)"/>
+
+        <rect class="bx" x="210" y="212" width="176" height="30" rx="3"/>
+        <text class="t-sm" x="222" y="231">All 60 sent</text>
+        <rect class="bx-warn" x="210" y="244" width="176" height="30" rx="3"/>
+        <text class="t-sm" x="222" y="263" fill="var(--warn)">40 of 60 sent</text>
+        <rect class="bx" x="210" y="276" width="176" height="30" rx="3"/>
+        <text class="t-sm" x="222" y="295">Nothing sent</text>
+
+        <path class="ln-good" d="M386 259 L426 259" marker-end="url(#ar7g)"/>
+        <rect class="bx-good" x="432" y="228" width="196" height="30" rx="3"/>
+        <text class="t-sm" x="444" y="247" fill="var(--good)">Retry · never sends twice</text>
+        <rect class="bx-good" x="432" y="264" width="196" height="30" rx="3"/>
+        <text class="t-sm" x="444" y="283" fill="var(--good)">Undo what was sent</text>
+
+        <defs>
+          <marker id="ar7" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+          <marker id="ar7g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The safe step gets a failure screen; the irreversible one doesn't. Anyone technical spots this in half a minute.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 8 ============ -->
+  <section class="finding">
+    <p class="fnum"><span>Gap 08</span><span class="sev">Quick</span></p>
+    <h2>One percentage, two meanings</h2>
+
+    <dl>
+      <div><dt>Today</dt><dd>The same confidence percentage appears on approved items and on flagged items.</dd></div>
+      <div><dt>Why it hurts</dt><dd>Those answer different questions — "how sure am I this match is right" and "how unusual does this transaction look". A low number might mean the system is guessing, or it might mean something looks suspicious. Those need opposite responses, and the person can't tell which they're looking at.</dd></div>
+      <div><dt>Fix</dt><dd>Pick one meaning, put it in words next to the number, and never show the other one in the same place.</dd></div>
+    </dl>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="Today one unlabelled percentage answers two different questions. Fixed, each measure is named in words and kept separate.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx-warn" x="252" y="44" width="80" height="34" rx="17"/>
+        <text class="t-mono t-strong" x="292" y="66" text-anchor="middle" fill="var(--warn)">32%</text>
+
+        <path class="ln-warn" d="M256 78 L150 112" marker-end="url(#ar8w)"/>
+        <path class="ln-warn" d="M328 78 L434 112" marker-end="url(#ar8w)"/>
+
+        <rect class="bx" x="0" y="118" width="250" height="40" rx="3"/>
+        <text class="t-sm" x="16" y="143">"How sure is this match?"</text>
+        <rect class="bx" x="334" y="118" width="250" height="40" rx="3"/>
+        <text class="t-sm" x="350" y="143">"How odd does this look?"</text>
+
+        <text class="t-warn" x="182" y="184">Same chip. Opposite responses.</text>
+
+        <line class="div" x1="0" y1="212" x2="640" y2="212"/>
+        <text class="t-lab" x="0" y="238">FIXED</text>
+
+        <rect class="bx-good" x="0" y="254" width="306" height="36" rx="3"/>
+        <text class="t-sm" x="16" y="277" fill="var(--good)">Match certainty · low — two candidates</text>
+
+        <rect class="bx" x="322" y="254" width="306" height="36" rx="3"/>
+        <text class="t-sm" x="338" y="277">Unusual for this account · no</text>
+
+        <defs>
+          <marker id="ar8w" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>A number without a question attached is decoration. Name the question and the number becomes actionable.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ close ============ -->
+  <section class="close">
+    <p class="eyebrow">What to do with this</p>
+    <h2>The order I'd work in</h2>
+
+    <ol class="order">
+      <li><span>Give a match two sides. Gaps 2, 3 and 5 all get easier once this is done.</span></li>
+      <li><span>Design the three screens it unlocks: the balance proof, the pick-the-right-match row, and the correction flow.</span></li>
+      <li><span>Close the quick contradictions — the two different send buttons, the four names for two numbers, the unlabelled percentage.</span></li>
+      <li><span>Then write the case study, built on findings you can defend out loud.</span></li>
+    </ol>
+
+    <p class="signoff">A designer who found eight holes in their own work is more convincing than one who claims there were none. The holes are the evidence that you know how to look — but only once you can explain each one to a sceptical accountant without notes.</p>
+  </section>
+
+</div>
+
+</body>
+</html>

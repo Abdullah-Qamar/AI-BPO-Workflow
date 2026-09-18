@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>Objects, Gates and Evidence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B; --soft:#5A6771; --faint:#8D979E;
+    --ground:#F2F3EF; --surface:#FFFFFF; --rule:#D6DBD4;
+    --warn:#A93A26; --warn-bg:#F7E9E5;
+    --good:#2B6350; --good-bg:#E4EFE9;
+    --model:#5B4A8C; --model-bg:#EDEAF5;
+    --human:#8A5A1E; --human-bg:#F6EEDF;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+      --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+      --warn:#E2795F; --warn-bg:#2E1E1A;
+      --good:#74BC98; --good-bg:#16291F;
+      --model:#A99AD4; --model-bg:#231E33;
+      --human:#D9AE6B; --human-bg:#2B2316;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+    --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+    --warn:#E2795F; --warn-bg:#2E1E1A;
+    --good:#74BC98; --good-bg:#16291F;
+    --model:#A99AD4; --model-bg:#231E33;
+    --human:#D9AE6B; --human-bg:#2B2316;
+    --accent:#7DAAC6;
+  }
+
+  body{background:var(--ground);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:880px;margin:0 auto;padding-inline:20px;padding-block:56px 96px;}
+
+  .eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0;}
+  h1{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(2rem,6vw,3.1rem);line-height:1.08;letter-spacing:-.015em;
+    text-wrap:balance;margin:.5rem 0 0;}
+  .standfirst{font-family:Spectral,Georgia,serif;font-size:clamp(1.05rem,2.6vw,1.3rem);
+    line-height:1.5;color:var(--soft);max-width:34em;margin:1.1rem 0 0;}
+  .thesis{margin:2.2rem 0 0;padding:20px 22px;background:var(--surface);
+    border:1px solid var(--rule);border-left:3px solid var(--accent);
+    border-radius:3px;max-width:36em;}
+  .thesis p{margin:0;font-size:1.02rem;}
+  .thesis p + p{margin-top:.8rem;}
+
+  section{margin-top:72px;padding-top:28px;border-top:1px solid var(--rule);}
+  h2{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(1.45rem,4vw,2rem);line-height:1.15;letter-spacing:-.01em;
+    text-wrap:balance;margin:.35rem 0 0;}
+  h3{font-size:1.02rem;font-weight:600;margin:2rem 0 .4rem;}
+  p{max-width:40em;}
+  p.lede{font-size:1.06rem;}
+  .pull{margin:2rem 0 0;padding-left:20px;border-left:3px solid var(--accent);
+    font-family:Spectral,Georgia,serif;font-size:1.18rem;line-height:1.45;max-width:32em;}
+
+  figure{margin:2.2rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;overflow:hidden;}
+  .scroller{overflow-x:auto;padding:22px;}
+  figure svg{display:block;width:100%;min-width:560px;height:auto;color:var(--ink);}
+  figcaption{padding:13px 22px 15px;border-top:1px solid var(--rule);
+    font-size:.86rem;line-height:1.5;color:var(--soft);}
+
+  .bx{fill:var(--surface);stroke:currentColor;stroke-opacity:.34;stroke-width:1;}
+  .bx-good{fill:var(--good-bg);stroke:var(--good);stroke-width:1;}
+  .bx-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1;}
+  .bx-model{fill:var(--model-bg);stroke:var(--model);stroke-width:1;}
+  .bx-human{fill:var(--human-bg);stroke:var(--human);stroke-width:1;}
+  .ln{stroke:currentColor;stroke-opacity:.45;stroke-width:1.2;fill:none;}
+  .ln-soft{stroke:currentColor;stroke-opacity:.28;stroke-width:1;fill:none;}
+  .ln-good{stroke:var(--good);stroke-width:1.4;fill:none;}
+  .ln-warn{stroke:var(--warn);stroke-width:1.4;fill:none;}
+  .ln-human{stroke:var(--human);stroke-width:1.4;fill:none;}
+  .div{stroke:currentColor;stroke-opacity:.16;stroke-width:1;}
+  .divide{stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:6 4;}
+  text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12.5px;fill:currentColor;}
+  .t-lab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;fill:var(--faint);}
+  .t-mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;}
+  .t-sm{font-size:11px;fill:var(--soft);}
+  .t-strong{font-weight:600;}
+
+  /* roles */
+  .roles{margin:1.8rem 0 0;display:grid;gap:12px;}
+  .role{background:var(--surface);border:1px solid var(--rule);border-radius:4px;
+    padding:18px 20px;border-left:3px solid var(--human);}
+  .role h3{margin:0 0 .3rem;font-size:1.06rem;}
+  .role p{margin:0;font-size:.94rem;}
+  .role .cant{color:var(--warn);font-size:.9rem;margin-top:.5rem;}
+
+  .kinds{margin:1.6rem 0 0;padding:0;list-style:none;display:grid;gap:1rem;max-width:40em;}
+  .kinds li{padding-bottom:1rem;border-bottom:1px solid var(--rule);}
+  .kinds li:last-child{border-bottom:0;}
+  .kinds .k{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;
+    letter-spacing:.13em;text-transform:uppercase;color:var(--human);display:block;margin-bottom:.25rem;}
+
+  .metrics{margin:1.6rem 0 0;display:grid;gap:10px;max-width:42em;}
+  .metric{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;
+    padding-bottom:.7rem;border-bottom:1px solid var(--rule);}
+  .metric:last-child{border-bottom:0;}
+  .metric .who{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--faint);white-space:nowrap;}
+  .metric .n{font-size:.95rem;}
+  .metric .n em{font-style:normal;color:var(--soft);display:block;font-size:.87rem;}
+
+  .close{margin-top:80px;padding-top:32px;border-top:2px solid var(--ink);}
+  .signoff{margin-top:2rem;font-family:Spectral,Georgia,serif;font-size:1.12rem;
+    line-height:1.55;color:var(--soft);max-width:34em;}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Third of three · system model</p>
+    <h1>Objects, gates and evidence</h1>
+    <p class="standfirst">What things exist and how they nest, who is allowed to do what, how corrections travel back, and what the system has to be able to prove afterwards.</p>
+
+    <div class="thesis">
+      <p><strong>The single biggest structural correction:</strong> your design has one tree, and it needs two. Properties and accounts are a standing world that changes rarely. Periods and reconciliations are a moving world that happens every month. They are different shapes with different lifespans.</p>
+      <p>And the interesting design problem is not either tree — it is the two places where they touch.</p>
+    </div>
+  </header>
+
+  <!-- ===== 1 taxonomy ===== -->
+  <section>
+    <p class="eyebrow">Taxonomy</p>
+    <h2>Two worlds, and where they meet</h2>
+    <p class="lede">The standing world is set up once and edited on rare events — a refinance, a new escrow account, a property sold. The moving world is created fresh every cycle and then frozen forever as a record of what happened.</p>
+    <p>Mixing them is what makes products like this confusing to use and painful to build. A bank account is not a thing that "belongs to a session"; a session borrows it.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 450" role="img" aria-label="Two hierarchies side by side. The standing world nests organisation down to bank account. The moving world nests period down to posted entries. They touch at open items and at rules.">
+        <text class="t-lab" x="0" y="12">STANDING WORLD · CHANGES RARELY</text>
+        <text class="t-lab" x="368" y="12">MOVING WORLD · CREATED EACH CYCLE</text>
+        <line class="divide" x1="330" y1="0" x2="330" y2="450"/>
+
+        <rect class="bx" x="0" y="26" width="290" height="28" rx="3"/>
+        <text class="t-sm" x="12" y="45">Organisation</text>
+        <rect class="bx" x="16" y="60" width="274" height="28" rx="3"/>
+        <text class="t-sm" x="28" y="79">Owner · portfolio</text>
+        <rect class="bx" x="32" y="94" width="258" height="28" rx="3"/>
+        <text class="t-sm" x="44" y="113">Legal entity</text>
+        <rect class="bx" x="48" y="128" width="242" height="28" rx="3"/>
+        <text class="t-sm" x="60" y="147">Property</text>
+        <rect class="bx-good" x="64" y="162" width="226" height="34" rx="3"/>
+        <text class="t-sm t-strong" x="76" y="184" fill="var(--good)">Bank account · with its ledger line</text>
+
+        <rect class="bx" x="0" y="234" width="140" height="48" rx="3"/>
+        <text class="t-sm" x="12" y="254">People</text>
+        <text class="t-sm" x="12" y="271" fill="var(--faint)">and their roles</text>
+        <rect class="bx-warn" x="150" y="234" width="140" height="48" rx="3"/>
+        <text class="t-sm" x="162" y="254" fill="var(--warn)">Rules</text>
+        <text class="t-sm" x="162" y="271" fill="var(--warn)">learned knowledge</text>
+
+        <rect class="bx" x="368" y="26" width="272" height="28" rx="3"/>
+        <text class="t-sm" x="380" y="45">Accounting period · May 2026</text>
+        <rect class="bx-good" x="384" y="60" width="256" height="34" rx="3"/>
+        <text class="t-sm t-strong" x="396" y="82" fill="var(--good)">Reconciliation · one account, one period</text>
+        <rect class="bx" x="400" y="100" width="240" height="28" rx="3"/>
+        <text class="t-sm" x="412" y="119">Statement lines · ledger lines</text>
+        <rect class="bx" x="416" y="134" width="224" height="28" rx="3"/>
+        <text class="t-sm" x="428" y="153">Matches</text>
+        <rect class="bx" x="432" y="168" width="208" height="28" rx="3"/>
+        <text class="t-sm" x="444" y="187">Exceptions</text>
+        <rect class="bx" x="448" y="202" width="192" height="28" rx="3"/>
+        <text class="t-sm" x="460" y="221">Resolutions</text>
+        <rect class="bx" x="432" y="236" width="208" height="28" rx="3"/>
+        <text class="t-sm" x="444" y="255">Balance proof</text>
+        <rect class="bx" x="416" y="270" width="224" height="28" rx="3"/>
+        <text class="t-sm" x="428" y="289">Posted entries</text>
+
+        <line class="div" x1="0" y1="330" x2="640" y2="330"/>
+        <text class="t-lab" x="0" y="356">WHERE THE TWO WORLDS TOUCH — THE INTERESTING PART</text>
+
+        <rect class="bx-good" x="0" y="372" width="300" height="60" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="394" fill="var(--good)">Open items</text>
+        <text class="t-sm" x="14" y="412" fill="var(--good)">belong to the account, not the month —</text>
+        <text class="t-sm" x="14" y="426" fill="var(--good)">each reconciliation ages them or clears them</text>
+
+        <rect class="bx-warn" x="330" y="372" width="310" height="60" rx="3"/>
+        <text class="t-sm t-strong" x="344" y="394" fill="var(--warn)">Rules</text>
+        <text class="t-sm" x="344" y="412" fill="var(--warn)">read by every run, changed by corrections —</text>
+        <text class="t-sm" x="344" y="426" fill="var(--warn)">so a run must record which version it used</text>
+      </svg>
+      </div>
+      <figcaption>Open items and rules are the only two things that live on the left and are changed from the right. Design those two carefully and the rest is bookkeeping.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== 2 unit ===== -->
+  <section>
+    <p class="eyebrow">The hierarchy bug</p>
+    <h2>A session is a package, not a unit</h2>
+    <p class="lede">In your design a session covers one property and contains four bank accounts. But a session never ties out — <strong>each account ties out separately.</strong> You cannot prove a property's cash agrees; you can only prove each account agrees, four times.</p>
+    <p>So the session is the wrong unit to hang the work on. The unit is one account for one month. The property-level thing above it is a package that completes when all of its accounts have completed — useful for tracking, useless for proving.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 330" role="img" aria-label="Today a session contains four banks and claims a single tie-out. Fixed, each account-period reconciliation ties out on its own and a close package completes when all four are done.">
+        <text class="t-lab" x="0" y="12">TODAY</text>
+        <line class="div" x1="0" y1="22" x2="640" y2="22"/>
+
+        <rect class="bx-warn" x="0" y="40" width="628" height="94" rx="3"/>
+        <text class="t-sm t-strong" x="16" y="62" fill="var(--warn)">Session · 1849 Westlake · May</text>
+        <rect class="bx" x="16" y="74" width="144" height="42" rx="3"/>
+        <text class="t-sm" x="28" y="100">Operating</text>
+        <rect class="bx" x="170" y="74" width="144" height="42" rx="3"/>
+        <text class="t-sm" x="182" y="100">Security deposit</text>
+        <rect class="bx" x="324" y="74" width="144" height="42" rx="3"/>
+        <text class="t-sm" x="336" y="100">Reserve</text>
+        <rect class="bx" x="478" y="74" width="134" height="42" rx="3"/>
+        <text class="t-sm" x="490" y="100">Escrow</text>
+
+        <text class="t-sm" x="0" y="158" fill="var(--warn)">One "tied" badge for the whole session — but four different balances, four different proofs.</text>
+
+        <line class="div" x1="0" y1="188" x2="640" y2="188"/>
+        <text class="t-lab" x="0" y="214">FIXED</text>
+
+        <rect class="bx-good" x="0" y="228" width="150" height="56" rx="3"/>
+        <text class="t-sm" x="12" y="250" fill="var(--good)">Operating · May</text>
+        <text class="t-mono" x="12" y="270" fill="var(--good)">tied · 0.00</text>
+        <rect class="bx-good" x="160" y="228" width="150" height="56" rx="3"/>
+        <text class="t-sm" x="172" y="250" fill="var(--good)">Deposits · May</text>
+        <text class="t-mono" x="172" y="270" fill="var(--good)">tied · 0.00</text>
+        <rect class="bx-good" x="320" y="228" width="150" height="56" rx="3"/>
+        <text class="t-sm" x="332" y="250" fill="var(--good)">Reserve · May</text>
+        <text class="t-mono" x="332" y="270" fill="var(--good)">tied · 0.00</text>
+        <rect class="bx-warn" x="480" y="228" width="148" height="56" rx="3"/>
+        <text class="t-sm" x="492" y="250" fill="var(--warn)">Escrow · May</text>
+        <text class="t-mono" x="492" y="270" fill="var(--warn)">open · 1,240.00</text>
+
+        <text class="t-sm" x="0" y="310" fill="var(--faint)">Close package for the property: 3 of 4 accounts proven. The month is not closed, and you can say exactly why.</text>
+      </svg>
+      </div>
+      <figcaption>Naming the unit correctly is what lets the product say "three of four accounts are proven" instead of a single badge that can only be right or wrong.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== 3 humans ===== -->
+  <section>
+    <p class="eyebrow">Human in the loop</p>
+    <h2>Four roles, and three different kinds of involvement</h2>
+    <p class="lede">Your prototype has no roles at all, which means the person who prepares the work can also approve and post it. In accounting that is not a missing feature — it is a missing control. Separating preparation from approval is one of the oldest rules in the trade, because it is what stops one person from both making and hiding a mistake.</p>
+
+    <div class="roles">
+      <article class="role">
+        <h3>Preparer · the property accountant</h3>
+        <p>Uploads the documents, works the exception queue, resolves items, writes adjustments, hands the package up.</p>
+        <p class="cant">Cannot approve their own package. Cannot post. Cannot approve a rule.</p>
+      </article>
+      <article class="role">
+        <h3>Approver · the controller</h3>
+        <p>Reviews the balance proof and the resolutions, signs the package, authorises posting. Approves new rules.</p>
+        <p class="cant">Cannot approve a package they prepared themselves.</p>
+      </article>
+      <article class="role">
+        <h3>Administrator · setup and mappings</h3>
+        <p>Maintains properties, bank accounts and which ledger line each one posts to. Changing a ledger mapping quietly changes where money lands, so it is its own privileged act with its own record.</p>
+      </article>
+      <article class="role">
+        <h3>Observer · auditor, owner, read-only</h3>
+        <p>Can see everything and change nothing — including how a past month was decided, as it stood at the time.</p>
+      </article>
+    </div>
+
+    <h3>Not all human involvement is review</h3>
+    <p>This is the distinction your design is missing, and it's the one that makes an AI product feel considered rather than nervous.</p>
+
+    <ul class="kinds">
+      <li><span class="k">Decide</span>The person is the only one who can settle it. Picking the right match from two candidates. The system genuinely does not know.</li>
+      <li><span class="k">Authorise</span>The system already decided; the person takes responsibility for it. Posting. The work here is not thinking, it is accepting consequences — so the screen's job is to make the consequences plain.</li>
+      <li><span class="k">Sample</span>The person deliberately checks work nobody flagged. Not because it's suspect, but because a reviewer who only ever sees exceptions slowly forgets what normal looks like — and because it's the only way to find the mistakes the system never noticed.</li>
+    </ul>
+
+    <p>That third one is worth designing properly. The better this system gets, the less practice its reviewers get, and the worse they become at catching the failures that do slip through. A small, scheduled sample of already-approved work is how you counter that. It is also the only place your escaped-error number can come from.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="The flow from reading to posting, showing which steps run unattended, which need a decision, and the two hard gates that require a second person.">
+        <rect class="bx" x="0" y="34" width="118" height="46" rx="3"/>
+        <text class="t-sm" x="26" y="61">Read</text>
+        <rect class="bx" x="128" y="34" width="118" height="46" rx="3"/>
+        <text class="t-sm" x="150" y="61">Match</text>
+        <rect class="bx-human" x="256" y="34" width="118" height="46" rx="3"/>
+        <text class="t-sm" x="272" y="61" fill="var(--human)">Resolve</text>
+        <rect class="bx-human" x="384" y="34" width="118" height="46" rx="3"/>
+        <text class="t-sm" x="400" y="61" fill="var(--human)">Approve</text>
+        <rect class="bx" x="512" y="34" width="118" height="46" rx="3"/>
+        <text class="t-sm" x="540" y="61">Post</text>
+
+        <path class="ln" d="M118 57 L124 57"/>
+        <path class="ln" d="M246 57 L252 57"/>
+        <path class="ln" d="M374 57 L380 57"/>
+        <path class="ln" d="M502 57 L508 57"/>
+
+        <text class="t-sm" x="0" y="104" fill="var(--faint)">unattended</text>
+        <text class="t-sm" x="128" y="104" fill="var(--faint)">unattended</text>
+        <text class="t-sm" x="256" y="104" fill="var(--human)">preparer decides</text>
+        <text class="t-sm" x="384" y="104" fill="var(--human)">approver signs</text>
+        <text class="t-sm" x="512" y="104" fill="var(--faint)">unattended, once signed</text>
+
+        <line class="divide" x1="250" y1="126" x2="250" y2="176"/>
+        <text class="t-sm t-strong" x="262" y="146" fill="var(--human)">The separation line</text>
+        <text class="t-sm" x="262" y="164" fill="var(--human)">everything left of Approve is preparation; the approver must be a different person</text>
+
+        <line class="div" x1="0" y1="196" x2="640" y2="196"/>
+        <text class="t-lab" x="0" y="222">TWO MORE GATES THAT ARE EASY TO FORGET</text>
+
+        <rect class="bx-human" x="0" y="236" width="306" height="50" rx="3"/>
+        <text class="t-sm" x="14" y="258" fill="var(--human)">A new rule</text>
+        <text class="t-sm" x="14" y="276" fill="var(--human)">changes how money is handled → needs an approver</text>
+
+        <rect class="bx-human" x="322" y="236" width="306" height="50" rx="3"/>
+        <text class="t-sm" x="336" y="258" fill="var(--human)">A ledger mapping change</text>
+        <text class="t-sm" x="336" y="276" fill="var(--human)">changes where money lands → needs an approver</text>
+      </svg>
+      </div>
+      <figcaption>Two steps run alone, two need a person, and the line between preparing and approving has to hold even when the same person is logged in.</figcaption>
+    </figure>
+
+    <h3>What happens when nobody acts</h3>
+    <p>Worth designing before anyone asks: a reconciliation sitting unreviewed for five days while the period is about to close is a real operational state, and right now the product has nothing to say about it. Ageing, nudging and escalating are part of the workflow, not an afterthought.</p>
+  </section>
+
+  <!-- ===== 4 feedback ===== -->
+  <section>
+    <p class="eyebrow">Feedback</p>
+    <h2>One correction, four destinations</h2>
+    <p class="lede">You currently have one channel: a correction becomes a written rule. That's a good instinct, but four genuinely different things are being collapsed into it — with different owners, different speeds and different risks.</p>
+
+    <p class="pull">Rules are data. Prompts are code. The moment a user's correction edits a prompt, nobody can say why the system behaved differently last Tuesday.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 340" role="img" aria-label="A single human correction feeding four separate destinations: a local rule, the shared pattern library, the evaluation set, and rarely an engineering change.">
+        <rect class="bx-human" x="216" y="16" width="208" height="48" rx="3"/>
+        <text class="t-sm t-strong" x="230" y="38" fill="var(--human)">A person corrects something</text>
+        <text class="t-sm" x="230" y="55" fill="var(--human)">"no — it was row 142"</text>
+
+        <path class="ln-human" d="M280 64 L120 100" marker-end="url(#d)"/>
+        <path class="ln-human" d="M300 64 L280 100" marker-end="url(#d)"/>
+        <path class="ln-human" d="M340 64 L420 100" marker-end="url(#d)"/>
+        <path class="ln-human" d="M360 64 L560 100" marker-end="url(#d)"/>
+
+        <rect class="bx" x="0" y="106" width="150" height="96" rx="3"/>
+        <text class="t-sm t-strong" x="12" y="128">1 · A local rule</text>
+        <text class="t-sm" x="12" y="148" fill="var(--faint)">this property only</text>
+        <text class="t-sm" x="12" y="166" fill="var(--faint)">owner: the customer</text>
+        <text class="t-sm" x="12" y="184" fill="var(--faint)">live in minutes</text>
+
+        <rect class="bx" x="160" y="106" width="150" height="96" rx="3"/>
+        <text class="t-sm t-strong" x="172" y="128">2 · A pattern</text>
+        <text class="t-sm" x="172" y="148" fill="var(--faint)">true for everyone</text>
+        <text class="t-sm" x="172" y="166" fill="var(--faint)">owner: your team</text>
+        <text class="t-sm" x="172" y="184" fill="var(--faint)">ships in a release</text>
+
+        <rect class="bx-good" x="320" y="106" width="150" height="96" rx="3"/>
+        <text class="t-sm t-strong" x="332" y="128" fill="var(--good)">3 · A test case</text>
+        <text class="t-sm" x="332" y="148" fill="var(--good)">a known right answer</text>
+        <text class="t-sm" x="332" y="166" fill="var(--good)">owner: your team</text>
+        <text class="t-sm" x="332" y="184" fill="var(--good)">forever</text>
+
+        <rect class="bx-warn" x="480" y="106" width="150" height="96" rx="3"/>
+        <text class="t-sm t-strong" x="492" y="128" fill="var(--warn)">4 · An engineering</text>
+        <text class="t-sm t-strong" x="492" y="145" fill="var(--warn)">change</text>
+        <text class="t-sm" x="492" y="165" fill="var(--warn)">rare · reviewed</text>
+        <text class="t-sm" x="492" y="183" fill="var(--warn)">never automatic</text>
+
+        <line class="div" x1="0" y1="232" x2="640" y2="232"/>
+        <rect class="bx-good" x="0" y="248" width="628" height="76" rx="3"/>
+        <text class="t-sm t-strong" x="16" y="272" fill="var(--good)">Number three is the one almost nobody builds</text>
+        <text class="t-sm" x="16" y="292" fill="var(--good)">Every correction is a labelled example of the system being wrong — and the only honest way to answer</text>
+        <text class="t-sm" x="16" y="310" fill="var(--good)">"is it getting better?" is to re-run the old months and see whether it now gets them right.</text>
+
+        <defs>
+          <marker id="d" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--human)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The same click means four different things depending on whether the knowledge is local, universal, evidence, or a defect.</figcaption>
+    </figure>
+
+    <h3>A rule has a life, not just a birth</h3>
+    <p>Your design creates rules and counts how often they fire. That's the start. What's missing is everything after: a rule that gets overridden often is wrong, a rule that stops firing is dead, and a rule nobody owns should not outlive the person who wrote it.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 230" role="img" aria-label="A rule moves from proposed through preview and approval to active, then is measured and either kept, corrected or retired.">
+        <rect class="bx" x="0" y="30" width="108" height="44" rx="3"/>
+        <text class="t-sm" x="24" y="57">Proposed</text>
+        <path class="ln" d="M108 52 L134 52" marker-end="url(#e)"/>
+        <rect class="bx-good" x="140" y="30" width="118" height="44" rx="3"/>
+        <text class="t-sm" x="152" y="50" fill="var(--good)">Previewed</text>
+        <text class="t-sm" x="152" y="66" fill="var(--good)">against last month</text>
+        <path class="ln" d="M258 52 L284 52" marker-end="url(#e)"/>
+        <rect class="bx-human" x="290" y="30" width="110" height="44" rx="3"/>
+        <text class="t-sm" x="302" y="57" fill="var(--human)">Approved</text>
+        <path class="ln" d="M400 52 L426 52" marker-end="url(#e)"/>
+        <rect class="bx" x="432" y="30" width="198" height="44" rx="3"/>
+        <text class="t-sm" x="444" y="50">Active · scoped · dated</text>
+        <text class="t-sm" x="444" y="66" fill="var(--faint)">with an owner and an expiry</text>
+
+        <path class="ln" d="M530 74 L530 104" marker-end="url(#e)"/>
+        <rect class="bx" x="380" y="110" width="250" height="44" rx="3"/>
+        <text class="t-sm" x="392" y="130">Measured every cycle</text>
+        <text class="t-sm" x="392" y="147" fill="var(--faint)">fired 31 times · overridden twice</text>
+
+        <path class="ln-warn" d="M380 132 L320 132" marker-end="url(#ew)"/>
+        <rect class="bx-warn" x="150" y="110" width="164" height="44" rx="3"/>
+        <text class="t-sm" x="162" y="130" fill="var(--warn)">Overridden a lot?</text>
+        <text class="t-sm" x="162" y="147" fill="var(--warn)">surface it · it's wrong</text>
+
+        <path class="ln-warn" d="M150 132 L96 132" marker-end="url(#ew)"/>
+        <rect class="bx-warn" x="0" y="110" width="90" height="44" rx="3"/>
+        <text class="t-sm" x="12" y="137" fill="var(--warn)">Retired</text>
+
+        <text class="t-sm" x="0" y="192" fill="var(--faint)">Also surface: two rules that contradict each other, and rules that have not fired in three months.</text>
+        <text class="t-sm" x="0" y="210" fill="var(--faint)">Automation goes wrong quietly, through rules nobody remembers writing.</text>
+
+        <defs>
+          <marker id="e" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+          <marker id="ew" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>Creating a rule is one screen. Keeping a body of rules honest over two years is the actual product problem.</figcaption>
+    </figure>
+
+    <h3>The loop runs both ways</h3>
+    <p>Almost every design of this kind forgets the return journey. If someone's correction changed the system, tell them — and tell them what it did. <em>"The rule you approved in April has matched 31 items since, and been overridden twice."</em> That one sentence is what turns a correction from a chore into a contribution, and it is the cheapest trust-building feature in the product.</p>
+  </section>
+
+  <!-- ===== 5 observability ===== -->
+  <section>
+    <p class="eyebrow">Observability</p>
+    <h2>One record, three audiences, three units</h2>
+    <p class="lede">Your dashboard currently shows an accountant that 1.24 million tokens were used. They do not know what a token is, cannot act on it, and are mildly alarmed. That's not a placement mistake — it's a sign the system has one view where it needs three.</p>
+    <p>The run produces a single record of what happened. Each audience reads that record in the unit they think in.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="One run record read three ways: the accountant sees time and what needs them, the controller sees dollars and trust, the engineer sees tokens and latency.">
+        <rect class="bx-good" x="170" y="16" width="300" height="52" rx="3"/>
+        <text class="t-sm t-strong" x="184" y="38" fill="var(--good)">One run record</text>
+        <text class="t-sm" x="184" y="56" fill="var(--good)">everything that happened, stored once</text>
+
+        <path class="ln" d="M240 68 L120 104" marker-end="url(#f)"/>
+        <path class="ln" d="M320 68 L320 104" marker-end="url(#f)"/>
+        <path class="ln" d="M400 68 L520 104" marker-end="url(#f)"/>
+
+        <rect class="bx" x="0" y="110" width="196" height="118" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="132">The accountant</text>
+        <text class="t-sm" x="14" y="154" fill="var(--faint)">Is my month done?</text>
+        <text class="t-sm" x="14" y="174" fill="var(--faint)">What needs me?</text>
+        <text class="t-mono" x="14" y="200" fill="var(--good)">unit: minutes</text>
+        <text class="t-sm" x="14" y="218" fill="var(--warn)">never sees a token</text>
+
+        <rect class="bx" x="222" y="110" width="196" height="118" rx="3"/>
+        <text class="t-sm t-strong" x="236" y="132">The controller</text>
+        <text class="t-sm" x="236" y="154" fill="var(--faint)">Can I trust it?</text>
+        <text class="t-sm" x="236" y="174" fill="var(--faint)">Is it getting better?</text>
+        <text class="t-mono" x="236" y="200" fill="var(--good)">unit: dollars</text>
+        <text class="t-sm" x="236" y="218" fill="var(--faint)">cost per reconciliation</text>
+
+        <rect class="bx" x="444" y="110" width="196" height="118" rx="3"/>
+        <text class="t-sm t-strong" x="458" y="132">You, and the engineers</text>
+        <text class="t-sm" x="458" y="154" fill="var(--faint)">What did it actually do?</text>
+        <text class="t-sm" x="458" y="174" fill="var(--faint)">Where did it go wrong?</text>
+        <text class="t-mono" x="458" y="200" fill="var(--good)">unit: tokens, seconds</text>
+        <text class="t-sm" x="458" y="218" fill="var(--faint)">step by step</text>
+
+        <line class="div" x1="0" y1="252" x2="640" y2="252"/>
+        <text class="t-sm" x="0" y="278" fill="var(--faint)">Same number underneath. The unit is the design decision — and putting the wrong unit in front of someone</text>
+        <text class="t-sm" x="0" y="294" fill="var(--faint)">is how a product that works ends up feeling untrustworthy.</text>
+
+        <defs>
+          <marker id="f" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>Tokens aren't a secret — they're an engineering unit. The buyer's version of the same fact is dollars per reconciliation, and the user's version is minutes.</figcaption>
+    </figure>
+
+    <h3>Observing isn't enough — you have to be able to reconstruct</h3>
+    <p>This is the part that separates an accounting product from a dashboard. Eighteen months from now someone will ask why a particular match happened in March. Answering that means the March run has to be replayable <em>as it stood then</em> — even though the rules have changed six times since.</p>
+    <p>So every run permanently records: which documents came in and a fingerprint proving they weren't swapped, which rules were active and at which version, which model and prompt version ran, every suggestion the model made and whether it was accepted, every human action with a name and a time, and every posting attempt with its outcome.</p>
+    <p>That list is not paranoia. It's the difference between "the system says so" and "here is what happened."</p>
+
+    <h3>The measurements that matter</h3>
+    <div class="metrics">
+      <div class="metric"><span class="n">Unexplained difference at first pass<em>How much the machine couldn't account for before any human touched it</em></span><span class="who">Controller</span></div>
+      <div class="metric"><span class="n">First-pass match rate, frozen<em>Measured at the machine's verdict, never improved by a human cleaning up after it — you already do this correctly</em></span><span class="who">Controller</span></div>
+      <div class="metric"><span class="n">Override rate<em>How often a person disagreed with the machine. Rising means drift or stale rules — the single most informative number in the system, and the one most often missing</em></span><span class="who">Controller</span></div>
+      <div class="metric"><span class="n">Escaped errors<em>Mistakes found after posting, or found by sampling. The scariest number and the most valuable</em></span><span class="who">Controller</span></div>
+      <div class="metric"><span class="n">Reviewer minutes per reconciliation<em>The actual saving being sold</em></span><span class="who">Buyer</span></div>
+      <div class="metric"><span class="n">Cost per reconciliation, in dollars<em>Tokens converted into the unit a buyer compares against a salary</em></span><span class="who">Buyer</span></div>
+      <div class="metric"><span class="n">Tokens and seconds per step<em>Where the money and the waiting actually go</em></span><span class="who">Engineer</span></div>
+    </div>
+
+    <p style="margin-top:1.6rem"><strong>One rule that governs all of them:</strong> every quality number must belong to either the machine or the human, never both. A metric that improves when people work harder is not measuring the system. You already got this right once, deliberately — make it a stated principle, because it's the kind of thing an interviewer will stop and ask about.</p>
+
+    <h3>Explain the awkward numbers rather than hiding them</h3>
+    <p>Your current figures show matches falling and cost per record rising, with no explanation. The instinct is to fix the data. The better instinct is to design the surface that <em>explains</em> a bad trend — because a system that only looks good when the numbers are good is a system nobody will trust when they aren't.</p>
+  </section>
+
+  <section class="close">
+    <p class="eyebrow">In one line each</p>
+    <h2>What to take away</h2>
+    <p><strong>Taxonomy.</strong> Two worlds, not one. The unit of work is an account for a month, not a session for a property.</p>
+    <p><strong>Humans.</strong> Four roles, a hard line between preparing and approving, and three distinct kinds of involvement — deciding, authorising, and sampling.</p>
+    <p><strong>Feedback.</strong> One correction, four destinations. Rules are data, prompts are code. And tell people what their correction did.</p>
+    <p><strong>Observability.</strong> One record, three audiences, three units. Reconstruct, don't just observe. And watch the override rate above everything else.</p>
+    <p class="signoff">None of this requires you to build a backend. All of it is design work — objects, permissions, states and screens — and it is exactly the design work that separates someone who has thought about AI products from someone who has drawn one.</p>
+  </section>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>Where the Agents Belong</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B;
+    --soft:#5A6771;
+    --faint:#8D979E;
+    --ground:#F2F3EF;
+    --surface:#FFFFFF;
+    --rule:#D6DBD4;
+    --warn:#A93A26;
+    --warn-bg:#F7E9E5;
+    --good:#2B6350;
+    --good-bg:#E4EFE9;
+    --model:#5B4A8C;
+    --model-bg:#EDEAF5;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+      --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+      --warn:#E2795F; --warn-bg:#2E1E1A;
+      --good:#74BC98; --good-bg:#16291F;
+      --model:#A99AD4; --model-bg:#231E33;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+    --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+    --warn:#E2795F; --warn-bg:#2E1E1A;
+    --good:#74BC98; --good-bg:#16291F;
+    --model:#A99AD4; --model-bg:#231E33;
+    --accent:#7DAAC6;
+  }
+
+  body{
+    background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:880px;margin:0 auto;padding-inline:20px;padding-block:56px 96px;}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);margin:0;
+  }
+  h1{
+    font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(2rem,6vw,3.1rem);line-height:1.08;
+    letter-spacing:-.015em;text-wrap:balance;margin:.5rem 0 0;
+  }
+  .standfirst{
+    font-family:Spectral,Georgia,serif;
+    font-size:clamp(1.05rem,2.6vw,1.3rem);line-height:1.5;
+    color:var(--soft);max-width:34em;margin:1.1rem 0 0;
+  }
+  .thesis{
+    margin:2.2rem 0 0;padding:20px 22px;background:var(--surface);
+    border:1px solid var(--rule);border-left:3px solid var(--accent);
+    border-radius:3px;max-width:36em;
+  }
+  .thesis p{margin:0;font-size:1.02rem;}
+  .thesis p + p{margin-top:.8rem;}
+
+  section{margin-top:72px;padding-top:28px;border-top:1px solid var(--rule);}
+  h2{
+    font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(1.45rem,4vw,2rem);line-height:1.15;
+    letter-spacing:-.01em;text-wrap:balance;margin:.35rem 0 0;
+  }
+  h3{
+    font-family:"IBM Plex Sans",system-ui,sans-serif;
+    font-size:1.02rem;font-weight:600;margin:2rem 0 .4rem;
+  }
+  p{max-width:40em;}
+  p.lede{font-size:1.06rem;}
+
+  .tests{margin:1.6rem 0 0;padding:0;list-style:none;display:grid;gap:.85rem;max-width:40em;}
+  .tests li{
+    display:grid;grid-template-columns:auto 1fr;gap:.9rem;align-items:baseline;
+    padding-bottom:.85rem;border-bottom:1px solid var(--rule);
+  }
+  .tests li:last-child{border-bottom:0;}
+  .tests .q{font-weight:500;}
+  .verdict{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+    padding:3px 8px;border-radius:2px;white-space:nowrap;
+  }
+  .v-rules{background:var(--good-bg);color:var(--good);}
+  .v-model{background:var(--model-bg);color:var(--model);}
+
+  /* agent cards */
+  .roster{margin:1.8rem 0 0;display:grid;gap:14px;}
+  .agent{
+    background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:20px 22px;
+  }
+  .agent.is-model{border-left:3px solid var(--model);}
+  .agent.is-rules{border-left:3px solid var(--good);}
+  .agent-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}
+  .agent-head h3{margin:0;font-size:1.12rem;}
+  .agent-head .verdict{margin-left:auto;}
+  .agent p{margin:.6rem 0 0;font-size:.95rem;}
+  .agent dl{margin:1rem 0 0;display:grid;gap:.7rem;}
+  .agent dt{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:.15rem;
+  }
+  .agent dd{margin:0;font-size:.93rem;}
+  .agent dd.never{color:var(--warn);}
+
+  figure{
+    margin:2.2rem 0 0;background:var(--surface);
+    border:1px solid var(--rule);border-radius:4px;overflow:hidden;
+  }
+  .scroller{overflow-x:auto;padding:22px;}
+  figure svg{display:block;width:100%;min-width:560px;height:auto;color:var(--ink);}
+  figcaption{
+    padding:13px 22px 15px;border-top:1px solid var(--rule);
+    font-size:.86rem;line-height:1.5;color:var(--soft);
+  }
+
+  .bx{fill:var(--surface);stroke:currentColor;stroke-opacity:.34;stroke-width:1;}
+  .bx-model{fill:var(--model-bg);stroke:var(--model);stroke-width:1;}
+  .bx-good{fill:var(--good-bg);stroke:var(--good);stroke-width:1;}
+  .bx-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1;}
+  .ln{stroke:currentColor;stroke-opacity:.45;stroke-width:1.2;fill:none;}
+  .ln-model{stroke:var(--model);stroke-width:1.4;fill:none;}
+  .ln-good{stroke:var(--good);stroke-width:1.4;fill:none;}
+  .ln-warn{stroke:var(--warn);stroke-width:1.4;fill:none;}
+  .div{stroke:currentColor;stroke-opacity:.16;stroke-width:1;}
+  .divide{stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:6 4;}
+  text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12.5px;fill:currentColor;}
+  .t-lab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;fill:var(--faint);}
+  .t-mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;}
+  .t-sm{font-size:11px;fill:var(--soft);}
+  .t-model{fill:var(--model);font-size:11px;}
+  .t-good{fill:var(--good);font-size:11px;}
+  .t-warn{fill:var(--warn);font-size:11.5px;}
+  .t-strong{font-weight:600;}
+
+  .close{margin-top:80px;padding-top:32px;border-top:2px solid var(--ink);}
+  .signoff{
+    margin-top:2rem;font-family:Spectral,Georgia,serif;
+    font-size:1.12rem;line-height:1.55;color:var(--soft);max-width:34em;
+  }
+  .pull{
+    margin:2rem 0 0;padding-left:20px;border-left:3px solid var(--model);
+    font-family:Spectral,Georgia,serif;font-size:1.2rem;line-height:1.45;
+    max-width:32em;
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Companion to the gap teardown</p>
+    <h1>Where the agents belong</h1>
+    <p class="standfirst">Once the eight gaps are fixed, the AI has less to do — and what's left is far easier to defend. This is the map of which steps a model should touch, and which it must never touch.</p>
+
+    <div class="thesis">
+      <p><strong>The dividing line is reproducibility.</strong> If a controller has to be able to re-run a step and get the identical answer, and defend that answer to an auditor, a model cannot do it. If the input is messy human language and the output is a sentence for a person to read, a model is the only sensible tool.</p>
+      <p>Almost everything follows from that one line.</p>
+    </div>
+
+    <p class="pull">The model never decides what is true. It decides what to read, and what to say.</p>
+  </header>
+
+  <!-- ===== the test ===== -->
+  <section>
+    <p class="eyebrow">The method</p>
+    <h2>Four questions that place any step</h2>
+    <p class="lede">This is the reusable part — the thing worth putting in a case study, because it works on any workflow, not just this one.</p>
+
+    <ul class="tests">
+      <li><span class="verdict v-rules">Rules</span><span class="q">Would two runs on the same files have to give the same answer?</span></li>
+      <li><span class="verdict v-rules">Rules</span><span class="q">Does the output get signed, or land in the accounting system?</span></li>
+      <li><span class="verdict v-model">Model</span><span class="q">Is the input messy — a scanned page, a layout nobody agreed on, free text?</span></li>
+      <li><span class="verdict v-model">Model</span><span class="q">Is the output a sentence written for a person to read?</span></li>
+    </ul>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 330" role="img" aria-label="A pipeline where reading and explaining sit above the line as model work, while matching, the balance proof and posting sit below the line as rules-only work.">
+        <text class="t-model t-lab" x="0" y="12" fill="var(--model)">MESSY LANGUAGE · A MODEL BELONGS HERE</text>
+
+        <rect class="bx-model" x="0" y="28" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="52" fill="var(--model)">Reader</text>
+        <text class="t-sm" x="14" y="70" fill="var(--model)">makes sense of the files</text>
+
+        <rect class="bx-model" x="320" y="28" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="334" y="52" fill="var(--model)">Explainer</text>
+        <text class="t-sm" x="334" y="70" fill="var(--model)">names and ranks doubts</text>
+
+        <line class="divide" x1="0" y1="118" x2="640" y2="118"/>
+        <text class="t-lab" x="0" y="112">— — — the line: must this be reproducible? — — —</text>
+
+        <text class="t-good t-lab" x="0" y="150" fill="var(--good)">ARITHMETIC AND AUDIT · NEVER A MODEL</text>
+
+        <rect class="bx-good" x="160" y="166" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="174" y="190" fill="var(--good)">Matcher</text>
+        <text class="t-sm" x="174" y="208" fill="var(--good)">pairs rows by stated rules</text>
+
+        <rect class="bx-good" x="320" y="248" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="334" y="272" fill="var(--good)">Balance proof</text>
+        <text class="t-sm" x="334" y="290" fill="var(--good)">pure arithmetic</text>
+
+        <rect class="bx-good" x="480" y="166" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="494" y="190" fill="var(--good)">Poster</text>
+        <text class="t-sm" x="494" y="208" fill="var(--good)">writes to the books</text>
+
+        <rect class="bx" x="160" y="248" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="174" y="272">Person</text>
+        <text class="t-sm" x="174" y="290">decides</text>
+
+        <path class="ln-model" d="M150 56 L232 56 L232 162" marker-end="url(#a)"/>
+        <path class="ln-good" d="M310 194 L394 194 L394 84" marker-end="url(#ag)"/>
+        <path class="ln-model" d="M394 84 L394 118"/>
+        <path class="ln-model" d="M320 56 L250 56" />
+        <path class="ln-model" d="M360 84 L280 244" marker-end="url(#a)"/>
+        <path class="ln-good" d="M310 276 L316 276"/>
+        <path class="ln-good" d="M235 304 L235 316 L556 316 L556 226" marker-end="url(#ag)"/>
+
+        <text class="t-sm" x="240" y="140" fill="var(--faint)">clean rows</text>
+        <text class="t-sm" x="400" y="140" fill="var(--faint)">what didn't match</text>
+        <text class="t-sm" x="286" y="200" fill="var(--faint)">ranked doubts</text>
+        <text class="t-sm" x="360" y="332" fill="var(--faint)">approved · only after a person clicks</text>
+
+        <defs>
+          <marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--model)"/>
+          </marker>
+          <marker id="ag" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The model is at the edges — where documents come in and where words go out to a person. Everything that touches money is rules.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== roster ===== -->
+  <section>
+    <p class="eyebrow">The roster</p>
+    <h2>Four jobs, two of them not intelligent at all</h2>
+    <p class="lede">You currently have three agents named after stages. These four are named after the kind of thinking each one does — which is the only naming that survives a hard question.</p>
+
+    <div class="roster">
+
+      <article class="agent is-model">
+        <div class="agent-head">
+          <h3>1 · The Reader</h3>
+          <span class="verdict v-model">Model, checked</span>
+        </div>
+        <p>Turns a bank statement and a ledger export into clean rows of date, amount, description and reference — whatever shape they arrived in.</p>
+        <dl>
+          <div><dt>Why a model earns this</dt><dd>There are roughly 8,900 banks in the United States, and a small property owner is more likely to bank with a local one than a national one. Every statement is laid out differently. No set of templates survives contact with that, and this is exactly what models are good at.</dd></div>
+          <div><dt>The guard that makes it safe</dt><dd>Every statement states its own opening balance, closing balance and totals. The rows the Reader produces must reproduce those figures exactly. <strong>If they don't, the read failed and the run stops</strong> — the product refuses to reconcile something it isn't sure it read correctly.</dd></div>
+          <div><dt>Never</dt><dd class="never">Never invents, corrects or tidies a figure it couldn't read. An unreadable line is reported as unreadable.</dd></div>
+        </dl>
+      </article>
+
+      <article class="agent is-rules">
+        <div class="agent-head">
+          <h3>2 · The Matcher</h3>
+          <span class="verdict v-rules">No model at all</span>
+        </div>
+        <p>Pairs bank rows with ledger rows by working down a written list of rules: same amount same day, then same amount within a few days, then amount plus reference number, then one deposit against several ledger rows that add up to it.</p>
+        <dl>
+          <div><dt>Why no model</dt><dd>This is the step where being wrong costs real money, and where "why did these two match?" must have an answer an auditor accepts. A rule gives that answer. A model gives an opinion that may differ next Tuesday.</dd></div>
+          <div><dt>What this fixes</dt><dd>Certainty stops being a feeling and becomes a fact: which rule fired, and how many candidates it found. That is Gap 8 solved at the root.</dd></div>
+          <div><dt>Bonus</dt><dd>Because it's rules, you can test it. Run it against a month someone already closed by hand and count what it got right. That is an honest accuracy number, and right now you don't have one.</dd></div>
+        </dl>
+      </article>
+
+      <article class="agent is-model">
+        <div class="agent-head">
+          <h3>3 · The Explainer</h3>
+          <span class="verdict v-model">Model, no authority</span>
+        </div>
+        <p>Takes everything that didn't match cleanly and does three things: recognises the common patterns by name, ranks the possible answers, and writes the one-line reason the person reads.</p>
+        <dl>
+          <div><dt>Why a model earns this</dt><dd>"Both rows match the amount — but row 142 shares the payment reference and row 154 is three days closer" is writing. It is the one job here that is genuinely language work, and it is what turns a wall of exceptions into a queue somebody can get through.</dd></div>
+          <div><dt>The guard</dt><dd>It proposes; it never commits. A pattern is only shown as fact once a rule has confirmed it — "bounced payment" appears only if the original payment is actually found and the amounts add up. <strong>A guess the machine can't back up is shown as a guess.</strong></dd></div>
+          <div><dt>Never</dt><dd class="never">Never moves an item into approved. Never touches the balance proof. Never decides anything a person would have to defend.</dd></div>
+        </dl>
+      </article>
+
+      <article class="agent is-rules">
+        <div class="agent-head">
+          <h3>4 · The Poster</h3>
+          <span class="verdict v-rules">No model at all</span>
+        </div>
+        <p>Sends approved entries into the accounting system, one at a time, each carrying a tag so that sending it twice is impossible. Handles the half-finished case. Supports undo.</p>
+        <dl>
+          <div><dt>Why no model</dt><dd>Nothing here is a judgement. It is the most consequential step in the product and the least intelligent, and those two facts are related.</dd></div>
+        </dl>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- ===== the reader check ===== -->
+  <section>
+    <p class="eyebrow">The idea worth stealing</p>
+    <h2>The Reader marks its own work</h2>
+    <p class="lede">This is the design move that makes model-based document reading acceptable in an accounting product, and it costs almost nothing: <strong>the document already tells you the right answer.</strong></p>
+    <p>A bank statement prints its opening balance, its closing balance, and its totals. So after the Reader has extracted the rows, you add them up and compare. If they agree, the read was complete. If they don't, something was missed — and the honest response is to stop, not to reconcile against a half-read statement.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="The reader extracts rows, then the totals of those rows are compared against the balances printed on the statement itself. Agreement passes the run forward; disagreement stops it.">
+        <rect class="bx" x="0" y="30" width="140" height="94" rx="3"/>
+        <text class="t-lab" x="14" y="52">THE STATEMENT</text>
+        <text class="t-sm" x="14" y="74">Opening 398,120.44</text>
+        <text class="t-sm" x="14" y="92">Closing 412,880.19</text>
+        <text class="t-sm" x="14" y="110">312 lines</text>
+
+        <path class="ln-model" d="M140 66 L188 66" marker-end="url(#ar)"/>
+        <rect class="bx-model" x="194" y="42" width="140" height="48" rx="3"/>
+        <text class="t-sm t-strong" x="208" y="64" fill="var(--model)">Reader</text>
+        <text class="t-sm" x="208" y="80" fill="var(--model)">extracts 312 rows</text>
+
+        <path class="ln-model" d="M334 66 L382 66" marker-end="url(#ar)"/>
+        <rect class="bx-good" x="388" y="30" width="242" height="94" rx="3"/>
+        <text class="t-lab" x="402" y="52" fill="var(--good)">THE CHECK · ARITHMETIC ONLY</text>
+        <text class="t-sm" x="402" y="76" fill="var(--good)">opening + rows extracted = ?</text>
+        <text class="t-mono" x="402" y="98" fill="var(--good)">412,880.19  ✓ agrees</text>
+
+        <path class="ln-good" d="M470 124 L470 158" marker-end="url(#arg)"/>
+        <path class="ln-warn" d="M560 124 L560 158" marker-end="url(#arw)"/>
+
+        <rect class="bx-good" x="330" y="164" width="200" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="344" y="184" fill="var(--good)">Agrees → carry on</text>
+        <text class="t-sm" x="344" y="200" fill="var(--good)">the read is provably complete</text>
+
+        <rect class="bx-warn" x="544" y="164" width="86" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="556" y="184" fill="var(--warn)">Doesn't</text>
+        <text class="t-sm" x="556" y="200" fill="var(--warn)">→ stop</text>
+
+        <line class="div" x1="0" y1="240" x2="640" y2="240"/>
+        <text class="t-sm" x="0" y="266" fill="var(--faint)">Without this check, a model that quietly skips four lines produces a reconciliation that looks finished and is wrong.</text>
+        <text class="t-sm" x="0" y="284" fill="var(--faint)">With it, the product can honestly say: everything on this statement was read.</text>
+
+        <defs>
+          <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--model)"/>
+          </marker>
+          <marker id="arg" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/>
+          </marker>
+          <marker id="arw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The statement grades the Reader's homework. A step that can prove it did its job is worth ten steps that claim a confidence score.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== one decision, three participants ===== -->
+  <section>
+    <p class="eyebrow">How they share one decision</p>
+    <h2>Three participants, one ambiguous item</h2>
+    <p class="lede">Follow the ambiguous refund from Gap 1 all the way through. Notice that each participant does only what it is good at, and that the person's click is the only thing that settles it.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 400" role="img" aria-label="Rules find two candidates, the model explains and ranks them, the person picks one, and the correction is offered back as a rule for next time.">
+        <rect class="bx-good" x="0" y="20" width="628" height="66" rx="3"/>
+        <text class="t-lab" x="18" y="42" fill="var(--good)">1 · MATCHER · RULES</text>
+        <text class="t-sm" x="18" y="66" fill="var(--good)">Two ledger rows match this amount. No rule separates them. Handing it on.</text>
+
+        <path class="ln" d="M314 86 L314 106" marker-end="url(#b)"/>
+
+        <rect class="bx-model" x="0" y="112" width="628" height="84" rx="3"/>
+        <text class="t-lab" x="18" y="134" fill="var(--model)">2 · EXPLAINER · MODEL</text>
+        <text class="t-sm" x="18" y="158" fill="var(--model)">Most likely row 142 — it carries the same payment reference.</text>
+        <text class="t-sm" x="18" y="176" fill="var(--model)">Row 154 is three days closer but references a different invoice.</text>
+
+        <path class="ln" d="M314 196 L314 216" marker-end="url(#b)"/>
+
+        <rect class="bx" x="0" y="222" width="628" height="66" rx="3"/>
+        <text class="t-lab" x="18" y="244">3 · THE PERSON · DECIDES</text>
+        <text class="t-sm" x="18" y="268">Picks row 142. This is the only step that settles anything.</text>
+
+        <path class="ln" d="M314 288 L314 308" marker-end="url(#b)"/>
+
+        <rect class="bx-warn" x="0" y="314" width="628" height="76" rx="3"/>
+        <text class="t-lab" x="18" y="336" fill="var(--warn)">4 · THE OFFER · NEEDS GOVERNING</text>
+        <text class="t-sm" x="18" y="358" fill="var(--warn)">"Match on payment reference before date closeness. Apply to this property?"</text>
+        <text class="t-sm" x="18" y="376" fill="var(--warn)">A rule that changes how money is handled cannot be created by a single click. See below.</text>
+
+        <defs>
+          <marker id="b" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The model's whole contribution is the middle sentence — and that sentence is what makes the person's decision take two seconds instead of two minutes.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== learning loop ===== -->
+  <section>
+    <p class="eyebrow">The dangerous one</p>
+    <h2>Learning from corrections needs a gate</h2>
+    <p class="lede">The learning loop is the most AI-native part of your product and the part most likely to get it rejected by a real finance team. A free-text rule like "auto-approve refunds under $250" changes how money is handled — and at the moment anyone can write one, unsigned, unreviewed, with no way to see what it would do.</p>
+    <p>The fix is not to remove it. It is to treat a rule as something that gets proposed, previewed and approved — like any other change to how money is handled.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 260" role="img" aria-label="A correction becomes a drafted rule, which is previewed against last month, then approved by a second person with a scope and an expiry before it becomes active.">
+        <rect class="bx" x="0" y="40" width="112" height="56" rx="3"/>
+        <text class="t-sm" x="14" y="64">A person</text>
+        <text class="t-sm" x="14" y="80">corrects a match</text>
+
+        <path class="ln" d="M112 68 L146 68" marker-end="url(#c)"/>
+
+        <rect class="bx-model" x="152" y="40" width="112" height="56" rx="3"/>
+        <text class="t-sm" x="166" y="64" fill="var(--model)">Model drafts</text>
+        <text class="t-sm" x="166" y="80" fill="var(--model)">the rule in words</text>
+
+        <path class="ln" d="M264 68 L298 68" marker-end="url(#c)"/>
+
+        <rect class="bx-good" x="304" y="28" width="150" height="80" rx="3"/>
+        <text class="t-sm t-strong" x="318" y="52" fill="var(--good)">Preview</text>
+        <text class="t-sm" x="318" y="70" fill="var(--good)">"Last month this</text>
+        <text class="t-sm" x="318" y="86" fill="var(--good)">would have changed</text>
+        <text class="t-sm" x="318" y="102" fill="var(--good)">14 items, $3,120"</text>
+
+        <path class="ln" d="M454 68 L488 68" marker-end="url(#c)"/>
+
+        <rect class="bx" x="494" y="28" width="134" height="80" rx="3"/>
+        <text class="t-sm t-strong" x="508" y="52">Second person</text>
+        <text class="t-sm" x="508" y="70">approves it</text>
+        <text class="t-sm" x="508" y="90" fill="var(--faint)">not the author</text>
+
+        <line class="div" x1="0" y1="140" x2="640" y2="140"/>
+        <text class="t-lab" x="0" y="166">EVERY RULE CARRIES</text>
+
+        <rect class="bx" x="0" y="180" width="148" height="44" rx="3"/>
+        <text class="t-sm" x="14" y="207">Who wrote it</text>
+        <rect class="bx" x="160" y="180" width="148" height="44" rx="3"/>
+        <text class="t-sm" x="174" y="207">Who approved it</text>
+        <rect class="bx" x="320" y="180" width="148" height="44" rx="3"/>
+        <text class="t-sm" x="334" y="207">Where it applies</text>
+        <rect class="bx" x="480" y="180" width="148" height="44" rx="3"/>
+        <text class="t-sm" x="494" y="207">When it expires</text>
+
+        <text class="t-sm" x="0" y="250" fill="var(--faint)">A rule nobody reviewed, that nobody owns, and that never expires is how automation quietly goes wrong.</text>
+
+        <defs>
+          <marker id="c" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <polygon points="0 0, 7 3.5, 0 7" fill="currentColor" fill-opacity=".5"/>
+          </marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The preview is the part people forget. Showing what a rule would have done last month is the difference between a setting and an informed decision.</figcaption>
+    </figure>
+  </section>
+
+  <!-- ===== what the user sees ===== -->
+  <section>
+    <p class="eyebrow">Back to the screen</p>
+    <h2>What the person should see</h2>
+
+    <h3>Keep the lanes, change the labels</h3>
+    <p>People do need to see the work moving — that part of your design is right. But name the lanes after the work, not after the machine: <em>Reading</em>, <em>Matching</em>, <em>Reviewing</em>, <em>Posting</em>. Nobody outside your team knows what "Agent 2" is.</p>
+
+    <h3>Show which parts had an opinion</h3>
+    <p>Mark each result with how it was decided. On the balance proof, the words <strong>"calculated, not estimated"</strong> are a genuine trust feature — accountants relax visibly when told a number came from arithmetic. Right now your product hides its most trustworthy quality behind a shimmer.</p>
+
+    <h3>Stop calling it three agents</h3>
+    <p>What you have is a workflow with intelligent steps, not a team of agents making plans. Saying that plainly is more accurate <em>and</em> more credible — the vaguer claim is what invites the sceptical question in the first place. It also matches the current industry distinction between workflows and agents, which the technically literate person interviewing you will know.</p>
+  </section>
+
+  <section class="close">
+    <p class="eyebrow">The shape of the answer</p>
+    <h2>Less AI, better product</h2>
+    <p class="lede">You started with three agents doing everything. You end with a model at each edge — one reading documents nobody can template, one writing the sentences that make a queue manageable — and rules in the middle, where the money is.</p>
+    <p class="signoff">The strongest thing you can say in an interview about an AI product is which part you took the AI <em>out</em> of, and why. Almost nobody says it. It signals that you understand what these systems are bad at, which is the rarer and more valuable knowledge.</p>
+  </section>
+
+</div>
+
+</body>
+</html>

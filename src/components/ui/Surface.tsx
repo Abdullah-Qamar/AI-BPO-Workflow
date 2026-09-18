@@ -8,12 +8,13 @@ import type { CSSProperties, ReactNode } from "react";
 
 export type SurfaceTone = "flat" | "glow";
 export type SurfaceDepth = 1 | 2 | 3;
-export type SurfaceRadius = "sm" | "md" | "lg" | "xl";
+/* No "lg" (16px): decisions.md §3 retires the 16px and 14px card radii, both
+ * to --radius-card (12px), which is `md`. Nothing called for it. */
+export type SurfaceRadius = "sm" | "md" | "xl";
 
 const RADIUS: Record<SurfaceRadius, number> = {
   sm: 8,
   md: 12,
-  lg: 16,
   xl: 20,
 };
 

@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>One Real Month of Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B; --soft:#5A6771; --faint:#8D979E;
+    --ground:#F2F3EF; --surface:#FFFFFF; --rule:#D6DBD4;
+    --warn:#A93A26; --warn-bg:#F7E9E5;
+    --good:#2B6350; --good-bg:#E4EFE9;
+    --model:#5B4A8C; --model-bg:#EDEAF5;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+      --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+      --warn:#E2795F; --warn-bg:#2E1E1A;
+      --good:#74BC98; --good-bg:#16291F;
+      --model:#A99AD4; --model-bg:#231E33;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+    --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+    --warn:#E2795F; --warn-bg:#2E1E1A;
+    --good:#74BC98; --good-bg:#16291F;
+    --model:#A99AD4; --model-bg:#231E33;
+    --accent:#7DAAC6;
+  }
+
+  body{background:var(--ground);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:880px;margin:0 auto;padding-inline:20px;padding-block:56px 96px;}
+
+  .eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0;}
+  h1{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(2rem,6vw,3.1rem);line-height:1.08;letter-spacing:-.015em;
+    text-wrap:balance;margin:.5rem 0 0;}
+  .standfirst{font-family:Spectral,Georgia,serif;font-size:clamp(1.05rem,2.6vw,1.3rem);
+    line-height:1.5;color:var(--soft);max-width:34em;margin:1.1rem 0 0;}
+  .thesis{margin:2.2rem 0 0;padding:20px 22px;background:var(--surface);
+    border:1px solid var(--rule);border-left:3px solid var(--accent);
+    border-radius:3px;max-width:36em;}
+  .thesis p{margin:0;font-size:1.02rem;}
+  .thesis p + p{margin-top:.8rem;}
+
+  section{margin-top:72px;padding-top:28px;border-top:1px solid var(--rule);}
+  h2{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(1.45rem,4vw,2rem);line-height:1.15;letter-spacing:-.01em;
+    text-wrap:balance;margin:.35rem 0 0;}
+  h3{font-size:1.02rem;font-weight:600;margin:2rem 0 .4rem;}
+  p{max-width:40em;}
+  p.lede{font-size:1.06rem;}
+
+  .alert{margin:2rem 0 0;padding:20px 22px;background:var(--warn-bg);
+    border:1px solid var(--warn);border-radius:3px;max-width:38em;}
+  .alert p{margin:0;color:var(--warn);}
+  .alert p + p{margin-top:.7rem;}
+  .alert strong{font-weight:600;}
+
+  .formats{margin:1.8rem 0 0;display:grid;gap:12px;}
+  .fmt{background:var(--surface);border:1px solid var(--rule);border-radius:4px;padding:18px 20px;}
+  .fmt.is-use{border-left:3px solid var(--good);}
+  .fmt.is-next{border-left:3px solid var(--model);}
+  .fmt.is-old{border-left:3px solid var(--faint);}
+  .fmt-head{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}
+  .fmt-head h3{margin:0;font-size:1.08rem;}
+  .tag{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.11em;text-transform:uppercase;padding:3px 8px;border-radius:2px;
+    margin-left:auto;white-space:nowrap;}
+  .tag-use{background:var(--good-bg);color:var(--good);}
+  .tag-next{background:var(--model-bg);color:var(--model);}
+  .tag-old{background:var(--ground);color:var(--faint);}
+  .fmt p{margin:.6rem 0 0;font-size:.94rem;}
+
+  .tbl-wrap{margin:1.8rem 0 0;overflow-x:auto;background:var(--surface);
+    border:1px solid var(--rule);border-radius:4px;}
+  table{border-collapse:collapse;width:100%;min-width:540px;font-size:.88rem;}
+  th{text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);
+    font-weight:400;padding:14px 16px 10px;border-bottom:1px solid var(--rule);}
+  td{padding:10px 16px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  tr:last-child td{border-bottom:0;}
+  td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap;}
+  td.code{font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--soft);}
+  tr.hl td{background:var(--warn-bg);}
+  tr.tot td{font-weight:600;border-top:1px solid var(--ink);}
+  tr.zero td{background:var(--good-bg);color:var(--good);font-weight:600;}
+
+  pre{margin:1.6rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;padding:18px 20px;overflow-x:auto;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;
+    line-height:1.75;color:var(--ink);}
+  pre .c{color:var(--faint);}
+
+  .files{margin:1.8rem 0 0;display:grid;gap:12px;}
+  .file{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);
+    border-radius:4px;padding:16px 20px;}
+  .file .n{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.88rem;font-weight:500;}
+  .file p{margin:.4rem 0 0;font-size:.92rem;color:var(--soft);}
+
+  .close{margin-top:80px;padding-top:32px;border-top:2px solid var(--ink);}
+  .signoff{margin-top:2rem;font-family:Spectral,Georgia,serif;font-size:1.12rem;
+    line-height:1.55;color:var(--soft);max-width:34em;}
+  .sources{margin-top:3rem;padding-top:1.4rem;border-top:1px solid var(--rule);
+    font-size:.85rem;color:var(--soft);}
+  .sources ul{margin:.6rem 0 0;padding-left:1.1rem;}
+  .sources li{margin-bottom:.3rem;}
+  .sources a{color:var(--accent);}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Fixtures · May 2026 · 1849 Westlake, operating account</p>
+    <h1>One real month of data</h1>
+    <p class="standfirst">A bank statement in the format Yardi actually imports, a matching ledger export, and a reconciliation that ties to exactly zero — built so every gap in the teardown has a concrete example sitting in it.</p>
+
+    <div class="thesis">
+      <p><strong>The short answer on formats:</strong> for this product, in the United States, the standard is <strong>BAI2</strong>. It is what Yardi's own automatic bank reconciliation imports, and it is what you should design the intake screen around.</p>
+      <p>The modern international standard is ISO 20022 <strong>camt.053</strong>, and it is where everything is heading — but US property banking still runs on a flat file from 1987.</p>
+    </div>
+  </header>
+
+  <!-- ===== the number ===== -->
+  <section>
+    <p class="eyebrow">Read this first</p>
+    <h2>One number in your demo is a problem</h2>
+
+    <div class="alert">
+      <p><strong>Your product claims a 96% first-pass match rate.</strong></p>
+      <p>Published guidance on Yardi's own automatic bank reconciliation puts typical auto-clear rates at <strong>60–80% after optimisation</strong>. Not on day one — after tuning.</p>
+      <p>So your headline figure sits roughly twenty points above what the incumbent achieves on the same job. Anyone who has run this process will notice, and the question that follows — "on what data?" — currently has no good answer, because the number came from a seed file.</p>
+    </div>
+
+    <p style="margin-top:1.6rem">Two honest ways out. Either drop the figure into the believable band and label it as illustrative, or — much stronger — keep a real number and say where it came from: <em>"78% on a month I reconciled by hand first."</em> The dataset below is the beginning of being able to say that.</p>
+    <p>A modest number you can defend beats an impressive one you can't. This is the single fastest credibility win available to you.</p>
+  </section>
+
+  <!-- ===== formats ===== -->
+  <section>
+    <p class="eyebrow">The landscape</p>
+    <h2>What a statement actually arrives as</h2>
+    <p class="lede">Four formats matter. Only one of them is the right primary target for this product today.</p>
+
+    <div class="formats">
+      <article class="fmt is-use">
+        <div class="fmt-head"><h3>BAI2</h3><span class="tag tag-use">Design for this</span></div>
+        <p>A flat text file of numbered record types, published by the Bank Administration Institute in 1987 and maintained today by the standards body ASC X9. Dominant in US corporate banking, and <strong>the format Yardi's automatic bank reconciliation is built around</strong>. Every transaction carries a numeric type code saying what kind of movement it was — which is exactly the signal your matcher needs.</p>
+      </article>
+
+      <article class="fmt is-next">
+        <div class="fmt-head"><h3>camt.053</h3><span class="tag tag-next">Design for this next</span></div>
+        <p>The ISO 20022 end-of-day statement, in XML. Much richer and properly structured rather than free text, which is why it produces higher automatic match rates. It is the international direction of travel and the replacement for MT940. Worth supporting second — and worth naming in an interview, because it shows you know where the ground is moving.</p>
+      </article>
+
+      <article class="fmt is-old">
+        <div class="fmt-head"><h3>MT940</h3><span class="tag tag-old">Fading</span></div>
+        <p>The old SWIFT statement message — tagged fields with transaction details crammed into free text, which is precisely why it matches badly. Being superseded by camt.053. Support it if a customer needs it; don't build around it.</p>
+      </article>
+
+      <article class="fmt is-old">
+        <div class="fmt-head"><h3>CSV, OFX, and PDF</h3><span class="tag tag-old">The real world</span></div>
+        <p>Yardi supports OFX and CSV with extra configuration, and plenty of smaller banks send nothing better than a PDF. This is the mess that justifies a model in your Reader — but note that the bigger the customer, the more likely they already have BAI2.</p>
+      </article>
+    </div>
+
+    <h3>One finding that should become a design object</h3>
+    <p>Type codes are not fully standard. Banks vary in which codes they use, and publish their own proprietary ones — the 900s especially. So "code 555 means a returned deposit" is a per-bank mapping, not a universal truth.</p>
+    <p>Your product currently has nowhere to keep that. It should: a per-bank code dictionary, owned by the administrator, versioned, and recorded against each run. That's a real object you're missing, and it's the sort of thing that only turns up when you look at the actual files.</p>
+  </section>
+
+  <!-- ===== yardi ===== -->
+  <section>
+    <p class="eyebrow">What the incumbent does</p>
+    <h2>Yardi already works the way the teardown said it should</h2>
+    <p class="lede">This is the most useful thing the research turned up, and it's a strong validation of the fixes — the system you're posting into already thinks in exactly these terms.</p>
+
+    <p>Yardi's bank reconciliation is a <strong>three-column view</strong>: a ledger column, a bank column, and a difference column. The bank side is adjusted for outstanding checks and deposits in transit. <strong>The difference must reach zero before anything can be posted.</strong></p>
+    <p>That is the balance proof from Gap 4, and it is not optional in the target system. A product that posts to Yardi without producing it is producing an input that Yardi itself would reject.</p>
+
+    <p>Yardi also splits corrections into two kinds, and the words are worth stealing:</p>
+    <ul style="max-width:40em">
+      <li><strong>Book reconciling items</strong> — the ledger is wrong and needs an entry. Bank fees, interest, the bounced payment.</li>
+      <li><strong>Bank reconciling items</strong> — the bank is wrong and needs correcting.</li>
+    </ul>
+    <p>Those are your resolution verbs from Gap 3, already named by the system you're integrating with. Using the customer's vocabulary rather than inventing your own is free credibility.</p>
+
+    <p>And the matching itself: Yardi matches <strong>on amount, date and reference number</strong>. That is a deterministic rule ladder — no model — which is exactly the argument in the agents piece, made by the incumbent.</p>
+  </section>
+
+  <!-- ===== dataset ===== -->
+  <section>
+    <p class="eyebrow">The fixture</p>
+    <h2>Fourteen bank lines, sixteen ledger rows, one clean proof</h2>
+    <p class="lede">Small enough to add up by hand, complete enough to exercise every gap. Opening balance $285,400.00 on both sides, so the month starts tied.</p>
+
+    <h3>What the bank sent</h3>
+    <pre><span class="c">01,021000021,WESTLAKE1849,260601,0600,000001,,,2/      ← file header
+02,WESTLAKE1849,021000021,1,260601,0600,USD,2/         ← group header
+03,000000003421,USD,010,28540000,,,015,30198010,...    ← account + balances</span>
+16,165,1245000,0,BR0504001,RENTPAY0504,ACH CREDIT RENTPAY BATCH 0504/
+16,165,127500,0,BR0503001,RP308,ACH CREDIT RENT UNIT 308/
+16,175,890000,0,BR0506001,DEP0506,DEPOSIT CHECK PACKAGE/
+16,165,431842,0,BR0512001,STRIPE0512,ACH CREDIT STRIPE PAYOUT ST-88412/
+16,555,120000,0,BR0520001,RP308,RETURNED ITEM UNIT 308/
+16,398,7500,0,BR0520002,RP308,RETURN ITEM FEE/
+<span class="c">…</span>
+<span class="c">49,75256230,16/                                        ← control totals
+98,75256230,1,18/
+99,75256230,1,20/</span></pre>
+
+    <p style="margin-top:1.4rem">Two details worth noticing, because they are the kind of thing that only shows up in real files. <strong>Amounts have no decimal point</strong> — <code>1245000</code> is $12,450.00, with the currency deciding where the point goes. And <strong>the trailer records carry control totals</strong>, so the file proves its own completeness. That is the Reader's self-check from the agents piece, built into the format itself.</p>
+
+    <h3>Every scenario, and what it tests</h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Code</th><th>What happened</th><th>What it tests</th><th>Amount</th></tr></thead>
+        <tbody>
+          <tr><td class="code">05-04</td><td class="code">165</td><td>Rent batch, one deposit</td><td>One bank line against three ledger rows</td><td class="num">12,450.00</td></tr>
+          <tr><td class="code">05-06</td><td class="code">175</td><td>Check deposit package</td><td>Clean match</td><td class="num">8,900.00</td></tr>
+          <tr class="hl"><td class="code">05-03</td><td class="code">165</td><td>Rent, unit 308</td><td rowspan="3">The bounced payment: three lines, one event, and $1,200 + $75 = the original $1,275</td><td class="num">1,275.00</td></tr>
+          <tr class="hl"><td class="code">05-20</td><td class="code">555</td><td>Returned item, unit 308</td><td class="num">−1,200.00</td></tr>
+          <tr class="hl"><td class="code">05-20</td><td class="code">398</td><td>Return item fee</td><td class="num">−75.00</td></tr>
+          <tr class="hl"><td class="code">05-15</td><td class="code">451</td><td>Refund, invoice 4912</td><td>Two ledger rows at −210.00 — the reviewer must pick, and the one not picked becomes outstanding</td><td class="num">−210.00</td></tr>
+          <tr class="hl"><td class="code">05-12</td><td class="code">165</td><td>Stripe payout</td><td>On the bank, never entered in the ledger</td><td class="num">4,318.42</td></tr>
+          <tr><td class="code">05-29</td><td class="code">698</td><td>Account analysis fee</td><td>Bank-only, needs an entry</td><td class="num">−185.00</td></tr>
+          <tr><td class="code">05-31</td><td class="code">354</td><td>Interest earned</td><td>Bank-only, needs an entry</td><td class="num">42.18</td></tr>
+          <tr><td class="code">05-26</td><td class="code">495</td><td>Transfer to reserve</td><td>Money moving between two accounts you also reconcile</td><td class="num">−15,000.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.4rem">Plus, on the ledger side only: three checks written late in May that hadn't cleared by the 31st, and a deposit banked on the 31st that landed in June. Those are the normal-but-unmatched items that Gap 2 had nowhere to put, and Gap 6 couldn't carry forward.</p>
+  </section>
+
+  <!-- ===== the proof ===== -->
+  <section>
+    <p class="eyebrow">The proof</p>
+    <h2>It ties to zero</h2>
+    <p class="lede">Every figure below is computed from the two files. Nothing is asserted.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <tbody>
+          <tr><td>Bank statement balance, 31 May</td><td class="num">301,980.10</td></tr>
+          <tr><td>Less checks not yet cleared &nbsp;<span style="color:var(--faint)">#1042, #1051, #1055, refund 4913</span></td><td class="num">(18,450.50)</td></tr>
+          <tr><td>Plus deposit not yet landed</td><td class="num">9,315.00</td></tr>
+          <tr class="tot"><td>Adjusted bank balance</td><td class="num">292,844.60</td></tr>
+          <tr><td style="padding-top:22px">Balance in the books, 31 May</td><td class="num" style="padding-top:22px">289,944.00</td></tr>
+          <tr><td>Plus Stripe payout never entered</td><td class="num">4,318.42</td></tr>
+          <tr><td>Less returned payment and its fee</td><td class="num">(1,275.00)</td></tr>
+          <tr><td>Less account analysis fee</td><td class="num">(185.00)</td></tr>
+          <tr><td>Plus interest earned</td><td class="num">42.18</td></tr>
+          <tr class="tot"><td>Adjusted book balance</td><td class="num">292,844.60</td></tr>
+          <tr class="zero"><td>Still unexplained</td><td class="num">0.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.6rem">Four adjusting entries are needed, and the month is closed. Note that the returned payment and its fee together reverse the original rent exactly — which is why treating them as one event rather than three mysteries is the right design.</p>
+    <p>Notice also what the ambiguous refund does. Whichever of the two $210 rows the reviewer picks, the other one becomes an outstanding item carried into June. <strong>The choice isn't cosmetic — it changes what next month starts with.</strong> That's the clearest possible argument for why Gap 1 matters.</p>
+  </section>
+
+  <!-- ===== files ===== -->
+  <section>
+    <p class="eyebrow">What you have</p>
+    <h2>Two files, and what to do with them</h2>
+
+    <div class="files">
+      <div class="file">
+        <div class="n">bai2-westlake-operating-2026-05.bai</div>
+        <p>A well-formed BAI2 statement — header, account balances, fourteen transactions, and trailers whose control totals actually reconcile. Drop this into a screen mock-up and the intake step stops being imaginary.</p>
+      </div>
+      <div class="file">
+        <div class="n">yardi-gl-westlake-operating-2026-05.csv</div>
+        <p>Sixteen ledger rows in a Yardi-shaped export: property code, account code, post date and post month, batch and control references, check number, payee, debit and credit columns, and a cleared flag. The post-month column is where period close lives.</p>
+      </div>
+    </div>
+
+    <h3>Three things to do with them</h3>
+    <p><strong>Reconcile the month by hand, once.</strong> An hour with a spreadsheet. You'll understand this domain better afterwards than any amount of reading achieves, and you'll be able to defend every claim in the case study because you'll have done the job.</p>
+    <p><strong>Redraw the screens against real rows.</strong> Designs made from invented data hide problems — the description field that's 60 characters of shouting capitals, the check number that isn't there, the reference that repeats across three transactions. Real files surface those immediately.</p>
+    <p><strong>Use it as your one honest measurement.</strong> Reconcile it by hand, then say what a matcher would have got right. That's a defensible number with a stated source, which is worth more than any percentage you could invent.</p>
+  </section>
+
+  <section class="close">
+    <p class="eyebrow">Why this matters more than it looks</p>
+    <h2>Grounded beats invented</h2>
+    <p class="signoff">The strongest thing in this whole research pass isn't the file format. It's that Yardi's own reconciliation already works in three columns that must reach zero, already splits corrections into book and bank items, and already matches on amount, date and reference. Every significant fix in the teardown turns out to be how the incumbent already behaves — which means they weren't opinions. They were the domain, and you can now say so with a source.</p>
+
+    <div class="sources">
+      <strong>Sources</strong>
+      <ul>
+        <li><a href="https://www.bcsolut.com/resources/yardi-bank-reconciliation-troubleshooting-guide">Yardi bank reconciliation troubleshooting guide — BC Solutions</a> (three-column model, BAI2 as primary format, 60–80% auto-clear, reconciling item types)</li>
+        <li><a href="https://ordwaylabs.com/blog/electronic-bank-statement-formats/">Electronic bank statement formats — Ordway</a> (BAI2 record types, MT940 tags, camt message family)</li>
+        <li><a href="https://invoicedataextraction.com/blog/bai2-file-format">BAI2 file format: records, codes and validation</a> (record field order, implied decimals, code ranges)</li>
+        <li><a href="https://en.wikipedia.org/wiki/BAI_(file_format)">BAI file format — Wikipedia</a> (history, ASC X9 stewardship)</li>
+        <li><a href="https://gravam.com/blog/bank-statement-formats-mt940-camt053-bai2">Bank statement formats compared — Gravam</a> (adoption, migration direction, per-bank variation)</li>
+        <li><a href="https://developer.gs.com/docs/services/transaction-banking/bai-codes/">BAI codes — Goldman Sachs Developer</a> (type code meanings)</li>
+        <li><a href="https://jatechnologysolutions.com/tools/bai2-type-code-reference/">BAI2 type code reference — JA Technology Solutions</a> (code list, proprietary 9xx ranges)</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

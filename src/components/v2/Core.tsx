@@ -199,14 +199,41 @@ export function Core({
  * empty through most of the run. Out of flow it costs nothing in the phases that
  * have no action, and the core cannot move in the two that do. */
 
+/* The draft phase's standing requirement, with the count it implies.
+ *
+ * Two documents per bank account — one statement, one ledger — so the expected
+ * total is derived, never stored: four accounts expect eight documents. The
+ * account list comes from the open session, which is the whole reason this is a
+ * prop rather than a module constant.
+ *
+ * The count and the requirement are one sentence, not two. "0 of 8 expected" on
+ * its own line above "a bank statement and a Yardi ledger for each account" is
+ * the same fact told twice — the second line is what explains the 8, so it
+ * belongs in the same breath as it.
+ *
+ * Draft means nothing has docked yet (`hubPhase` returns "identifying" the
+ * moment the queue starts), so the numerator is honestly 0. Once documents are
+ * arriving the session header takes over the running count with "1 of 2
+ * identified", the same figure counted up. */
+function draftRequirement(accountCount: number): string {
+  const requirement = "a bank statement and a Yardi ledger";
+  if (accountCount < 1) return `${requirement} for each account`;
+  const scope =
+    accountCount === 1 ? "the account" : `each of ${accountCount} accounts`;
+  return `0 of ${accountCount * 2} expected — ${requirement} for ${scope}`;
+}
+
 export function CoreAction({
   phase,
+  accountCount,
   onDropFiles,
   onStartReconciliation,
   onRetry,
   failureNote,
 }: {
   phase: HubPhase;
+  /* Bank accounts on the property this session is open against. */
+  accountCount: number;
   onDropFiles: () => void;
   onStartReconciliation: () => void;
   onRetry: () => void;
@@ -238,17 +265,22 @@ export function CoreAction({
             Browse files
           </Button>
           {/* The one thing the draft phase has to communicate that the square
-            * itself cannot: each account needs both halves of the pair. This is
-            * a standing requirement, not agent narration — it is the same
-            * sentence every time, so it does not flicker. */}
+            * itself cannot: how many documents it is waiting for, and why that
+            * is the number — each account needs both halves of the pair. This
+            * is a standing requirement, not agent narration; it is the same
+            * sentence for the whole phase, so it does not flicker.
+            *
+            * Tertiary ink and .t-meta: supporting text under an affordance and
+            * a heading, not a third thing competing with them. Line height is
+            * the prose step because at 300px this wraps. */}
           <span
+            className="t-meta"
             style={{
-              fontSize: "var(--type-meta)",
               lineHeight: "var(--leading-prose)",
-              color: "var(--ink-secondary)",
+              color: "var(--ink-tertiary)",
             }}
           >
-            A bank statement and a Yardi ledger for each account
+            {draftRequirement(accountCount)}
           </span>
         </>
       )}

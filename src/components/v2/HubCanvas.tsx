@@ -406,6 +406,10 @@ export function HubCanvas({
           </div>
           <CoreAction
             phase={phase}
+            /* From the session's own accounts — see the note at the top of this
+             * file about the module-level list that read one property's four
+             * accounts no matter which session was open. */
+            accountCount={banks.length}
             onDropFiles={handleDropFiles}
             onStartReconciliation={startReconciliation}
             onRetry={retryRun}

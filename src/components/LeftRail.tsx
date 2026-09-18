@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   Building2,
-  ChevronRight,
   Gauge,
   GitCompareArrows,
   LayoutDashboard,
@@ -12,7 +11,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
-import { aiAgents, aiObservability } from "@/lib/seed";
 
 type Route = "dashboard" | "workspace" | "properties" | "observability";
 
@@ -33,14 +31,27 @@ type Route = "dashboard" | "workspace" | "properties" | "observability";
  * that is what the rail says. */
 type NavItem = { key: Route; Icon: LucideIcon; label: string };
 
-/* The day-to-day destinations. AI Performance is not among them: it is where
- * you go to check on the system rather than to do work, so it lives at the foot
- * of the rail as a live status widget (see PerformanceWidget) rather than a
- * fourth peer competing for the same glance. */
+/* All four destinations, as peers.
+ *
+ * AI Performance used to sit at the foot of the rail as a live status widget:
+ * a two-column table of each agent's first-pass success rate and token spend.
+ * It is gone, for two reasons. An accountant cannot act on a token, and that
+ * widget put one on every screen in the product — cost belongs on AI
+ * Performance, in dollars per reconciliation, with tokens as the engineering
+ * detail underneath. And it did not fit: at 220px the rail clipped it to
+ * "S…ary 89%" and "…etails ›", so the numbers it existed to show were not
+ * legible anyway. Every figure it carried is on the AI Performance screen,
+ * per agent, alongside the median duration it never had room for.
+ *
+ * What is left is navigation, which is what a rail is for. AI Performance is a
+ * fourth item in the same shape as the other three, so the one screen that was
+ * reachable only through a widget is now reachable the same way as everything
+ * else. */
 const ITEMS: NavItem[] = [
   { key: "dashboard", Icon: LayoutDashboard, label: "Dashboard" },
   { key: "workspace", Icon: GitCompareArrows, label: "Reconciliation" },
   { key: "properties", Icon: Building2, label: "Properties" },
+  { key: "observability", Icon: Gauge, label: "AI Performance" },
 ];
 
 const STORAGE_KEY = "tieout.nav.collapsed";
@@ -69,209 +80,6 @@ function LogoMark({ size = 24 }: { size?: number }) {
        * which was capping the mark to its narrower slot and undoing the size. */
       style={{ display: "block", filter: "brightness(0)", maxWidth: "none" }}
     />
-  );
-}
-
-/* Formats a token count compactly for the rail: 1_240_000 -> "1.24M". */
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M`;
-  if (n >= 1_000) return `${Math.round(n / 1000)}K`;
-  return String(n);
-}
-
-/* Two figure columns, fixed-width so the header labels line up over the agents'
- * numbers. */
-const WIDGET_AGENTS = ["intake", "reconciliation", "summary"] as const;
-const COL_PCT = 40;
-const COL_TOK = 46;
-
-function AgentStatRow({ id }: { id: (typeof WIDGET_AGENTS)[number] }) {
-  const a = aiAgents.find((x) => x.key === id);
-  if (!a) return null;
-  const pct = a.runs > 0 ? Math.round((a.succeeded / a.runs) * 100) : 0;
-  return (
-    <div className="flex flex-row items-center" style={{ width: "100%", gap: 8 }}>
-      <span
-        className="flex-1 truncate"
-        style={{
-          fontSize: "var(--type-meta)",
-          lineHeight: "var(--leading-ui)",
-          color: "var(--ink-primary)",
-        }}
-      >
-        {a.name}
-      </span>
-      <span
-        className="nums shrink-0"
-        style={{
-          width: COL_PCT,
-          textAlign: "right",
-          fontSize: "var(--type-meta)",
-          lineHeight: "var(--leading-ui)",
-          fontWeight: "var(--weight-medium)",
-          color: "var(--ink-primary)",
-        }}
-      >
-        {pct}%
-      </span>
-      <span
-        className="nums shrink-0"
-        style={{
-          width: COL_TOK,
-          textAlign: "right",
-          fontSize: "var(--type-meta)",
-          lineHeight: "var(--leading-ui)",
-          color: "var(--ink-secondary)",
-        }}
-      >
-        {fmtTokens(a.tokens)}
-      </span>
-    </div>
-  );
-}
-
-/* The rail foot's AI status widget — a compact per-agent table: each agent's
- * first-pass success rate and token spend, under column headers that name the
- * two figures. The whole card opens AI Performance. Figures are portfolio-level
- * (aiAgents) since the rail lives outside any one session; collapsed, it falls
- * back to a single icon button. */
-function PerformanceWidget({
-  collapsed,
-  active,
-  onClick,
-}: {
-  collapsed: boolean;
-  active: boolean;
-  onClick: () => void;
-}) {
-  const [hover, setHover] = useState(false);
-
-  if (collapsed) {
-    return (
-      <Tooltip
-        label={`AI Performance · ${aiObservability.accuracy}% first-pass · ${fmtTokens(
-          aiObservability.tokensUsed
-        )} tokens`}
-        side="right"
-        tone={active ? "info" : "neutral"}
-      >
-        <button
-          onClick={onClick}
-          onMouseEnter={() => setHover(true)}
-          onMouseLeave={() => setHover(false)}
-          aria-label="AI Performance"
-          aria-current={active ? "page" : undefined}
-          className="flex items-center justify-center shrink-0"
-          style={{
-            width: "var(--row-md)",
-            height: "var(--row-md)",
-            borderRadius: "var(--radius-row)",
-            background: active || hover ? "var(--surface-chip)" : "transparent",
-            border: active ? "1px solid #FFFFFF" : "1px solid transparent",
-            boxShadow: active ? "var(--shadow-chip)" : "none",
-            cursor: "pointer",
-            color: active ? "var(--ink-primary)" : "var(--ink-secondary)",
-            transition: "background 140ms ease",
-          }}
-        >
-          <Gauge size={18} strokeWidth={1.75} />
-        </button>
-      </Tooltip>
-    );
-  }
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      aria-label="Open AI Performance"
-      aria-current={active ? "page" : undefined}
-      className="flex flex-col text-left shrink-0"
-      style={{
-        width: "100%",
-        gap: 5,
-        padding: 10,
-        borderRadius: "var(--radius-sheet)",
-        /* A soft translucent panel rather than an opaque near-white card, so it
-         * settles into the rail's bluish ground instead of pulling the eye; it
-         * only brightens on hover / when active. */
-        background: active
-          ? "rgba(255,255,255,0.72)"
-          : hover
-          ? "rgba(255,255,255,0.55)"
-          : "rgba(255,255,255,0.34)",
-        border: `1px solid ${
-          active ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.45)"
-        }`,
-        boxShadow: active ? "var(--shadow-chip)" : "none",
-        cursor: "pointer",
-        transition: "background 140ms ease, box-shadow 140ms ease",
-      }}
-    >
-      {/* Column headers name the two figures. */}
-      <div
-        className="flex flex-row items-center"
-        style={{ width: "100%", gap: 8, marginBottom: 1 }}
-      >
-        <span
-          className="flex-1 truncate"
-          style={{
-            fontSize: "var(--type-meta)",
-            lineHeight: "var(--leading-ui)",
-            letterSpacing: "var(--tracking-meta)",
-            textTransform: "uppercase",
-            color: "var(--ink-tertiary)",
-          }}
-        >
-          Agents
-        </span>
-        <span
-          style={{
-            width: COL_PCT,
-            textAlign: "right",
-            fontSize: "var(--type-meta)",
-            lineHeight: "var(--leading-ui)",
-            letterSpacing: "var(--tracking-meta)",
-            color: "var(--ink-tertiary)",
-          }}
-        >
-          Success
-        </span>
-        <span
-          style={{
-            width: COL_TOK,
-            textAlign: "right",
-            fontSize: "var(--type-meta)",
-            lineHeight: "var(--leading-ui)",
-            letterSpacing: "var(--tracking-meta)",
-            color: "var(--ink-tertiary)",
-          }}
-        >
-          Tokens
-        </span>
-      </div>
-
-      {WIDGET_AGENTS.map((id) => (
-        <AgentStatRow key={id} id={id} />
-      ))}
-
-      <div
-        className="flex flex-row items-center"
-        style={{
-          gap: 2,
-          marginTop: 2,
-          fontSize: "var(--type-meta)",
-          lineHeight: "var(--leading-ui)",
-          fontWeight: "var(--weight-medium)",
-          color: "var(--ink-secondary)",
-        }}
-      >
-        View details
-        <ChevronRight size={12} strokeWidth={1.75} />
-      </div>
-    </button>
   );
 }
 
@@ -438,15 +246,6 @@ export function LeftRail({
       )}
 
       {ITEMS.map((item) => renderItem(item))}
-
-      {/* Pushes everything below it to the rail's foot. */}
-      <div className="flex-1" />
-
-      <PerformanceWidget
-        collapsed={collapsed}
-        active={route === "observability"}
-        onClick={() => onNavigate("observability")}
-      />
 
       {/* Hover feedback lives in CSS rather than onMouseEnter handlers so it
         * survives the pointer leaving during a route change, which left the

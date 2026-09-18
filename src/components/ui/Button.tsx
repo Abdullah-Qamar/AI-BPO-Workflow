@@ -33,12 +33,16 @@ interface ButtonProps {
 /* Compact scale, matched to the reference (Compact UI References/README.md).
  * Was 32 / 40 / 48 at 14 / 15 / 16px. Controls step down ~25%, and the label
  * settles on --type-body (13px) across all three so buttons stop out-shouting
- * the content they sit beside. */
+ * the content they sit beside. The sizes differ by height and padding, not by
+ * type: `sm` was shipping --type-meta (11px), the size reserved for genuine
+ * metadata, and a button label is not metadata. `sm` padding goes 8 to 10
+ * because a 999 radius spends its first ~pixels on the curve, and a 13px
+ * label at 8px sat on it. */
 const SIZE: Record<
   ButtonSize,
   { height: number; padX: number; gap: number; font: string; line: string }
 > = {
-  sm: { height: 24, padX: 8, gap: 4, font: "var(--type-meta)", line: "16px" },
+  sm: { height: 24, padX: 10, gap: 4, font: "var(--type-body)", line: "17px" },
   md: { height: 28, padX: 12, gap: 6, font: "var(--type-body)", line: "17px" },
   lg: { height: 32, padX: 14, gap: 6, font: "var(--type-body)", line: "17px" },
 };
@@ -89,7 +93,10 @@ export function Button({
         gap: s.gap,
         fontSize: s.font,
         lineHeight: s.line,
-        borderRadius: "var(--radius-control)",
+        /* Pill, at every size. decisions.md §2: "radius 999 for all of them".
+         * --radius-control (8px) was drift — IconButton already shipped 999,
+         * so the two primitives disagreed side by side. */
+        borderRadius: 999,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         width: fullWidth ? "100%" : "auto",

@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>The Reconciler Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B; --soft:#5A6771; --faint:#8D979E;
+    --ground:#F2F3EF; --surface:#FFFFFF; --rule:#D6DBD4;
+    --warn:#A93A26; --warn-bg:#F7E9E5;
+    --good:#2B6350; --good-bg:#E4EFE9;
+    --model:#5B4A8C; --model-bg:#EDEAF5;
+    --human:#8A5A1E; --human-bg:#F6EEDF;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+      --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+      --warn:#E2795F; --warn-bg:#2E1E1A;
+      --good:#74BC98; --good-bg:#16291F;
+      --model:#A99AD4; --model-bg:#231E33;
+      --human:#D9AE6B; --human-bg:#2B2316;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+    --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+    --warn:#E2795F; --warn-bg:#2E1E1A;
+    --good:#74BC98; --good-bg:#16291F;
+    --model:#A99AD4; --model-bg:#231E33;
+    --human:#D9AE6B; --human-bg:#2B2316;
+    --accent:#7DAAC6;
+  }
+
+  body{background:var(--ground);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased;}
+
+  .shell{max-width:1140px;margin:0 auto;padding-inline:20px;padding-block:44px 96px;
+    display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start;}
+  @media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr);gap:0;}}
+
+  /* nav */
+  nav{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 20px);font-size:.82rem;}
+  @media (max-width:900px){nav{position:static;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--rule);}}
+  nav .navlab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:12px;}
+  nav ol{list-style:none;margin:0;padding:0;display:grid;gap:7px;counter-reset:nv;}
+  nav li{counter-increment:nv;}
+  nav a{color:var(--soft);text-decoration:none;display:grid;grid-template-columns:1.5rem 1fr;gap:2px;line-height:1.35;}
+  nav a::before{content:counter(nv,decimal-leading-zero);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:9.5px;color:var(--faint);}
+  nav a:hover{color:var(--accent);}
+  nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  main{min-width:0;}
+  .eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0;}
+  h1{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(2rem,5.5vw,3rem);line-height:1.08;letter-spacing:-.015em;
+    text-wrap:balance;margin:.5rem 0 0;}
+  .standfirst{font-family:Spectral,Georgia,serif;font-size:clamp(1.05rem,2.4vw,1.26rem);
+    line-height:1.5;color:var(--soft);max-width:34em;margin:1.1rem 0 0;}
+
+  section{margin-top:76px;padding-top:28px;border-top:1px solid var(--rule);scroll-margin-top:24px;}
+  section.part{border-top:2px solid var(--ink);}
+  h2{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(1.5rem,3.6vw,2.05rem);line-height:1.14;letter-spacing:-.01em;
+    text-wrap:balance;margin:.35rem 0 0;}
+  h3{font-size:1.06rem;font-weight:600;margin:2.1rem 0 .4rem;}
+  h4{font-size:.96rem;font-weight:600;margin:1.5rem 0 .3rem;color:var(--soft);}
+  p{max-width:40em;}
+  p.lede{font-size:1.05rem;}
+  ul,ol.plain{max-width:40em;}
+  li{margin-bottom:.35rem;}
+  em.term{font-style:normal;font-weight:600;}
+
+  .callout{margin:1.8rem 0 0;padding:18px 20px;border-radius:3px;max-width:38em;
+    border:1px solid var(--rule);background:var(--surface);border-left:3px solid var(--accent);}
+  .callout.warn{border-color:var(--warn);border-left-color:var(--warn);background:var(--warn-bg);color:var(--warn);}
+  .callout.good{border-color:var(--good);border-left-color:var(--good);background:var(--good-bg);color:var(--good);}
+  .callout p{margin:0;}
+  .callout p + p{margin-top:.7rem;}
+
+  .pull{margin:2rem 0 0;padding-left:20px;border-left:3px solid var(--accent);
+    font-family:Spectral,Georgia,serif;font-size:1.18rem;line-height:1.45;max-width:32em;}
+
+  figure{margin:2.1rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;overflow:hidden;}
+  .scroller{overflow-x:auto;padding:22px;}
+  figure svg{display:block;width:100%;min-width:560px;height:auto;color:var(--ink);}
+  figcaption{padding:12px 22px 14px;border-top:1px solid var(--rule);
+    font-size:.85rem;line-height:1.5;color:var(--soft);}
+
+  .bx{fill:var(--surface);stroke:currentColor;stroke-opacity:.34;stroke-width:1;}
+  .bx-ghost{fill:none;stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:4 3;}
+  .bx-good{fill:var(--good-bg);stroke:var(--good);stroke-width:1;}
+  .bx-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1;}
+  .bx-model{fill:var(--model-bg);stroke:var(--model);stroke-width:1;}
+  .bx-human{fill:var(--human-bg);stroke:var(--human);stroke-width:1;}
+  .ln{stroke:currentColor;stroke-opacity:.45;stroke-width:1.2;fill:none;}
+  .ln-ghost{stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:4 3;fill:none;}
+  .ln-good{stroke:var(--good);stroke-width:1.4;fill:none;}
+  .ln-warn{stroke:var(--warn);stroke-width:1.4;fill:none;}
+  .ln-model{stroke:var(--model);stroke-width:1.4;fill:none;}
+  .div{stroke:currentColor;stroke-opacity:.16;stroke-width:1;}
+  .divide{stroke:currentColor;stroke-opacity:.3;stroke-width:1;stroke-dasharray:6 4;}
+  text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12.5px;fill:currentColor;}
+  .t-lab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;fill:var(--faint);}
+  .t-mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;}
+  .t-sm{font-size:11px;fill:var(--soft);}
+  .t-strong{font-weight:600;}
+
+  .tbl-wrap{margin:1.8rem 0 0;overflow-x:auto;background:var(--surface);
+    border:1px solid var(--rule);border-radius:4px;}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:.88rem;}
+  th{text-align:left;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.11em;text-transform:uppercase;color:var(--faint);font-weight:400;
+    padding:13px 16px 9px;border-bottom:1px solid var(--rule);vertical-align:bottom;}
+  td{padding:10px 16px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  tr:last-child td{border-bottom:0;}
+  td.num{font-family:"IBM Plex Mono",ui-monospace,monospace;text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap;}
+  tr.tot td{font-weight:600;border-top:1px solid var(--ink);}
+  tr.zero td{background:var(--good-bg);color:var(--good);font-weight:600;}
+
+  .prompt{margin:1.4rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-left:3px solid var(--model);border-radius:4px;}
+  .prompt .ph{padding:12px 18px 0;font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--model);}
+  .prompt pre{margin:0;padding:10px 18px 16px;overflow-x:auto;white-space:pre-wrap;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.2px;line-height:1.65;color:var(--ink);}
+
+  .qa{margin:1.6rem 0 0;display:grid;gap:1.3rem;max-width:42em;}
+  .qa .q{font-weight:600;margin-bottom:.35rem;}
+  .qa .a{color:var(--soft);}
+  .qa .a strong{color:var(--ink);font-weight:600;}
+  .qa > div{padding-bottom:1.3rem;border-bottom:1px solid var(--rule);}
+  .qa > div:last-child{border-bottom:0;}
+
+  .check{margin:1.5rem 0 0;padding:0;list-style:none;display:grid;gap:.7rem;max-width:40em;}
+  .check li{display:grid;grid-template-columns:auto 1fr;gap:.7rem;align-items:start;}
+  .check li::before{content:"";width:13px;height:13px;margin-top:.38rem;border-radius:2px;
+    border:1.5px solid var(--faint);}
+
+  .steps{margin:1.6rem 0 0;padding:0;list-style:none;counter-reset:st;display:grid;gap:1rem;max-width:40em;}
+  .steps li{counter-increment:st;display:grid;grid-template-columns:2.2rem 1fr;gap:.2rem;}
+  .steps li::before{content:counter(st,decimal-leading-zero);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;color:var(--faint);padding-top:.22rem;}
+  .steps strong{display:block;}
+
+  .sources{margin-top:2.4rem;padding-top:1.3rem;border-top:1px solid var(--rule);
+    font-size:.84rem;color:var(--soft);}
+  .sources ul{margin:.5rem 0 0;padding-left:1.1rem;}
+  .sources a{color:var(--accent);}
+  .signoff{margin-top:2rem;font-family:Spectral,Georgia,serif;font-size:1.12rem;
+    line-height:1.55;color:var(--soft);max-width:34em;}
+</style>
+
+</head>
+<body>
+<div class="shell">
+
+  <nav aria-label="Contents">
+    <div class="navlab">Contents</div>
+    <ol>
+      <li><a href="#frame">The honest frame</a></li>
+      <li><a href="#domain">Learn the domain</a></li>
+      <li><a href="#gaps">The eight gaps</a></li>
+      <li><a href="#intel">Where intelligence belongs</a></li>
+      <li><a href="#autonomy">Earning autonomy</a></li>
+      <li><a href="#system">The system model</a></li>
+      <li><a href="#data">Formats and fixture</a></li>
+      <li><a href="#prompts">Prompts for the build</a></li>
+      <li><a href="#story">The case study</a></li>
+      <li><a href="#demo">The walkthrough</a></li>
+      <li><a href="#order">Order of work</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <header>
+    <p class="eyebrow">Working document · September 2026</p>
+    <h1>The Reconciler playbook</h1>
+    <p class="standfirst">Everything from the teardown sessions in one place: the domain you need to hold in your head, the gaps and their fixes, the pivots we argued through, the prompts to drive the build, and the story to tell afterwards.</p>
+
+    <div class="callout">
+      <p><strong>How to use this.</strong> Part 2 is the only part you must actually learn — read it until you can explain the balance proof to someone cold. Parts 3 to 7 are design decisions to apply. Part 8 gives you prompts to paste into Claude Code. Parts 9 and 10 are presentation prep. Part 11 is the order I'd do it in.</p>
+    </div>
+  </header>
+
+  <!-- ============ 1 FRAME ============ -->
+  <section id="frame" class="part">
+    <p class="eyebrow">Part one</p>
+    <h2>The honest frame</h2>
+
+    <p class="lede">Before anything else, three facts that need settling, because each one is a trapdoor under the case study.</p>
+
+    <h3>What this project actually is</h3>
+    <p>It is a serious piece of <strong>AI product design</strong>: about 29,000 lines of interface, a state machine that models how close work proceeds, and hand-authored fixture data. There is no backend, no document parsing, no matching engine, no model, and no Yardi integration. Timed effects simulate the automation.</p>
+    <p>That is a legitimate artifact. What is not survivable is describing it as an engineering build — "three agents reconcile statements and post to Yardi" is a claim the artifact cannot cash, and a listener who goes looking for the machine finds a very good film of one. That mismatch is almost certainly why it lost.</p>
+
+    <div class="callout good">
+      <p><strong>The positioning that works:</strong> "I designed the contract between an autonomous system and the person who signs the close — what runs alone, what the system must prove, where a human decides, and how that decision changes the next run." Every word of that the artifact supports.</p>
+    </div>
+
+    <h3>The number that has to change</h3>
+    <p>Your demo claims a 96% first-pass match rate. Published guidance on Yardi's own automatic bank reconciliation puts typical auto-clear rates at <strong>60–80% after optimisation</strong>. You are twenty points above the incumbent on the same job, and the follow-up — "on what data?" — has no answer, because the figure came from a seed file.</p>
+    <p>Either label it illustrative and move it into the believable band, or reconcile the fixture month by hand and quote a real number with its source. A modest defensible number beats an impressive invented one. This is the cheapest credibility win on the list.</p>
+
+    <h3>The attribution</h3>
+    <p>Six of the twenty commits are authored by a colleague, including the one that added the portfolio material, and the repo sits under their home folder. If that's a collaborator, name them in the case study — collaborative work is normal and claiming it solo is the only failure. If it's a shared machine with a misconfigured git identity, fix it now. A recruiter who clones this runs the log.</p>
+
+    <div class="callout warn">
+      <p><strong>And the one that matters most.</strong> Much of the existing portfolio material — and everything in this document — was drafted with AI. That is fine and normal. What is not survivable is carrying into an interview a document you cannot defend. If a page cites the ironies of automation and you can't explain what that means, the whole document becomes evidence against you and takes the good work down with it.</p>
+      <p>Everything here becomes yours at the moment you can explain it cold, without notes. Until then it is borrowed. Part 2 is where that work happens.</p>
+    </div>
+  </section>
+
+  <!-- ============ 2 DOMAIN ============ -->
+  <section id="domain" class="part">
+    <p class="eyebrow">Part two · learn this properly</p>
+    <h2>The domain</h2>
+
+    <p class="lede">Every design decision downstream comes from one idea. Hold this and the rest follows.</p>
+
+    <div class="pull">Reconciliation is not comparing two lists of transactions. It is proving that two balances agree, and that every difference between them is explained.</div>
+
+    <p style="margin-top:1.6rem">The bank's record and your books are <em>supposed</em> to disagree at month end. A cheque written on the 28th hasn't cleared. A deposit banked on the 31st lands on the 1st. The bank charged a fee you haven't entered yet. None of that is an error — it's the normal gap between two systems observing the same money at different moments.</p>
+    <p>The job is to account for every part of that gap, in writing, until nothing is left over.</p>
+
+    <h3>The balance proof</h3>
+    <p>This is the whole job on one screen. These figures come from the fixture in Part 7 — they're real, they tie, and you should be able to rebuild this from memory.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="A reconciliation ladder: bank balance less outstanding cheques plus deposits in transit gives the adjusted bank balance; the book balance plus four correcting entries gives the same figure, leaving zero unexplained.">
+        <text class="t-lab" x="0" y="12">THE PROOF · MAY 2026 · OPERATING ACCOUNT</text>
+        <line class="div" x1="0" y1="22" x2="640" y2="22"/>
+
+        <text class="t-sm" x="0" y="48">Bank statement balance, 31 May</text>
+        <text class="t-mono" x="628" y="48" text-anchor="end">301,980.10</text>
+        <text class="t-sm" x="0" y="74">Less cheques written but not yet cleared (4)</text>
+        <text class="t-mono" x="628" y="74" text-anchor="end">(18,450.50)</text>
+        <text class="t-sm" x="0" y="100">Plus deposit banked but not yet landed (1)</text>
+        <text class="t-mono" x="628" y="100" text-anchor="end">9,315.00</text>
+        <line class="div" x1="0" y1="114" x2="628" y2="114"/>
+        <text class="t-strong" x="0" y="136">Adjusted bank balance</text>
+        <text class="t-mono t-strong" x="628" y="136" text-anchor="end">292,844.60</text>
+
+        <text class="t-sm" x="0" y="176">Balance in the books, 31 May</text>
+        <text class="t-mono" x="628" y="176" text-anchor="end">289,944.00</text>
+        <text class="t-sm" x="0" y="200">Plus a payout the bank received, never entered</text>
+        <text class="t-mono" x="628" y="200" text-anchor="end">4,318.42</text>
+        <text class="t-sm" x="0" y="222">Less a returned rent payment and its fee</text>
+        <text class="t-mono" x="628" y="222" text-anchor="end">(1,275.00)</text>
+        <text class="t-sm" x="0" y="244">Less a bank service charge, plus interest earned</text>
+        <text class="t-mono" x="628" y="244" text-anchor="end">(142.82)</text>
+        <line class="div" x1="0" y1="256" x2="628" y2="256"/>
+        <text class="t-strong" x="0" y="278">Adjusted book balance</text>
+        <text class="t-mono t-strong" x="628" y="278" text-anchor="end">292,844.60</text>
+
+        <rect class="bx-good" x="0" y="286" width="628" height="2"/>
+      </svg>
+      </div>
+      <figcaption>Two routes to the same number. When both sides land on the same figure, the month is proven and nothing is unexplained.</figcaption>
+    </figure>
+
+    <p style="margin-top:1.5rem">Read it as two journeys meeting. From the bank's side you remove what the bank hasn't seen yet. From your books' side you add what your books haven't recorded yet. If they meet, everything is accounted for. If they don't, something is genuinely wrong and the gap is the size of the problem.</p>
+
+    <h3>The insight that makes you sound like you know this</h3>
+    <div class="callout warn">
+      <p><strong>Balance is not evidence of correctness.</strong> If Tenant A paid $1,200 and Tenant B paid $1,200, and the system swaps them, the totals still tie perfectly. The proof still reaches zero. Two tenant records are now wrong, one gets a late notice, and nobody finds out until someone disputes it.</p>
+      <p>A matching engine can be 100% balanced and substantially wrong. This is the single most important thing to understand about the domain, and saying it unprompted marks you as someone who has thought about the work rather than the interface.</p>
+    </div>
+
+    <h3>The vocabulary</h3>
+
+    <h4>Outstanding cheque</h4>
+    <p>Written and recorded in your books, not yet presented to the bank. Completely normal. Must carry forward month after month until it clears — and if it's still there after 90 days it's <em class="term">stale-dated</em> and becomes its own problem.</p>
+
+    <h4>Deposit in transit</h4>
+    <p>Banked by you, not yet showing on the statement. The mirror image. Also normal, also carries forward.</p>
+
+    <h4>Returned item / NSF</h4>
+    <p>Non-sufficient funds — a tenant's payment bounced. The bank shows the original deposit, then a reversal days later, usually with a fee. Your books show one payment and think the rent was paid. Extremely common in property management, and the most embarrassing thing for a system to get wrong, because it tells a manager a tenant paid when they didn't — which cascades into late fees and eviction timelines.</p>
+
+    <h4>Book reconciling item vs bank reconciling item</h4>
+    <p>Yardi's own vocabulary, worth using. A <em class="term">book</em> item means your ledger is wrong and needs an entry — fees, interest, the bounced payment. A <em class="term">bank</em> item means the bank made an error. Using the customer's words rather than inventing your own is free credibility.</p>
+
+    <h4>Period close</h4>
+    <p>Accounting periods lock. Once May is closed you cannot post into May; you post a correcting entry into June. A system that doesn't know periods close will either fail loudly or, worse, land money somewhere it shouldn't.</p>
+
+    <h4>Trust accounting</h4>
+    <p>In property management, security deposits are frequently <strong>legally segregated funds</strong>, with rules that vary by jurisdiction. Mixing them with operating cash is a regulatory matter, not a bug. Saying "I scoped this to operating accounts because trust accounting has statutory requirements I wasn't equipped to guarantee" converts a limitation into evidence of judgement. Take that win.</p>
+
+    <h3>Test yourself</h3>
+    <p>You've got this when you can answer these without looking:</p>
+    <ul class="check">
+      <li>Why should a bank statement and a ledger disagree at month end, and what are the two main reasons?</li>
+      <li>Walk the balance proof out loud, both journeys, in under a minute.</li>
+      <li>Why can a reconciliation tie to zero and still be wrong?</li>
+      <li>What is an NSF, and why is $1,200 on the bank against $1,275 in the books usually not a mismatch at all?</li>
+      <li>What's the difference between a book reconciling item and a bank one?</li>
+      <li>Why does an outstanding cheque break a design that treats each month as two files in, one result out?</li>
+    </ul>
+  </section>
+
+  <!-- ============ 3 GAPS ============ -->
+  <section id="gaps" class="part">
+    <p class="eyebrow">Part three</p>
+    <h2>The eight gaps</h2>
+    <p class="lede">Each is a design decision with a consequence for whoever builds it. All eight would still be wrong if the backend existed. Ordered by severity — the first is structural and fixing it makes three others easier.</p>
+
+    <h3>1 · The reviewer can't fix a match</h3>
+    <p><strong>Now.</strong> When the system is unsure it says "two possible matches, can't choose." The only buttons are approve and flag. The candidates exist only as words in a note — nothing to click.</p>
+    <p><strong>Why it hurts.</strong> Choosing when the machine is unsure is the most common human action in this job. The product asks the question and gives nowhere to answer it.</p>
+    <p><strong>Fix.</strong> Make a match a real object with two sides — a bank side and a ledger side that can hold more than one row. The candidates become selectable and one click resolves it.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 400" role="img" aria-label="Today the record stores one side only and the two candidate ledger rows float outside it unselectable. Fixed, one match holds both sides and the reviewer picks the right candidate.">
+        <text class="t-lab" x="0" y="10">TODAY</text>
+        <line class="div" x1="0" y1="20" x2="640" y2="20"/>
+
+        <rect class="bx" x="212" y="34" width="190" height="96" rx="3"/>
+        <text class="t-lab" x="226" y="54">WHAT IS STORED</text>
+        <text x="226" y="76" class="t-strong">Refund #4912 · −$210.00</text>
+        <text class="t-sm" x="226" y="98">2 candidates · ambiguous</text>
+        <text class="t-sm" x="226" y="118">confidence 48%</text>
+
+        <rect class="bx" x="212" y="142" width="88" height="27" rx="3"/>
+        <text x="235" y="160" class="t-sm">Approve</text>
+        <rect class="bx" x="308" y="142" width="88" height="27" rx="3"/>
+        <text x="340" y="160" class="t-sm">Flag</text>
+
+        <rect class="bx-ghost" x="452" y="42" width="176" height="36" rx="3"/>
+        <text class="t-sm" x="464" y="65">Ledger row 142 · −$210.00</text>
+        <rect class="bx-ghost" x="452" y="90" width="176" height="36" rx="3"/>
+        <text class="t-sm" x="464" y="113">Ledger row 154 · −$210.00</text>
+        <path class="ln-ghost" d="M402 80 L452 60"/>
+        <path class="ln-ghost" d="M402 92 L452 108"/>
+        <text class="t-sm" x="452" y="148" fill="var(--warn)">Nothing here can be clicked</text>
+
+        <line class="div" x1="0" y1="190" x2="640" y2="190"/>
+        <text class="t-lab" x="0" y="218">FIXED</text>
+
+        <rect class="bx-good" x="0" y="234" width="628" height="150" rx="4"/>
+        <text class="t-lab" x="18" y="258" fill="var(--good)">ONE MATCH · TWO SIDES</text>
+        <text class="t-sm" x="18" y="284">Bank side</text>
+        <text x="18" y="306">Line 88 · Refund #4912</text>
+        <text class="t-mono" x="18" y="325">−$210.00</text>
+        <line class="div" x1="246" y1="268" x2="246" y2="366"/>
+        <text class="t-sm" x="270" y="284">Ledger side — choose one</text>
+        <circle cx="280" cy="304" r="6" fill="var(--good)"/>
+        <circle cx="280" cy="304" r="2.2" fill="var(--good-bg)"/>
+        <text x="296" y="308">Row 142 · −$210.00 · ref 4912</text>
+        <circle cx="280" cy="330" r="6" fill="none" stroke="currentColor" stroke-opacity=".45"/>
+        <text x="296" y="334">Row 154 · −$210.00 · ref 4913</text>
+        <rect x="270" y="348" width="132" height="26" rx="3" fill="var(--good)"/>
+        <text x="288" y="366" fill="var(--good-bg)" class="t-strong" font-size="11.5">Confirm match</text>
+      </svg>
+      </div>
+      <figcaption>And the choice isn't cosmetic — whichever row the reviewer doesn't pick becomes an outstanding item carried into next month.</figcaption>
+    </figure>
+
+    <h3>2 · Two buckets can't hold a normal month</h3>
+    <p><strong>Now.</strong> Everything is either approved or flagged as a problem.</p>
+    <p><strong>Why it hurts.</strong> An uncleared cheque matches nothing and is completely normal. With two piles it must be called a problem. Once half the flags turn out to be nothing, nobody trusts the flag, and the product stops working.</p>
+    <p><strong>Fix.</strong> Five outcomes: matched · only on the bank · only in the ledger · will clear soon (normal timing) · needs fixing.</p>
+
+    <h3>3 · Problems have nowhere to go</h3>
+    <p><strong>Now.</strong> A reviewer can move items between piles and leave a comment. That's the toolkit.</p>
+    <p><strong>Why it hurts.</strong> Bank says $1,200, books say $1,275. Moving it to approved doesn't make the $75 vanish — and the system then sends it onward as approved. The product creates the feeling of finishing without the substance.</p>
+    <p><strong>Fix.</strong> Four resolution actions, each visibly changing a number: accept as normal timing · correct the match · add a correcting entry · set aside with a reason. Approve is never the answer to a real difference.</p>
+
+    <h3>4 · The proof the month is closed is missing</h3>
+    <p><strong>Now.</strong> Counts, percentages and a "tied" label — which is a seeded string, not a calculation. No balances anywhere in the model.</p>
+    <p><strong>Why it hurts.</strong> That view is the entire reason reconciliation exists, and it's what gets signed. Without it the product is a clever sorting tool.</p>
+    <p><strong>Fix.</strong> The ladder from Part 2, ending in <strong>how much is still unexplained</strong>. When it hits zero the month is done. This is your highest-value single addition.</p>
+
+    <h3>5 · A bounced payment is treated as a mystery</h3>
+    <p><strong>Now.</strong> Your own sample data contains a returned tenant payment, reported as "amounts don't match, $1,200 versus $1,275."</p>
+    <p><strong>Why it hurts.</strong> The $75 is the bank's return fee. $1,200 plus $75 <em>is</em> $1,275 — the two figures were never in conflict. The design labelled a routine event as a red flag because it has no concept that bounced payments exist. An accountant spots this in seconds.</p>
+    <p><strong>Fix.</strong> Recognise known patterns by name and show the parts as one linked event, netting to zero, with the note that the tenant now owes rent.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 210" role="img" aria-label="The three parts of a bounced payment shown as one linked event: the original payment, the return, and the fee, netting to zero.">
+        <rect class="bx-good" x="0" y="10" width="628" height="186" rx="4"/>
+        <text x="22" y="40" class="t-strong" fill="var(--good)">Payment returned · unit 308</text>
+        <text class="t-sm" x="22" y="60" fill="var(--good)">A known pattern: a returned payment and the bank's fee for it.</text>
+
+        <circle cx="34" cy="90" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="94">3 May · tenant paid</text>
+        <text class="t-mono" x="606" y="94" text-anchor="end">+1,275.00</text>
+        <circle cx="34" cy="118" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="122">20 May · bank returned it</text>
+        <text class="t-mono" x="606" y="122" text-anchor="end">−1,200.00</text>
+        <circle cx="34" cy="146" r="3.5" fill="var(--good)"/>
+        <text class="t-sm" x="50" y="150">20 May · return fee charged</text>
+        <text class="t-mono" x="606" y="150" text-anchor="end">−75.00</text>
+        <line class="div" x1="22" y1="162" x2="606" y2="162"/>
+        <text class="t-sm t-strong" x="22" y="184">Net effect · and the tenant now owes rent</text>
+        <text class="t-mono t-strong" x="606" y="184" text-anchor="end">0.00</text>
+      </svg>
+      </div>
+      <figcaption>Make this the headline example in the case study. It is the clearest proof that a design decision and a domain decision are the same decision.</figcaption>
+    </figure>
+
+    <h3>6 · Every month starts from nothing</h3>
+    <p><strong>Now.</strong> Two files in, compare, done. Next month, two new files, fresh start.</p>
+    <p><strong>Why it hurts.</strong> A cheque written on 28 March may not clear until May. It must stay visible with its age until it does. Right now it disappears.</p>
+    <p><strong>Fix.</strong> Carry unfinished items forward with age. This has the largest effect on whoever builds it — the product becomes "a running record per bank account", not "compare two files". Get this wrong in the design and the engineer builds the wrong database.</p>
+
+    <h3>7 · The one step that can't fail is the dangerous one</h3>
+    <p><strong>Now.</strong> Reading files has a failure state. Sending to the accounting system only succeeds.</p>
+    <p><strong>Why it hurts.</strong> Backwards. Reading is safe and repeatable; writing permanently changes something. If it stops halfway, some records are in and some aren't and nobody knows which. It also contradicts your own case study, which argues this step deserves the strongest protection.</p>
+    <p><strong>Fix.</strong> A half-finished state ("40 of 60 sent"), a retry that cannot send anything twice, and a visible undo. The undo is the strongest trust feature in the product.</p>
+
+    <h3>8 · One percentage, two meanings</h3>
+    <p><strong>Now.</strong> The same confidence figure sits on approved and flagged items.</p>
+    <p><strong>Why it hurts.</strong> "How sure is this match" and "how unusual is this transaction" need opposite responses, and the reader can't tell which they're looking at.</p>
+    <p><strong>Fix.</strong> Name the question in words beside the number. Note that Part 4 dissolves this at the root: once matching is rule-based, certainty becomes a fact — which rule fired, how many candidates — not a feeling.</p>
+  </section>
+
+  <!-- ============ 4 INTELLIGENCE ============ -->
+  <section id="intel" class="part">
+    <p class="eyebrow">Part four</p>
+    <h2>Where intelligence belongs</h2>
+    <p class="lede">Counter-intuitively, the fixes shrink the AI's territory — and make what's left far easier to defend.</p>
+
+    <div class="pull">The model never decides what is true. It decides what to read, and what to say.</div>
+
+    <h3>The dividing line</h3>
+    <p>If a controller must be able to re-run a step and get the identical answer, and defend it to an auditor, <strong>a model cannot do it</strong>. If the input is messy human language and the output is a sentence for a person to read, <strong>a model is the only sensible tool</strong>. Four questions place any step:</p>
+    <ul>
+      <li>Would two runs on the same files have to give the same answer? → rules</li>
+      <li>Does the output get signed, or land in the accounting system? → rules</li>
+      <li>Is the input a scanned page, a layout nobody agreed on, free text? → model</li>
+      <li>Is the output a sentence written for a person? → model</li>
+    </ul>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 300" role="img" aria-label="Reading and explaining sit above the reproducibility line as model work; matching, the balance proof and posting sit below it as rules-only work.">
+        <text class="t-lab" x="0" y="12" fill="var(--model)">MESSY LANGUAGE · A MODEL BELONGS HERE</text>
+        <rect class="bx-model" x="0" y="28" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="52" fill="var(--model)">Reader</text>
+        <text class="t-sm" x="14" y="70" fill="var(--model)">makes sense of the files</text>
+        <rect class="bx-model" x="320" y="28" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="334" y="52" fill="var(--model)">Explainer</text>
+        <text class="t-sm" x="334" y="70" fill="var(--model)">names and ranks doubts</text>
+
+        <line class="divide" x1="0" y1="118" x2="640" y2="118"/>
+        <text class="t-lab" x="0" y="112">— — — the line: must this be reproducible? — — —</text>
+        <text class="t-lab" x="0" y="150" fill="var(--good)">ARITHMETIC AND AUDIT · NEVER A MODEL</text>
+
+        <rect class="bx-good" x="160" y="166" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="174" y="190" fill="var(--good)">Matcher</text>
+        <text class="t-sm" x="174" y="208" fill="var(--good)">pairs rows by stated rules</text>
+        <rect class="bx-good" x="320" y="240" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="334" y="264" fill="var(--good)">Balance proof</text>
+        <text class="t-sm" x="334" y="282" fill="var(--good)">pure arithmetic</text>
+        <rect class="bx-good" x="480" y="166" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="494" y="190" fill="var(--good)">Poster</text>
+        <text class="t-sm" x="494" y="208" fill="var(--good)">writes to the books</text>
+        <rect class="bx-human" x="160" y="240" width="150" height="56" rx="3"/>
+        <text class="t-sm t-strong" x="174" y="264" fill="var(--human)">Person</text>
+        <text class="t-sm" x="174" y="282" fill="var(--human)">decides and signs</text>
+
+        <path class="ln-model" d="M150 56 L232 56 L232 162" marker-end="url(#pm)"/>
+        <path class="ln-good" d="M310 194 L394 194 L394 90" marker-end="url(#pg)"/>
+        <path class="ln-model" d="M360 84 L280 236" marker-end="url(#pm)"/>
+        <defs>
+          <marker id="pm" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--model)"/></marker>
+          <marker id="pg" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--good)"/></marker>
+        </defs>
+      </svg>
+      </div>
+      <figcaption>The model is at the edges — where documents come in and where words go out. Everything touching money is rules.</figcaption>
+    </figure>
+
+    <h3>Four jobs, two of them not intelligent at all</h3>
+
+    <h4>Reader — model, checked</h4>
+    <p>Turns statements and ledger exports into clean rows. A model earns this: there are roughly 8,900 banks in the US and a small property owner is likelier to bank with a local one, so no set of templates survives.</p>
+    <p><strong>The guard that makes it safe:</strong> every statement states its own opening balance, closing balance and totals. The extracted rows must reproduce them. If they don't, the read failed and the run stops. The document grades the Reader's homework. <em>A step that can prove it did its job is worth ten steps that report a confidence score.</em></p>
+
+    <h4>Matcher — no model at all</h4>
+    <p>Pairs rows by a written ladder of rules: same amount same day → same amount within N days → amount plus reference → one deposit against several rows summing to it. This is the step where being wrong costs money and "why did these match?" needs an auditable answer.</p>
+    <p>Bonus: because it's rules, you can <strong>test</strong> it against a month someone closed by hand. That's how you get an honest accuracy number.</p>
+
+    <h4>Explainer — model, no authority</h4>
+    <p>Names the likely pattern, ranks the candidates, writes the one-line reason. Proposes; never commits. A pattern is only shown as fact once a rule confirms it — "bounced payment" appears only if the original payment is found and the amounts add up.</p>
+
+    <h4>Poster — no model at all</h4>
+    <p>Sends entries one at a time, each tagged so sending twice is impossible. Nothing here is a judgement. The most consequential step in the product is the least intelligent, and those facts are related.</p>
+
+    <div class="callout">
+      <p><strong>Rules are data. Prompts are code.</strong> A prompt is an instruction a model may or may not follow; you can't test it per customer or reconstruct why last March went the way it did. Guardrails that matter belong in code: "never post to a closed period", "never auto-approve above $500", "never create an entry without a reason". A prompt shapes behaviour; a guardrail prevents outcomes. Only one is a control.</p>
+    </div>
+
+    <h3>On naming</h3>
+    <p>Stop calling it three agents. It is a workflow with intelligent steps, not a team of agents making plans — and the precise claim is more credible than the vague one. Name the lanes after the work: Reading, Matching, Reviewing, Posting. And mark how each result was decided: <strong>"calculated, not estimated"</strong> on the balance proof is a genuine trust feature. Right now the product hides its most trustworthy quality behind a shimmer.</p>
+  </section>
+
+  <!-- ============ 5 AUTONOMY ============ -->
+  <section id="autonomy" class="part">
+    <p class="eyebrow">Part five · the pivot we argued through</p>
+    <h2>Earning autonomy</h2>
+
+    <p class="lede">The goal is a system that starts needing a person constantly and ends needing them for thirty seconds a month. That's achievable. One claim inside it isn't.</p>
+
+    <h3>You can remove the second human. You cannot remove the second party.</h3>
+    <p>Separating preparation from approval isn't bureaucracy — it's a control that exists because the party making a change must not be the only party verifying it. But it does <strong>not</strong> require two people. <em>AI prepares, human approves</em> satisfies it cleanly, and is a stronger design than one person doing both. You've accidentally improved the control by adding the machine.</p>
+    <p>What can't happen is closing the loop entirely, and the reason isn't regulatory theatre: <strong>an AI cannot be accountable.</strong> When someone asks who signed this reconciliation, the answer has to be a person — not because a rule says so, but because accountability is what makes anyone take care.</p>
+
+    <div class="callout good">
+      <p><strong>The argument that should settle it.</strong> If the AI does everything and produces a proof that ties to zero, the human opens it, sees "unexplained: $0.00", and approves. That takes fifteen seconds.</p>
+      <p>Remove the click and you save fifteen seconds a month — and give up the audit answer, the last place errors surface, your entire trust story with a finance buyer, and the ability to sell to anyone whose auditor asks about controls. <strong>The last 1% of autonomy costs the whole product and saves fifteen seconds.</strong> That's a business argument, not a compliance one.</p>
+    </div>
+
+    <h3>"Once confidence is built" — built how?</h3>
+    <p>This is the soft spot. The system agreeing with itself is not evidence. The reviewer not objecting is not evidence either — reviewers stop objecting when they stop looking closely, which is exactly what happens as things start working.</p>
+    <p>Real confidence needs three independent measurements: back-testing against months reconciled by hand, deliberate sampling of work nobody flagged, and a count of errors found afterwards. <strong>Design the evidence before you design the autonomy</strong> — otherwise you'll graduate precisely the patterns you've stopped watching.</p>
+
+    <h3>The trap that would actually get you</h3>
+    <div class="callout warn">
+      <p><strong>The pattern you automate is the pattern that stops being watched.</strong> If the reviewer only sees flagged items, nobody looks at normal cases at all — so the system's failures on normal cases become structurally invisible. Not rare. Invisible.</p>
+      <p>And remember: two wrong matches of equal amounts net to zero. The proof still reaches zero. The system reports a clean month while being quietly wrong, and can run like that for months.</p>
+      <p>So the design answer is uncomfortable and correct: <strong>sampling scales up as autonomy increases, not down.</strong> The more the machine does alone, the more deliberately you check work nobody flagged, because that's the only place errors can still surface.</p>
+    </div>
+
+    <h3>The ladder</h3>
+    <p>Autonomy isn't one dial on the whole system. It's a ladder that <strong>individual patterns</strong> climb with evidence, and fall down automatically.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 400" role="img" aria-label="Four rungs of autonomy for a single pattern, each with its evidence requirement, with automatic demotion when override rate rises, and a list of patterns that can never climb.">
+        <text class="t-lab" x="0" y="12">ONE PATTERN · "BANK ANALYSIS FEE, THIS PROPERTY, UNDER $200"</text>
+        <line class="div" x1="0" y1="22" x2="640" y2="22"/>
+
+        <rect class="bx" x="0" y="36" width="440" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="56">1 · Observed</text>
+        <text class="t-sm" x="14" y="73" fill="var(--faint)">human decides every time · system watches and counts</text>
+        <text class="t-mono" x="628" y="64" text-anchor="end" fill="var(--faint)">seen 12×</text>
+
+        <rect class="bx" x="0" y="90" width="440" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="110">2 · Proposed</text>
+        <text class="t-sm" x="14" y="127" fill="var(--faint)">system suggests · human confirms · agreement rate measured</text>
+        <text class="t-mono" x="628" y="118" text-anchor="end" fill="var(--faint)">agrees 96%</text>
+
+        <rect class="bx-human" x="0" y="144" width="440" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="164" fill="var(--human)">3 · Provisional</text>
+        <text class="t-sm" x="14" y="181" fill="var(--human)">system decides · human reviews afterwards · sampled heavily</text>
+        <text class="t-mono" x="628" y="172" text-anchor="end" fill="var(--human)">sample 50%</text>
+
+        <rect class="bx-good" x="0" y="198" width="440" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="218" fill="var(--good)">4 · Autonomous</text>
+        <text class="t-sm" x="14" y="235" fill="var(--good)">system decides · sampled at a fixed rate, forever</text>
+        <text class="t-mono" x="628" y="226" text-anchor="end" fill="var(--good)">sample 10%</text>
+
+        <path class="ln-good" d="M456 59 L456 60 M468 56 L468 236" stroke-dasharray="3 3"/>
+        <path class="ln-warn" d="M452 226 L452 70" marker-end="url(#aw)"/>
+        <text class="t-sm" x="474" y="140" fill="var(--warn)">override rate rises</text>
+        <text class="t-sm" x="474" y="156" fill="var(--warn)">→ falls a rung</text>
+        <text class="t-sm" x="474" y="172" fill="var(--warn)">by itself</text>
+
+        <line class="div" x1="0" y1="278" x2="640" y2="278"/>
+        <text class="t-lab" x="0" y="304" fill="var(--warn)">PATTERNS THAT CAN NEVER CLIMB</text>
+
+        <rect class="bx-warn" x="0" y="318" width="204" height="62" rx="3"/>
+        <text class="t-sm" x="14" y="340" fill="var(--warn)">Ambiguous matches</text>
+        <text class="t-sm" x="14" y="358" fill="var(--warn)">by definition the system</text>
+        <text class="t-sm" x="14" y="373" fill="var(--warn)">doesn't know</text>
+
+        <rect class="bx-warn" x="212" y="318" width="204" height="62" rx="3"/>
+        <text class="t-sm" x="226" y="340" fill="var(--warn)">Security deposits</text>
+        <text class="t-sm" x="226" y="358" fill="var(--warn)">legally segregated</text>
+        <text class="t-sm" x="226" y="373" fill="var(--warn)">funds</text>
+
+        <rect class="bx-warn" x="424" y="318" width="204" height="62" rx="3"/>
+        <text class="t-sm" x="438" y="340" fill="var(--warn)">The final write</text>
+        <text class="t-sm" x="438" y="358" fill="var(--warn)">irreversible · always</text>
+        <text class="t-sm" x="438" y="373" fill="var(--warn)">a person signs</text>
+
+        <defs><marker id="aw" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><polygon points="0 0, 7 3.5, 0 7" fill="var(--warn)"/></marker></defs>
+      </svg>
+      </div>
+      <figcaption>Automatic demotion is what separates progressive autonomy from progressive complacency. Without it the ladder is a one-way ratchet.</figcaption>
+    </figure>
+
+    <p style="margin-top:1.5rem">Three things make this safe. <strong>Demotion is automatic</strong> — a pattern whose override rate rises falls back without anyone noticing and intervening. <strong>Some patterns never climb</strong>, and naming the permanent exclusions is what makes the rest credible. <strong>The final write never climbs</strong>; everything below it does.</p>
+
+    <h3>What the human does, once roles are gone</h3>
+    <p>One person. Three distinct kinds of involvement, and conflating them is the mistake:</p>
+    <ul>
+      <li><strong>Decide</strong> — only the person can settle it. Picking between two candidates.</li>
+      <li><strong>Authorise</strong> — the system decided; the person accepts the consequences. The screen's job here is to make consequences plain, not to make them think.</li>
+      <li><strong>Sample</strong> — deliberately checking work nobody flagged. Grows as autonomy grows.</li>
+    </ul>
+    <p>The end state is not "no human". It's a person who signs a proven package in thirty seconds instead of working exceptions for three hours. <strong>That is AI-native</strong> — it's just honest about where the signature lives.</p>
+
+    <div class="callout">
+      <p><strong>The sentence to use:</strong> "I designed a system that earns autonomy one pattern at a time, with evidence, and gives it back automatically when it stops deserving it." That's far stronger than "eventually the AI does it all", and it's the kind of thing an interviewer repeats back to a colleague.</p>
+    </div>
+  </section>
+
+  <!-- ============ 6 SYSTEM ============ -->
+  <section id="system" class="part">
+    <p class="eyebrow">Part six</p>
+    <h2>The system model</h2>
+
+    <h3>Two worlds, not one</h3>
+    <p>Properties and accounts are a <strong>standing world</strong> that changes on rare events — a refinance, a new escrow account, a sale. Periods and reconciliations are a <strong>moving world</strong> created each cycle and frozen afterwards as a record. Mixing them is what makes products like this confusing to use and painful to build.</p>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 340" role="img" aria-label="Two hierarchies side by side, standing and moving, touching at open items and rules.">
+        <text class="t-lab" x="0" y="12">STANDING · CHANGES RARELY</text>
+        <text class="t-lab" x="368" y="12">MOVING · CREATED EACH CYCLE</text>
+        <line class="divide" x1="330" y1="0" x2="330" y2="230"/>
+
+        <rect class="bx" x="0" y="26" width="290" height="26" rx="3"/><text class="t-sm" x="12" y="44">Organisation</text>
+        <rect class="bx" x="16" y="58" width="274" height="26" rx="3"/><text class="t-sm" x="28" y="76">Owner · portfolio</text>
+        <rect class="bx" x="32" y="90" width="258" height="26" rx="3"/><text class="t-sm" x="44" y="108">Legal entity</text>
+        <rect class="bx" x="48" y="122" width="242" height="26" rx="3"/><text class="t-sm" x="60" y="140">Property</text>
+        <rect class="bx-good" x="64" y="154" width="226" height="32" rx="3"/>
+        <text class="t-sm t-strong" x="76" y="175" fill="var(--good)">Bank account · with its ledger line</text>
+        <rect class="bx-warn" x="0" y="198" width="140" height="30" rx="3"/><text class="t-sm" x="12" y="218" fill="var(--warn)">Rules</text>
+
+        <rect class="bx" x="368" y="26" width="272" height="26" rx="3"/><text class="t-sm" x="380" y="44">Accounting period · May 2026</text>
+        <rect class="bx-good" x="384" y="58" width="256" height="32" rx="3"/>
+        <text class="t-sm t-strong" x="396" y="79" fill="var(--good)">Reconciliation · one account, one period</text>
+        <rect class="bx" x="400" y="96" width="240" height="26" rx="3"/><text class="t-sm" x="412" y="114">Statement lines · ledger lines</text>
+        <rect class="bx" x="416" y="128" width="224" height="26" rx="3"/><text class="t-sm" x="428" y="146">Matches → exceptions → resolutions</text>
+        <rect class="bx" x="432" y="160" width="208" height="26" rx="3"/><text class="t-sm" x="444" y="178">Balance proof</text>
+        <rect class="bx" x="448" y="192" width="192" height="26" rx="3"/><text class="t-sm" x="460" y="210">Posted entries</text>
+
+        <line class="div" x1="0" y1="250" x2="640" y2="250"/>
+        <text class="t-lab" x="0" y="274">WHERE THEY TOUCH — THE INTERESTING PART</text>
+        <rect class="bx-good" x="0" y="288" width="300" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="14" y="308" fill="var(--good)">Open items</text>
+        <text class="t-sm" x="14" y="325" fill="var(--good)">belong to the account, not the month</text>
+        <rect class="bx-warn" x="330" y="288" width="310" height="46" rx="3"/>
+        <text class="t-sm t-strong" x="344" y="308" fill="var(--warn)">Rules</text>
+        <text class="t-sm" x="344" y="325" fill="var(--warn)">read by every run · changed by corrections</text>
+      </svg>
+      </div>
+      <figcaption>Open items and rules are the only two things that live on the left and are changed from the right. Design those carefully and the rest is bookkeeping.</figcaption>
+    </figure>
+
+    <h3>The hierarchy bug: a session is a package, not a unit</h3>
+    <p>Your session covers one property and holds four bank accounts — but a session never ties out. <strong>Each account ties out separately.</strong> So the unit of work is one account for one month; the property-level thing above it is a package that completes when all its accounts do.</p>
+    <p>That's what lets the product say "three of four accounts proven, here's the fourth and why" instead of one badge that can only be right or wrong.</p>
+
+    <h3>Feedback: one correction, four destinations</h3>
+    <p>You currently have one channel — a correction becomes a written rule. Four genuinely different things are being collapsed into it:</p>
+    <ol class="plain">
+      <li><strong>A local rule</strong> — true at this property. Owned by the customer, live in minutes.</li>
+      <li><strong>A pattern</strong> — true for everyone (bounced payments are not property-specific). Owned by your team, ships in a release.</li>
+      <li><strong>A test case</strong> — a labelled example of the system being wrong. <em>The one almost nobody builds, and the only honest way to answer "is it getting better?"</em></li>
+      <li><strong>An engineering change</strong> — rare, reviewed, never automatic.</li>
+    </ol>
+
+    <h4>A rule has a life, not just a birth</h4>
+    <p>Proposed → previewed against last month ("this would have changed 14 items, $3,120") → approved → active, scoped, dated, owned, with an expiry → measured every cycle. A rule overridden often is wrong; a rule that stops firing is dead. Surface contradicting rules at approval time. <strong>Automation goes wrong quietly, through rules nobody remembers writing.</strong></p>
+
+    <h4>The loop runs both ways</h4>
+    <p>Almost every design forgets the return journey. Tell people what their correction did: <em>"the rule you approved in April has matched 31 items since, and been overridden twice."</em> Cheapest trust-building feature in the product.</p>
+
+    <h3>Observability: one record, three audiences, three units</h3>
+    <p>Your dashboard shows an accountant that 1.24 million tokens were used. They don't know what a token is. That's not a placement mistake — it's one view where you need three, each reading the same run record in the unit they think in: <strong>minutes</strong> for the accountant, <strong>dollars per reconciliation</strong> for the buyer, <strong>tokens and seconds</strong> for the engineer.</p>
+
+    <h4>Reconstruct, don't just observe</h4>
+    <p>Eighteen months from now someone asks why a match happened in March. Answering means replaying that run <em>as it stood then</em>, even though the rules have changed six times since. So every run permanently records: the documents and a fingerprint proving they weren't swapped; which rules were active and at which version; which model and prompt version; every model suggestion and whether it was accepted; every human action with a name and time; every posting attempt and outcome.</p>
+
+    <h4>The measurements that matter</h4>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Measure</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Unexplained difference at first pass</td><td>What the machine couldn't account for before any human touched it</td></tr>
+          <tr><td>First-pass match rate, frozen</td><td>Measured at the machine's verdict — never improved by a human cleaning up after it. <strong>You already do this correctly.</strong></td></tr>
+          <tr><td><strong>Override rate</strong></td><td>How often a person disagreed. Rising means drift or stale rules. The most informative number in the system, and the one you're missing</td></tr>
+          <tr><td>Escaped errors</td><td>Found after posting, or by sampling. The scariest and most valuable</td></tr>
+          <tr><td>Reviewer minutes per reconciliation</td><td>The saving actually being sold</td></tr>
+          <tr><td>Cost per reconciliation, in dollars</td><td>Tokens converted into what a buyer compares against a salary</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p><strong>The governing rule:</strong> every quality number must belong to either the machine or the human, never both. A metric that improves when people work harder is not measuring the system. You got this right once deliberately — make it a stated principle, because an interviewer who notices will stop and ask.</p>
+    </div>
+  </section>
+
+  <!-- ============ 7 DATA ============ -->
+  <section id="data" class="part">
+    <p class="eyebrow">Part seven</p>
+    <h2>Formats and the fixture</h2>
+
+    <h3>What a statement actually arrives as</h3>
+    <p><strong>BAI2</strong> is the answer for this product. A flat file of numbered record types published in 1987, now maintained by ASC X9, dominant in US corporate banking, and <strong>the format Yardi's automatic bank reconciliation is built around</strong>. Every transaction carries a numeric type code saying what kind of movement it was — exactly the signal a matcher needs. Design the intake screen for this.</p>
+    <p><strong>camt.053</strong> (ISO 20022, XML) is richer and properly structured, replaces MT940, and is the international direction of travel. Support it second and name it in interviews — it shows you know where the ground is moving. <strong>MT940</strong> is fading. <strong>CSV, OFX and PDF</strong> are the real-world mess that justifies a model in the Reader.</p>
+
+    <h4>A missing design object the files revealed</h4>
+    <p>Type codes are not fully standard — banks vary and publish proprietary codes, especially in the 900s. So "code 555 means a returned deposit" is a per-bank mapping, not a universal truth. Your product has nowhere to keep that. It needs a <strong>per-bank code dictionary</strong>, owned by the administrator, versioned, recorded against each run. You only find things like this by looking at real files.</p>
+
+    <h3>Yardi already works the way the fixes say it should</h3>
+    <p>This is the strongest validation in the whole research pass. Yardi's bank reconciliation is a <strong>three-column view</strong> — ledger, bank, difference — where the bank side is adjusted for outstanding cheques and deposits in transit, and <strong>the difference must reach zero before anything can post</strong>. That's Gap 4, and it's mandatory in the target system. It splits corrections into book and bank reconciling items — that's Gap 3. And it matches on <strong>amount, date and reference number</strong> — a deterministic ladder, no model, which is Part 4's argument made by the incumbent.</p>
+    <p>Those fixes weren't opinions. They were the domain.</p>
+
+    <h3>The fixture</h3>
+    <p>Two files now sit in <code>fixtures/</code> in your repo: a well-formed BAI2 statement and a Yardi-shaped ledger export, both for the operating account at 1849 Westlake, May 2026. Fourteen bank lines, sixteen ledger rows, opening balance tied at $285,400.</p>
+    <p>They contain: a single deposit covering three rents · a clean match · the bounced payment as three linked lines where $1,200 + $75 reverses the original $1,275 exactly · two identical $210 refunds where the reviewer must choose · a payout on the bank never entered in the books · a fee · interest · an inter-account transfer · three uncleared cheques · one deposit in transit.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <tbody>
+          <tr><td>Bank statement balance, 31 May</td><td class="num">301,980.10</td></tr>
+          <tr><td>Less cheques not yet cleared</td><td class="num">(18,450.50)</td></tr>
+          <tr><td>Plus deposit not yet landed</td><td class="num">9,315.00</td></tr>
+          <tr class="tot"><td>Adjusted bank balance</td><td class="num">292,844.60</td></tr>
+          <tr><td style="padding-top:20px">Books, plus four correcting entries</td><td class="num" style="padding-top:20px">292,844.60</td></tr>
+          <tr class="zero"><td>Still unexplained</td><td class="num">0.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout good">
+      <p><strong>Do this before you touch any screens.</strong> Reconcile this month by hand in a spreadsheet. One hour. You will understand this domain better afterwards than any amount of reading achieves, you'll be able to defend every claim in the case study, and you'll have one honest accuracy number with a stated source.</p>
+    </div>
+  </section>
+
+  <!-- ============ 8 PROMPTS ============ -->
+  <section id="prompts" class="part">
+    <p class="eyebrow">Part eight</p>
+    <h2>Prompts for the build</h2>
+    <p class="lede">Paste these into Claude Code in order. Each assumes the previous one landed. Point it at this document first so it has the reasoning, not just the instruction.</p>
+
+    <div class="prompt">
+      <div class="ph">0 · context</div>
+      <pre>Read docs/RECONCILER_PLAYBOOK.md end to end before doing anything.
+It records the design pivots this project is being rebuilt around.
+Then read PRODUCT.md, src/lib/session/types.ts and src/lib/seed.ts and tell
+me, in plain language, which parts of the current data contract contradict
+the playbook. Don't change anything yet.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">1 · the match object — do this first</div>
+      <pre>Rewrite the reconciliation data contract so a match is a first-class object
+rather than a single row. A match must carry: a bank side (one statement
+line), a ledger side (an ARRAY of ledger rows, so one deposit covering three
+rents is expressible), the rule that produced it, the candidates considered
+and rejected, and a status from a five-value set: matched, bank-only,
+ledger-only, timing (expected to clear), needs-adjustment.
+
+Keep the existing seed data working — migrate it, don't delete it. Where a
+seeded record was ambiguous with two candidates, represent both candidates
+properly so a reviewer could choose between them.
+
+Show me the new types and the migration before touching any component.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">2 · the balance proof</div>
+      <pre>Add balances to the model: bank statement opening and closing, book balance,
+outstanding items, in-transit items, and a computed adjusted balance on each
+side. Then build a BalanceProof component that renders the ladder:
+
+  bank balance − outstanding + in transit = adjusted bank
+  book balance + correcting entries        = adjusted book
+  the difference between them              = STILL UNEXPLAINED
+
+All figures computed from the records, never seeded. Show "calculated, not
+estimated" on the panel. Use fixtures/ for the numbers — they tie to zero and
+that must stay true. The unexplained figure is the primary element on the
+screen; everything else is supporting.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">3 · resolution actions</div>
+      <pre>Replace move-between-buckets with four resolution actions on an exception:
+accept as timing (carries forward), correct the match (pick a different
+candidate), add a correcting entry (with amount and reason), set aside (with
+a required reason).
+
+Each action must visibly change the balance proof. Approving must no longer
+be a valid response to a genuine difference. Show me the state changes each
+action causes before building the UI.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">4 · patterns, starting with the bounced payment</div>
+      <pre>Add a pattern layer. A pattern proposes an explanation for a group of related
+lines and is only asserted once a deterministic check confirms it.
+
+Implement the returned-payment pattern first: find a debit whose description
+suggests a return, locate the original deposit earlier in the period, and
+confirm that return + fee equals the original amount. When confirmed, present
+the three lines as ONE linked event that nets to zero, with a note that the
+tenant now owes rent. When not confirmed, show it as an unconfirmed
+suggestion, clearly marked as a guess.
+
+Use the returned payment in fixtures/ as the test case.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">5 · carry-forward and periods</div>
+      <pre>Make the unit of reconciliation ONE ACCOUNT for ONE PERIOD, not a session for
+a property. A session becomes a close package that completes when all its
+accounts are proven — it shows "3 of 4 accounts proven", never a single badge.
+
+Open items belong to the ACCOUNT, not the period. A reconciliation inherits
+open items from the prior period, ages them in days, flags anything over 90
+days as stale, and hands the unresolved ones forward on close.
+
+Add period close state: a closed period cannot be posted into.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">6 · posting can fail</div>
+      <pre>Give posting real failure states. Add: partially-posted (40 of 60), failed,
+and reversed. Each entry carries an idempotency key so a retry can never
+create a duplicate. Add a visible undo for a completed post.
+
+The UI must show which entries landed and which didn't. Also: the post action
+must use the same confirm treatment everywhere it appears — right now the
+review drawer fires immediately while the agents panel wraps it in a confirm,
+and the drawer is the surface that gets demoed.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">7 · the autonomy ladder</div>
+      <pre>Add a per-pattern autonomy level: observed, proposed, provisional, autonomous.
+Each pattern records how many times it's been seen, the human agreement rate,
+and its current sampling rate. Promotion requires evidence; DEMOTION IS
+AUTOMATIC when the override rate rises above a threshold.
+
+Some patterns are permanently excluded from climbing: ambiguous matches,
+anything touching security-deposit accounts, and the final write. Model that
+exclusion explicitly rather than by omission.
+
+Build a screen that shows every pattern and its rung, with the sampling rate
+rising as autonomy rises — that inversion is the point of the design.</pre>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">8 · the quick contradictions</div>
+      <pre>Fix these, each under an hour:
+- One name per number. Retire "match rate"; the contract says "settled on its
+  own". Right now four names describe two numbers across four surfaces.
+- The drawer says "Approved"; the vocabulary says "Matched". Pick one.
+- Label the confidence chip with the question it answers, or remove it.
+- Move token counts off the accountant's dashboard; show cost in dollars
+  per reconciliation instead.
+- Give the two unclassified-file chips somewhere to go.
+- Show an expected-document count in the draft state ("0 of 8 expected").</pre>
+    </div>
+  </section>
+
+  <!-- ============ 9 STORY ============ -->
+  <section id="story" class="part">
+    <p class="eyebrow">Part nine</p>
+    <h2>The case study</h2>
+
+    <h3>The spine</h3>
+    <p>One paragraph, and everything else supports it:</p>
+    <div class="callout good">
+      <p>I designed a reconciliation product for property accounting, then stress-tested my own model against how the domain and the engineering actually work. I found that my data contract couldn't express the reviewer's most important action, that my exception taxonomy collapsed "normal" and "broken" into one bucket, and that a transaction I'd modelled as an anomaly was a standard bank-fee pattern. Here's the revised contract, and here's how each change moved the interface.</p>
+    </div>
+    <p style="margin-top:1.4rem">That's a designer reasoning like an architect. It is <em>more</em> impressive than a design with no holes, because it demonstrates the method — and the method is the transferable thing you're selling.</p>
+
+    <h3>Decisions worth telling</h3>
+    <p>Use a fixed shape each time: the situation, the wrong version, what was actually wrong with it, the fix, what it cost.</p>
+    <ul>
+      <li><strong>Identity is an output of intake, not an input.</strong> The first pass drew a bank row the instant a file landed — identity before inspection. Now a document lands anonymous and the canvas shows only what's been read.</li>
+      <li><strong>The agent that disappeared.</strong> Early docs list four; the build has three. Explaining a non-match is inseparable from matching, so a fourth added a handoff without adding a decision.</li>
+      <li><strong>A metric that can't flatter itself.</strong> The first-pass rate is frozen at the machine's verdict, so it doesn't improve when a human cleans up. It's a claim about the agent, not about where the review ended up.</li>
+      <li><strong>The bounced payment.</strong> The headline. A routine event my design called a mystery, because the model had no concept of it.</li>
+      <li><strong>Taking the AI out of matching.</strong> The step where being wrong costs money is the step that must be reproducible. Naming what you removed the AI from is rarer and more valuable than listing what you added it to.</li>
+    </ul>
+
+    <h3>Interview answers for the hard questions</h3>
+    <div class="qa">
+      <div>
+        <p class="q">"Is this actually built?"</p>
+        <p class="a"><strong>Say it first, before they find it.</strong> "It's a design prototype — the interface and the state model are real, the automation is simulated. I built it to work out the interaction contract between an autonomous system and the person who signs the close. What I can show you is the model behind it and the eight places it was wrong."</p>
+      </div>
+      <div>
+        <p class="q">"Why are the agents not really agents?"</p>
+        <p class="a">"They're not, and I'd now call it a workflow with intelligent steps. That's the accurate description, and the vaguer claim is what invited the scepticism in the first place. Two of the four jobs shouldn't involve a model at all."</p>
+      </div>
+      <div>
+        <p class="q">"How do you know the matching is right?"</p>
+        <p class="a">"You can't know from the balance — two wrong matches of equal amounts still net to zero. That's why I moved matching to deterministic rules: it's testable against a month reconciled by hand, and 'why did these match' has an auditable answer. The measurement that actually matters is the override rate over time."</p>
+      </div>
+      <div>
+        <p class="q">"Your match rate is 96%. Where's that from?"</p>
+        <p class="a"><strong>Don't defend it.</strong> "That was illustrative seed data, and it's above what the incumbent achieves — published guidance on Yardi's own auto-reconciliation is 60–80% after tuning. I've since built a fixture month I reconciled by hand so I can quote a real number."</p>
+      </div>
+      <div>
+        <p class="q">"Shouldn't the AI eventually do all of it?"</p>
+        <p class="a">"You can remove the second human but not the second party — an AI can't be accountable, and someone has to answer 'who signed this'. And the trade is bad: the approval click takes fifteen seconds, and removing it costs the audit answer, the last place errors surface, and the sale to anyone with an auditor."</p>
+      </div>
+      <div>
+        <p class="q">"What did you get wrong?"</p>
+        <p class="a"><strong>The best question you'll get. Have three ready.</strong> The two-bucket taxonomy. The match that had only one side. Treating a bounced payment as an anomaly. Each with what you learned.</p>
+      </div>
+      <div>
+        <p class="q">"How much of this did AI write?"</p>
+        <p class="a">Answer plainly. "I used Claude heavily for the research and the writing — the domain knowledge came from a teardown I commissioned against my own work and then verified. What I own is the design decisions and the judgement about which criticisms were right." <strong>Then demonstrate it by explaining something hard unprompted.</strong></p>
+      </div>
+    </div>
+
+    <h3>What not to claim</h3>
+    <ul>
+      <li>Don't say it posts to Yardi. Say the posting layer is designed as a swappable port because you couldn't get Voyager credentials — which is true, and shows you understand coupling.</li>
+      <li>Don't cite a framework you haven't read. Read it, then describe it in your own words, or drop it.</li>
+      <li>Don't claim a number without a source.</li>
+      <li>Don't present a collaborator's commits as yours.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 10 DEMO ============ -->
+  <section id="demo" class="part">
+    <p class="eyebrow">Part ten</p>
+    <h2>The walkthrough</h2>
+
+    <h3>The arc</h3>
+    <ol class="steps">
+      <li><strong>The job, in thirty seconds.</strong> Not "we reconcile bank statements" — "at month end the bank's record and the books disagree, and somebody has to explain every difference before the month can close. Here's what that costs a team."</li>
+      <li><strong>One real statement.</strong> Open the BAI2 file. Show what actually arrives. This single move separates you from every designer who invented their data.</li>
+      <li><strong>The run, unattended.</strong> Reading, matching. Name the lanes by work. Say out loud that matching involves no model, and why.</li>
+      <li><strong>The exception that needs you.</strong> The ambiguous refund. Show that picking one changes what next month starts with.</li>
+      <li><strong>The bounced payment.</strong> Three lines, one event, nets to zero. This is the moment that lands — let it breathe.</li>
+      <li><strong>The proof.</strong> The ladder reaching zero. "This is the only screen anyone signs."</li>
+      <li><strong>The signature.</strong> Fifteen seconds. Say why it stays.</li>
+      <li><strong>The ladder.</strong> How a pattern earns autonomy, and how it loses it automatically. Close here — it's your strongest idea.</li>
+    </ol>
+
+    <h3>Recording notes</h3>
+    <ul class="check">
+      <li>Record from a clean commit; confirm the build passes first.</li>
+      <li>Record at 1440px or wider — at 1024px the workspace shows only the core, with no document rows or strands.</li>
+      <li>Disable the dev indicator or record a production build; it overlaps the rail button.</li>
+      <li>Keep the tab visible — hidden tabs throttle timers and make the intake cadence look three times slower.</li>
+      <li>Use the not-started property for the full lifecycle; use Westlake for the exception deep-dive.</li>
+      <li>Vary the seeded session counts — identical numbers down twelve rows read as generated data.</li>
+      <li>Hold one row a full second to show hover isolation; capture the undo toast, which proves reversibility.</li>
+      <li>2× DPR, 1920×1080 or 2560×1440 at 60fps — the strand animation smears at 30.</li>
+      <li>Record narration separately and cut the screen to it.</li>
+      <li>Say "mocked integration" out loud when Yardi appears on screen.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 11 ORDER ============ -->
+  <section id="order" class="part">
+    <p class="eyebrow">Part eleven</p>
+    <h2>Order of work</h2>
+
+    <ol class="steps">
+      <li><strong>Reconcile the fixture by hand.</strong> One hour, a spreadsheet. Everything else is cheaper afterwards, and this is what makes the knowledge yours.</li>
+      <li><strong>Fix the git attribution.</strong> Ten minutes. Career-sized if left.</li>
+      <li><strong>Fix the 96% claim.</strong> Either label it illustrative or replace it with a number from step 1.</li>
+      <li><strong>The match object.</strong> Prompt 1. Gaps 2, 3 and 5 get much easier once this lands.</li>
+      <li><strong>The balance proof screen.</strong> Prompt 2. Highest-value single addition in the product.</li>
+      <li><strong>Resolution actions and the bounced payment.</strong> Prompts 3 and 4. This is the demo's emotional centre.</li>
+      <li><strong>Carry-forward and periods.</strong> Prompt 5. Deepest architectural change; do it before the recording.</li>
+      <li><strong>Posting failure states.</strong> Prompt 6. Quick, and removes a self-contradiction a technical viewer finds in thirty seconds.</li>
+      <li><strong>The autonomy ladder.</strong> Prompt 7. Your strongest original idea — give it a real screen.</li>
+      <li><strong>The quick contradictions.</strong> Prompt 8. An afternoon.</li>
+      <li><strong>Write the case study.</strong> Only now, and only in your own words.</li>
+      <li><strong>Rehearse the hard questions out loud</strong> before recording anything.</li>
+    </ol>
+
+    <p class="signoff">A designer who found eight holes in their own work is more convincing than one who claims there were none. But the holes only count as evidence once you can explain each of them to a sceptical accountant, without notes. Everything in this document is borrowed until then — and the hour with the spreadsheet is where it stops being borrowed.</p>
+
+    <div class="sources">
+      <strong>Sources for the research in Parts 2 and 7</strong>
+      <ul>
+        <li><a href="https://www.bcsolut.com/resources/yardi-bank-reconciliation-troubleshooting-guide">Yardi bank reconciliation troubleshooting guide — BC Solutions</a> — three-column model, BAI2 as primary format, 60–80% auto-clear, reconciling item types</li>
+        <li><a href="https://ordwaylabs.com/blog/electronic-bank-statement-formats/">Electronic bank statement formats — Ordway</a> — BAI2 record types, MT940 tags, camt family</li>
+        <li><a href="https://invoicedataextraction.com/blog/bai2-file-format">BAI2 file format: records, codes and validation</a> — field order, implied decimals, code ranges</li>
+        <li><a href="https://en.wikipedia.org/wiki/BAI_(file_format)">BAI file format — Wikipedia</a> — history, ASC X9 stewardship</li>
+        <li><a href="https://gravam.com/blog/bank-statement-formats-mt940-camt053-bai2">Bank statement formats compared — Gravam</a> — adoption, migration direction, per-bank variation</li>
+        <li><a href="https://developer.gs.com/docs/services/transaction-banking/bai-codes/">BAI codes — Goldman Sachs Developer</a> — type code meanings</li>
+        <li><a href="https://jatechnologysolutions.com/tools/bai2-type-code-reference/">BAI2 type code reference — JA Technology Solutions</a> — code list, proprietary 9xx ranges</li>
+      </ul>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{color-scheme:light dark;}
+  html,body{margin:0;}
+  body{font:14px system-ui,-apple-system,sans-serif;background:#F2F3EF;}
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+</style>
+<title>Screen by Screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ink:#18222B; --soft:#5A6771; --faint:#8D979E;
+    --ground:#F2F3EF; --surface:#FFFFFF; --rule:#D6DBD4;
+    --warn:#A93A26; --warn-bg:#F7E9E5;
+    --good:#2B6350; --good-bg:#E4EFE9;
+    --model:#5B4A8C; --model-bg:#EDEAF5;
+    --accent:#1D4E6B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+      --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+      --warn:#E2795F; --warn-bg:#2E1E1A;
+      --good:#74BC98; --good-bg:#16291F;
+      --model:#A99AD4; --model-bg:#231E33;
+      --accent:#7DAAC6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#E7EAE5; --soft:#A1ACA5; --faint:#7B8780;
+    --ground:#121816; --surface:#1B2320; --rule:#2D3833;
+    --warn:#E2795F; --warn-bg:#2E1E1A;
+    --good:#74BC98; --good-bg:#16291F;
+    --model:#A99AD4; --model-bg:#231E33;
+    --accent:#7DAAC6;
+  }
+
+  body{background:var(--ground);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased;}
+  .shell{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:44px 96px;
+    display:grid;grid-template-columns:186px minmax(0,1fr);gap:46px;align-items:start;}
+  @media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr);gap:0;}}
+
+  nav{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 20px);font-size:.82rem;}
+  @media (max-width:900px){nav{position:static;margin-bottom:38px;padding-bottom:22px;border-bottom:1px solid var(--rule);}}
+  nav .navlab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:12px;}
+  nav ol{list-style:none;margin:0;padding:0;display:grid;gap:7px;counter-reset:nv;}
+  nav li{counter-increment:nv;}
+  nav a{color:var(--soft);text-decoration:none;display:grid;grid-template-columns:1.5rem 1fr;gap:2px;line-height:1.35;}
+  nav a::before{content:counter(nv,decimal-leading-zero);
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:9.5px;color:var(--faint);}
+  nav a:hover{color:var(--accent);}
+  nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  main{min-width:0;}
+  .eyebrow{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0;}
+  h1{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(2rem,5.5vw,3rem);line-height:1.08;letter-spacing:-.015em;
+    text-wrap:balance;margin:.5rem 0 0;}
+  .standfirst{font-family:Spectral,Georgia,serif;font-size:clamp(1.05rem,2.4vw,1.26rem);
+    line-height:1.5;color:var(--soft);max-width:34em;margin:1.1rem 0 0;}
+
+  section{margin-top:74px;padding-top:28px;border-top:1px solid var(--rule);scroll-margin-top:24px;}
+  section.part{border-top:2px solid var(--ink);}
+  h2{font-family:Spectral,Georgia,serif;font-weight:600;
+    font-size:clamp(1.5rem,3.6vw,2.05rem);line-height:1.14;letter-spacing:-.01em;
+    text-wrap:balance;margin:.35rem 0 0;}
+  h3{font-size:1.04rem;font-weight:600;margin:2rem 0 .4rem;}
+  p{max-width:40em;}
+  p.lede{font-size:1.05rem;}
+  ul{max-width:40em;}
+  li{margin-bottom:.4rem;}
+
+  .callout{margin:1.7rem 0 0;padding:18px 20px;border-radius:3px;max-width:38em;
+    border:1px solid var(--rule);background:var(--surface);border-left:3px solid var(--accent);}
+  .callout.warn{border-color:var(--warn);border-left-color:var(--warn);background:var(--warn-bg);color:var(--warn);}
+  .callout.good{border-color:var(--good);border-left-color:var(--good);background:var(--good-bg);color:var(--good);}
+  .callout p{margin:0;}
+  .callout p + p{margin-top:.7rem;}
+  .pull{margin:2rem 0 0;padding-left:20px;border-left:3px solid var(--accent);
+    font-family:Spectral,Georgia,serif;font-size:1.18rem;line-height:1.45;max-width:32em;}
+
+  .verdict{margin:1.5rem 0 0;display:grid;gap:1.1rem;max-width:40em;}
+  .verdict > div{display:grid;grid-template-columns:5.4rem 1fr;gap:1rem;align-items:start;}
+  .vlab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+    letter-spacing:.12em;text-transform:uppercase;padding-top:.3rem;}
+  .vlab.keep{color:var(--good);}
+  .vlab.kill{color:var(--warn);}
+  .vlab.add{color:var(--accent);}
+  .verdict ul{margin:0;padding-left:1.05rem;}
+  .verdict li{margin-bottom:.3rem;}
+
+  .prompt{margin:1.5rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-left:3px solid var(--model);border-radius:4px;}
+  .prompt .ph{padding:12px 18px 0;font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--model);}
+  .prompt pre{margin:0;padding:10px 18px 16px;overflow-x:auto;white-space:pre-wrap;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.2px;line-height:1.66;color:var(--ink);}
+
+  figure{margin:2rem 0 0;background:var(--surface);border:1px solid var(--rule);
+    border-radius:4px;overflow:hidden;}
+  .scroller{overflow-x:auto;padding:22px;}
+  figure svg{display:block;width:100%;min-width:560px;height:auto;color:var(--ink);}
+  figcaption{padding:12px 22px 14px;border-top:1px solid var(--rule);
+    font-size:.85rem;line-height:1.5;color:var(--soft);}
+  .bx{fill:var(--surface);stroke:currentColor;stroke-opacity:.34;stroke-width:1;}
+  .bx-good{fill:var(--good-bg);stroke:var(--good);stroke-width:1;}
+  .bx-warn{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1;}
+  .div{stroke:currentColor;stroke-opacity:.16;stroke-width:1;}
+  text{font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:12.5px;fill:currentColor;}
+  .t-lab{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;letter-spacing:.13em;fill:var(--faint);}
+  .t-mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;}
+  .t-sm{font-size:11px;fill:var(--soft);}
+  .t-strong{font-weight:600;}
+
+  .signoff{margin-top:2rem;font-family:Spectral,Georgia,serif;font-size:1.12rem;
+    line-height:1.55;color:var(--soft);max-width:34em;}
+</style>
+
+</head>
+<body>
+<div class="shell">
+
+  <nav aria-label="Contents">
+    <div class="navlab">Screens</div>
+    <ol>
+      <li><a href="#cross">What's true everywhere</a></li>
+      <li><a href="#dash">Dashboard</a></li>
+      <li><a href="#run">Reconciliation run</a></li>
+      <li><a href="#records">Review records</a></li>
+      <li><a href="#props">Properties</a></li>
+      <li><a href="#record">Property record</a></li>
+      <li><a href="#ai">AI performance</a></li>
+      <li><a href="#kb">Knowledge base</a></li>
+      <li><a href="#seq">Sequence</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <header>
+    <p class="eyebrow">Companion to the playbook · from the ten screenshots</p>
+    <h1>Screen by screen</h1>
+    <p class="standfirst">What each screen shows now, what's missing, and a prompt you can paste. Read the first section before any of the others — it changes every screen at once.</p>
+  </header>
+
+  <!-- ===== CROSS ===== -->
+  <section id="cross" class="part">
+    <p class="eyebrow">Read this first</p>
+    <h2>What's true everywhere</h2>
+
+    <h3>There is almost no money in this product</h3>
+    <p class="lede">I went looking for currency across ten screens. The dashboard table has Accounts, Ledgers, Matched, Open, Updated — <strong>not one dollar figure.</strong> The properties list has Accounts, Open, Exceptions, Last closed — none. The property record has units, square footage, year built and ownership stake — and no cash position at all.</p>
+    <p>Only the review screen carries money, and it carries it well.</p>
+
+    <div class="pull">This is a product about money that mostly displays counts.</div>
+
+    <p style="margin-top:1.5rem">The cost is concrete. "Exceptions 8" tells an accountant nothing: eight exceptions worth $12 is a Friday afternoon, eight worth $80,000 is an emergency, and the screen renders them identically. On the properties list, 908 Larkin shows <strong>168</strong> in amber and you cannot tell whether that's a rounding problem or a disaster.</p>
+    <p>The fix runs through every screen below: <strong>show dollars at risk, and sort by them.</strong> Counts are a secondary detail; the unexplained difference is the headline. This one change does more than any other single thing to make the product read as something a controller would use.</p>
+
+    <h3>Tokens follow the accountant everywhere</h3>
+    <p>The AGENTS panel — Success rate and Tokens — is pinned bottom-left on <em>every screen in the product</em>. So does "Tokens used 1.24M" on the dashboard hero. An accountant doesn't know what a token is and can't act on one.</p>
+    <p>It's also visibly broken: the panel is clipped in all ten screenshots — "S…ary 89%", "…etails ›". That's the first thing a viewer notices on camera.</p>
+    <p><strong>Remove it from every screen except AI Performance</strong>, and express cost there in dollars per reconciliation.</p>
+
+    <h3>The hero numbers describe the machine, not the work</h3>
+    <p>"First-pass accuracy 90%" and "Tokens used 1.24M" are the two biggest things on the dashboard. Neither answers the question the person opened the app to ask, which is always one of three: <em>is my month done, what needs me, and what's blocking me.</em></p>
+
+    <h3>One account is being treated like all the others, and it shouldn't be</h3>
+    <div class="callout warn">
+      <p>On the property record, three accounts sit in an identical list: Chase Operating, Wells Fargo Reserve, and <strong>BoA Security Deposit</strong>.</p>
+      <p>Security deposits are frequently <strong>legally segregated funds</strong>. Showing them in the same list, with the same treatment and the same automation, is the kind of thing that ends a conversation with a real property manager. Mark those accounts, scope automation away from them, and say so out loud — it converts a risk into evidence of judgement.</p>
+    </div>
+  </section>
+
+  <!-- ===== DASHBOARD ===== -->
+  <section id="dash" class="part">
+    <p class="eyebrow">Screen one</p>
+    <h2>Dashboard</h2>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>The restraint. One card, clean table, no clutter.</li>
+        <li>"5 of 12 posted to Yardi" with the progress bar — a real portfolio-level fact.</li>
+        <li>Re-run marker on the Westlake row.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>Both hero metrics. Accuracy is a machine metric; tokens are an engineering unit.</li>
+        <li>Tabs named after system states (Review / Failed / Completed).</li>
+        <li>The 60% of the page that is empty grey below the card.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>Money. Unexplained dollars per property, sorted descending.</li>
+        <li>A close position: how many properties are proven, how many days until the period closes.</li>
+        <li>Accounts proven as a fraction — "3 of 4" — not a single status badge.</li>
+        <li>Age of the oldest open item.</li>
+      </ul></div>
+    </div>
+
+    <figure>
+      <div class="scroller">
+      <svg viewBox="0 0 640 290" role="img" aria-label="The dashboard table today shows five count columns and no money. The revised table leads with unexplained dollars, accounts proven, and the oldest open item.">
+        <text class="t-lab" x="0" y="12">TODAY · NO CURRENCY ANYWHERE</text>
+        <line class="div" x1="0" y1="22" x2="640" y2="22"/>
+        <text class="t-sm" x="0" y="44">Property</text>
+        <text class="t-sm" x="250" y="44">Accounts</text>
+        <text class="t-sm" x="330" y="44">Ledgers</text>
+        <text class="t-sm" x="410" y="44">Matched</text>
+        <text class="t-sm" x="490" y="44">Open</text>
+        <text class="t-sm" x="560" y="44">Updated</text>
+        <line class="div" x1="0" y1="54" x2="640" y2="54"/>
+        <text x="0" y="76">1849 Westlake</text>
+        <text class="t-mono" x="250" y="76">4</text>
+        <text class="t-mono" x="330" y="76">3 / 4</text>
+        <text class="t-mono" x="410" y="76">196</text>
+        <text class="t-mono" x="490" y="76" fill="var(--warn)">8</text>
+        <text class="t-mono" x="560" y="76">6h ago</text>
+        <text class="t-sm" x="0" y="106" fill="var(--warn)">Is "8" eight dollars or eighty thousand? The screen cannot say.</text>
+
+        <line class="div" x1="0" y1="140" x2="640" y2="140"/>
+        <text class="t-lab" x="0" y="166">REVISED · SORTED BY WHAT IS AT RISK</text>
+        <text class="t-sm" x="0" y="196">Property</text>
+        <text class="t-sm" x="196" y="196">Unexplained</text>
+        <text class="t-sm" x="316" y="196">Proven</text>
+        <text class="t-sm" x="392" y="196">Oldest open</text>
+        <text class="t-sm" x="502" y="196">Needs</text>
+        <line class="div" x1="0" y1="206" x2="640" y2="206"/>
+        <text x="0" y="228">1849 Westlake</text>
+        <text class="t-mono t-strong" x="196" y="228" fill="var(--warn)">$18,240.50</text>
+        <text class="t-mono" x="316" y="228">3 of 4</text>
+        <text class="t-mono" x="392" y="228">94 days</text>
+        <text class="t-sm" x="502" y="228">2 decisions</text>
+        <text x="0" y="256">871 Broadway</text>
+        <text class="t-mono" x="196" y="256" fill="var(--good)">$0.00</text>
+        <text class="t-mono" x="316" y="256">2 of 2</text>
+        <text class="t-mono" x="392" y="256">—</text>
+        <text class="t-sm" x="502" y="256" fill="var(--good)">ready to sign</text>
+      </svg>
+      </div>
+      <figcaption>Same rows, same density. The difference is that the revised table answers "where should I look first" and the current one can't.</figcaption>
+    </figure>
+
+    <div class="prompt">
+      <div class="ph">Prompt · dashboard</div>
+      <pre>Rework the Dashboard so it answers the three questions an accountant opens it
+with: is my month done, what needs me, and what is blocking me.
+
+Replace the two hero metrics (first-pass accuracy, tokens used) with a close
+position line: "8 of 12 properties proven · $23,410 unexplained across 4 open ·
+May closes in 6 days". Move accuracy and tokens to AI Performance entirely.
+
+Rebuild the table columns to:
+  Property | Unexplained ($) | Accounts proven (3 of 4) | Oldest open item (days)
+  | What it needs | Last activity
+
+Sort by unexplained dollars descending by default, not by recency. Dollars are
+the primary column and get tabular figures and the strongest weight. Counts
+move into the expanded row.
+
+Rename the tabs from system states to user intent: "Needs you", "Waiting",
+"Done". Keep the "5 of 12 posted to Yardi" progress element.
+
+Remove the pinned AGENTS panel from this screen. The page currently has one
+card in a large void — let the table fill the space or add the close position
+as a second band, but don't leave 60% of the screen empty.</pre>
+    </div>
+  </section>
+
+  <!-- ===== RUN ===== -->
+  <section id="run" class="part">
+    <p class="eyebrow">Screen two</p>
+    <h2>The reconciliation run</h2>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>The empty state. "Ready when you are" with the ghosted statement-and-ledger pair is the best-composed screen in the product.</li>
+        <li>"Statement file unreadable" surfaced in the sessions rail — a real failure, visible where you'd look.</li>
+        <li>The per-cycle list under each property. Months as siblings is right.</li>
+        <li>The Agents / Knowledge tab split in the right rail.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>The orb at the centre of the canvas. It occupies the most valuable space and carries no information.</li>
+        <li>"Intake · Completed" sitting directly above "2 files unclassified". Completed with unresolved input is a contradiction.</li>
+        <li>Post to Yardi as a plain row in a list of steps, with an arrow like any other.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>The balance proof, on the canvas, as the main event.</li>
+        <li>Per-account tie-out state — the unit is the account, not the session.</li>
+        <li>Somewhere for the two unclassified files to go.</li>
+      </ul></div>
+    </div>
+
+    <h3>The biggest single problem</h3>
+    <p>"Reconciled 0 · Open 0 · <strong>Net difference $0.00</strong>" is tucked into the top of a side panel at small type. That is the most important number in the entire product — the thing that decides whether the month can close — and it is a caption.</p>
+    <p>Meanwhile the centre of the screen, the largest and most prominent area, holds a decorative orb between four account cards that say "Clear" with a tick. Clear of <em>what?</em> No balance, no difference, no evidence.</p>
+    <p><strong>Swap them.</strong> The canvas should carry the proof; the agents belong in the rail.</p>
+
+    <div class="prompt">
+      <div class="ph">Prompt · reconciliation canvas</div>
+      <pre>Rebuild the reconciliation canvas so the balance proof is the main event and
+the agent visualisation moves to a supporting role.
+
+The unit is ONE ACCOUNT FOR ONE PERIOD, not the session. So the canvas shows a
+strip of account cards, one per bank account, and each card carries:
+  - statement closing balance
+  - book balance
+  - outstanding items and in-transit items (count and total)
+  - THE DIFFERENCE, as the largest element on the card
+  - a proven / not-proven state driven by whether that difference is zero
+
+A card saying "Clear" with a tick and no number is not evidence — every state
+must be backed by a figure.
+
+Below the strip, show the session-level roll-up: "3 of 4 accounts proven ·
+$1,240.00 unexplained". Never a single session-wide badge.
+
+Replace the centre orb with this content. Keep the agent lanes in the right
+rail, renamed after the work: Reading, Matching, Reviewing, Posting.
+
+Two fixes in the rail while you're there:
+- Intake must not read "Completed" while it reports unclassified files. Use a
+  distinct state ("Completed with 2 unresolved"), and make the two file chips
+  open a screen where the user assigns them to an account or excludes them.
+- Post to Yardi must not be a row in a list. Give it its own committed
+  treatment with a confirm step, and show what is about to be written —
+  how many entries, to which period, totalling what.</pre>
+    </div>
+  </section>
+
+  <!-- ===== RECORDS ===== -->
+  <section id="records" class="part">
+    <p class="eyebrow">Screen three</p>
+    <h2>Review records</h2>
+
+    <p class="lede">The strongest screen in the product, and the closest to right. It has money, it has per-record reasons — "Matched on memo reference · exact amount", "Counterparty and amount match · 1 day apart" — and it has the net difference at the top. That reasoning line is genuinely good design and you should point at it in the walkthrough.</p>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>The per-record reason line. This is the product's best idea.</li>
+        <li>Net difference in the stats band.</li>
+        <li>"This session is posted. Its records are a record of what was decided." — precise, well-written, does real work.</li>
+        <li>The bank-logo filter chips.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>The bare confidence percentage. 92%, 99%, 84%, 77% — of what? And it sits on <em>approved</em> records, where it changes nothing.</li>
+        <li>"Approved" as a label. Your own vocabulary contract says Matched.</li>
+        <li>Three filters where the domain needs five.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>The ledger side of every row. A match has two sides; the row shows one.</li>
+        <li>Resolution actions beyond approve and flag.</li>
+        <li>Sort by what deserves attention, not by date.</li>
+        <li>A link from "Net difference" to the full proof.</li>
+      </ul></div>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">Prompt · review records</div>
+      <pre>Rework the review list against the revised match contract.
+
+Every row shows BOTH SIDES of the match, not just the bank line. Collapsed:
+bank line on the left, matched ledger row on the right, the rule that joined
+them in the middle. Expanded: all candidates considered, including the ones
+rejected and why.
+
+For an ambiguous record, the expanded row lets the reviewer PICK a candidate —
+radio-style, then confirm. This is currently impossible and it is the most
+common action in the job. Make it obvious that the choice matters: state that
+the candidate not picked becomes an open item carried into next month.
+
+Replace the three filters with the five outcomes: Matched · Only on bank ·
+Only in ledger · Will clear soon · Needs fixing. Rename "Approved" to
+"Matched" to match the vocabulary contract.
+
+Replace the bare confidence chip. On a matched row show WHY it matched
+(the rule that fired) and how many candidates there were — that is a fact, not
+a feeling. Delete the percentage from matched rows entirely. Where a number
+is genuinely useful, label the question it answers in words.
+
+Add the four resolution actions to exception rows: accept as timing, correct
+the match, add a correcting entry, set aside with a reason. Each must visibly
+change the net difference at the top of the screen. Approving must no longer
+be a valid response to a real difference.
+
+Default sort becomes: needs a decision first, then by absolute amount
+descending. Date is a secondary sort. Make "Net difference" open the full
+balance proof.</pre>
+    </div>
+  </section>
+
+  <!-- ===== PROPERTIES ===== -->
+  <section id="props" class="part">
+    <p class="eyebrow">Screen four</p>
+    <h2>Properties listing</h2>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>The filter row with counts, and the market / portfolio selectors.</li>
+        <li>The hover card showing legal entity and portfolio.</li>
+        <li>Import CSV as a first-class action.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>A single status badge per property. A property with four accounts has four states.</li>
+        <li>Open and Exceptions showing identical numbers (73 and 73, 168 and 168). Whether that's correct or not, it reads as a bug.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>Unexplained dollars.</li>
+        <li>Accounts proven as a fraction.</li>
+        <li>A stale-item marker — anything open past 90 days.</li>
+      </ul></div>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">Prompt · properties listing</div>
+      <pre>Add money and per-account truth to the properties table.
+
+New columns: Unexplained ($) · Accounts proven (2 of 3) · Oldest open item
+(days, flagged red past 90) · Last closed.
+
+Replace the single status badge with the proven fraction. A property is not
+"Completed" — its accounts are individually proven or not, and the row should
+say which.
+
+Open and Exceptions currently show the same figure on several rows, which
+reads as a bug whether or not it's correct. Either make the difference
+meaningful and label both clearly, or show one column.
+
+Default sort by unexplained dollars descending. Mark any property holding a
+security-deposit account with a distinct indicator — those are segregated
+funds and the list should say so before someone opens the property.</pre>
+    </div>
+  </section>
+
+  <!-- ===== RECORD ===== -->
+  <section id="record" class="part">
+    <p class="eyebrow">Screen five</p>
+    <h2>Property record</h2>
+
+    <p class="lede">Quietly the most credible screen you have. The associated accounts section carries the GL account and the routing number — real integration detail that most designers would never think to show. Keep all of it.</p>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>Associated accounts with GL mapping and routing numbers. Genuinely convincing.</li>
+        <li>Ledger identity block — legal entity, property code, ledger property ID, ledger source.</li>
+        <li>The sessions history table with who ran it.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>The security deposit account sitting in an identical row to the operating account.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>Cash position per account. A property record with no balances is a brochure.</li>
+        <li>Open items carried, per account, with ages.</li>
+        <li>The per-bank transaction code dictionary.</li>
+        <li>Dollars in the sessions history.</li>
+      </ul></div>
+    </div>
+
+    <div class="callout">
+      <p><strong>The code dictionary is the piece nobody would think of.</strong> Bank statement type codes are not fully standard — banks vary, and publish proprietary codes especially in the 900s. So "this code means a returned deposit" is a per-bank mapping that has to live somewhere, be versioned, and be recorded against each run. This screen is where it belongs, and putting it here is the kind of detail that makes an engineer believe you've read a real file.</p>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">Prompt · property record</div>
+      <pre>Add the financial reality to the property record.
+
+On each associated account, show: current book balance, last statement closing
+balance, open items carried (count and total), and the date last proven. An
+account row without balances tells the accountant nothing.
+
+Give security-deposit accounts a visually distinct treatment with a short
+explanatory line — these are frequently legally segregated funds, they are
+excluded from automation, and the record should say so rather than listing
+them identically to operating cash.
+
+Add a per-account "statement code mapping" section: the bank's transaction
+type codes and what each one means to us, with a version and a last-edited
+date. Codes vary by bank and include proprietary ranges, so this is
+configuration, not a constant.
+
+Add dollars to the sessions history table: unexplained at first pass, and
+unexplained at close. "Matched 295 / 303" with no money doesn't say whether
+that month went well.</pre>
+    </div>
+  </section>
+
+  <!-- ===== AI ===== -->
+  <section id="ai" class="part">
+    <p class="eyebrow">Screen six</p>
+    <h2>AI performance</h2>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>The token split by agent. This is the right home for it.</li>
+        <li>Records per reviewer hour as a trend — a real productivity measure.</li>
+        <li>Average duration per agent.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>"Success rate" per agent. Success at what? An agent finishing isn't success.</li>
+        <li>Two unexplained trends pointing the wrong way on a page arguing improvement.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>Override rate. The most informative number in the system and it's absent.</li>
+        <li>Escaped errors.</li>
+        <li>Cost in dollars per reconciliation.</li>
+        <li>Rule and autonomy health.</li>
+      </ul></div>
+    </div>
+
+    <div class="callout warn">
+      <p><strong>Two numbers are quietly undermining this page.</strong> Records matched is down 19% since December, and tokens per record are up 49% — sitting on a screen whose purpose is to argue the system is improving, with no explanation offered.</p>
+      <p>Don't fix the data. <strong>Design the surface that explains a bad trend</strong>, because a page that only looks good when the numbers are good is one nobody trusts when they aren't. Being able to say "matched volume fell because two properties were sold" is a stronger product than one that never shows a decline.</p>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">Prompt · AI performance</div>
+      <pre>Rebuild this page around trust rather than throughput.
+
+Lead with OVERRIDE RATE — how often a person disagreed with the machine, as a
+trend. Rising means drift or stale rules. It is the most informative number in
+the system and it is currently missing entirely.
+
+Add ESCAPED ERRORS: mistakes found after posting, or found by sampling
+already-approved work. Show it even when it is zero, because zero with a
+sampling rate beside it is a claim, and zero with nothing beside it is an
+absence of looking.
+
+Replace "success rate" per agent with something that means something: for
+Reading, the share of statements whose extracted rows reconciled to the
+statement's own printed totals. For Matching, first-pass match rate frozen at
+the machine's verdict. For Explaining, how often its top-ranked candidate was
+the one the human picked.
+
+Express cost in dollars per reconciliation as the primary figure, with tokens
+as the secondary engineering detail beneath it.
+
+Every trend that moves the wrong way needs an annotation slot. Records matched
+is down 19% and tokens per record up 49% with no explanation — build the
+affordance that lets a cause be attached to a movement, and populate it.
+
+Add a rule health panel: rules by how often they fire, how often they're
+overridden, which have not fired in three months, and which contradict each
+other.</pre>
+    </div>
+  </section>
+
+  <!-- ===== KB ===== -->
+  <section id="kb" class="part">
+    <p class="eyebrow">Screen seven</p>
+    <h2>Knowledge base</h2>
+
+    <p class="lede">The most sophisticated thinking in the product. Rules written in prose, scoped to a property or to all properties, with hit counts per cycle and a "not applied this cycle" state. That's a well-considered learning loop and it's the thing that most distinguishes this from a dashboard.</p>
+    <p>It is also, right now, the most dangerous screen — and that's a compliment, because only a design that does something real can be dangerous.</p>
+
+    <div class="callout warn">
+      <p><strong>Read your own rule list again.</strong> One of them says:</p>
+      <p style="font-style:italic">"Tenant ACH returns for unit 308 are a known recurring issue with broken auto-pay. Approve…"</p>
+      <p>That is a bounced rent payment — and the rule instructs the system to <strong>approve</strong> it. Approving a returned payment tells the books the tenant paid when they didn't. The correct handling is to recognise the pattern and book the reversal and the fee.</p>
+      <p>Your knowledge base contains a rule that automates the exact domain error the whole teardown was about. Nobody would have caught it, because nothing checks a rule against the domain — and that is precisely the point to make in the case study.</p>
+    </div>
+
+    <p style="margin-top:1.5rem">Two others deserve the same scrutiny. <em>"Refunds under $250 are routine. Auto-approve and skip the ambiguity check"</em> changes how money is handled, in free text, with no author and no approval. And <em>"Wire transfers to title companies are always legitimate. Do not flag as unknown counterparty"</em> — "always" is a dangerous word in a system that moves money, and a rule that switches off a check is exactly the rule that needs the strongest gate.</p>
+
+    <div class="verdict">
+      <div><span class="vlab keep">Keep</span><ul>
+        <li>Prose rules. Readable by the person whose knowledge they encode.</li>
+        <li>Property scope versus portfolio scope.</li>
+        <li>"Applied 6× this cycle" and "Not applied this cycle".</li>
+        <li>Active / Archived.</li>
+        <li>The session-level panel, which is better than the global one.</li>
+      </ul></div>
+      <div><span class="vlab kill">Kill</span><ul>
+        <li>Creating a rule with a single click and no review.</li>
+        <li>"In use" as the only usage state on the global list.</li>
+        <li>Rules with no author and no expiry.</li>
+      </ul></div>
+      <div><span class="vlab add">Add</span><ul>
+        <li>A preview: what this rule would have changed last month.</li>
+        <li>Author, approver, expiry.</li>
+        <li>Override tracking and automatic demotion.</li>
+        <li>Conflict detection at the moment of approval.</li>
+        <li>A distinction between rules that add caution and rules that remove it.</li>
+      </ul></div>
+    </div>
+
+    <div class="prompt">
+      <div class="ph">Prompt · knowledge base</div>
+      <pre>Turn rules from settings into governed changes.
+
+Give every rule a lifecycle: proposed → previewed → approved → active →
+measured → retired. The PREVIEW is the piece that's missing and it matters
+most: before a rule goes live, show what it would have done to last month —
+"this would have changed 14 records, $3,120". Nobody should activate a rule
+that changes how money is handled without seeing that.
+
+Every rule carries: who wrote it, who approved it, what it applies to, when it
+expires, how often it has fired, and how often a human has overridden it.
+A rule overridden repeatedly surfaces itself as wrong. A rule that hasn't
+fired in three months surfaces itself as dead.
+
+Classify rules by direction and treat them differently. A rule that ADDS
+caution ("send it for review instead") is low risk. A rule that REMOVES a
+check — "auto-approve and skip the ambiguity check", "always legitimate, do
+not flag" — is high risk, and needs a stronger gate, a shorter expiry, and a
+visual treatment that says so.
+
+Detect conflicts at approval time. Two rules that disagree about the same
+situation must be surfaced before the second one goes live.
+
+Add per-rule autonomy level: observed, proposed, provisional, autonomous, with
+a sampling rate that RISES as autonomy rises. Demotion is automatic when the
+override rate crosses a threshold.
+
+Finally, fix the seeded rule about tenant ACH returns. It currently instructs
+the system to approve a bounced rent payment, which would tell the books a
+tenant paid when they didn't. Replace it with a rule that recognises the
+return-plus-fee pattern and books the reversal. Then add a check that warns
+when a proposed rule would auto-approve a returned item.</pre>
+    </div>
+  </section>
+
+  <!-- ===== SEQ ===== -->
+  <section id="seq" class="part">
+    <p class="eyebrow">Finally</p>
+    <h2>Sequence</h2>
+
+    <p>The screens depend on each other, so order matters more than usual. Do the playbook's data-contract prompts (1 and 2) before any of these — otherwise you'll build interfaces against a model that can't hold what they need to show.</p>
+
+    <ul>
+      <li><strong>Review records first.</strong> It's closest to right, and getting the two-sided match and the five outcomes working here proves the new contract before it spreads.</li>
+      <li><strong>Then the run canvas</strong>, because the balance proof is the piece everything else links to.</li>
+      <li><strong>Then dashboard and properties together</strong> — they're the same change twice, and doing them as a pair keeps the columns consistent.</li>
+      <li><strong>Then the property record</strong>, which is additive and low-risk.</li>
+      <li><strong>Knowledge base and AI performance last</strong> — they need the override data that only exists once the review screen is producing it.</li>
+    </ul>
+
+    <p class="signoff">One honest note on all of this. These screens are well made — the composition, the restraint, the reasoning lines on the review rows. The problem was never craft. It was that a product about money had almost stopped showing money, and once you put the dollars back, most of what's above follows on its own.</p>
+  </section>
+
+  </main>
+</div>
+
+</body>
+</html>
