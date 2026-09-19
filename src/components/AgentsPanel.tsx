@@ -347,7 +347,7 @@ function PanelOutcome() {
   const { state, records } = useSession();
   if (variant !== "orb") return null;
   const rs = state.runState;
-  if (rs !== "review" && rs !== "updating-yardi" && rs !== "complete")
+  if (rs !== "review" && rs !== "posting" && rs !== "posted")
     return null;
 
   const approved = state.bankOrder.reduce(
@@ -364,9 +364,9 @@ function PanelOutcome() {
     .reduce((n, r) => n + r.amount, 0);
 
   const status =
-    rs === "complete"
+    rs === "posted"
       ? { text: "Posted to Yardi", tone: "var(--status-ok)", done: true }
-      : rs === "updating-yardi"
+      : rs === "posting"
       ? { text: "Posting to Yardi", tone: "var(--ink-tertiary)", done: false }
       : { text: "Ready for review", tone: "var(--ink-tertiary)", done: false };
 
@@ -578,7 +578,7 @@ function deriveAgents({
    * through to the "complete" return and rendered three finished agents with
    * zero counts, contradicting the Failed badge on the row it was opened
    * from. */
-  if (runState === "failed") {
+  if (runState === "blocked") {
     return [
       {
         ...intakeSeed,
@@ -614,7 +614,7 @@ function deriveAgents({
     isReconciledStage(state.banks[b.id]?.stage)
   );
 
-  if (runState === "running") {
+  if (runState === "reading") {
     /* Slim the timeline to what is plausibly known mid-run. */
     const intakeLines = liveIntakeTimeline(intakeSeed, bankCount);
     return [
@@ -636,7 +636,7 @@ function deriveAgents({
     timeline: liveIntakeTimeline(intakeSeed, bankCount),
   };
 
-  if (runState === "reconciling") {
+  if (runState === "matching") {
     const progressLine: DerivedLine = {
       id: "recon-live",
       runs: [
@@ -700,7 +700,7 @@ function deriveAgents({
     return [doneIntake, doneRecon, liveSummary];
   }
 
-  if (runState === "updating-yardi") {
+  if (runState === "posting") {
     const postedCount = state.bankOrder.filter(
       (id) => state.banks[id]?.stage === "posted"
     ).length;

@@ -107,7 +107,7 @@ export function currentAction(
         agent: "intake",
         live: false,
       };
-    case "reconciling": {
+    case "matching": {
       const done = banks.filter((b) =>
         ["reconciled", "posting", "posted"].includes(
           state.banks[b.id]?.stage ?? ""
@@ -231,7 +231,7 @@ export function useActivityLog({
 
   /* ----- Reconciliation ----- */
   useEffect(() => {
-    if (state.runState !== "reconciling") return;
+    if (state.runState !== "matching") return;
     push({
       id: "recon-start",
       agent: "reconciliation",
@@ -294,7 +294,7 @@ export function useActivityLog({
 
   /* ----- Posting ----- */
   useEffect(() => {
-    if (state.runState !== "updating-yardi") return;
+    if (state.runState !== "posting") return;
     const approved = state.bankOrder.reduce(
       (n, id) => n + (state.banks[id]?.approvedCount ?? 0),
       0
@@ -309,7 +309,7 @@ export function useActivityLog({
   }, [state.runState, state.banks, state.bankOrder, push]);
 
   useEffect(() => {
-    if (state.runState !== "complete") return;
+    if (state.runState !== "posted") return;
     const approved = state.bankOrder.reduce(
       (n, id) => n + (state.banks[id]?.approvedCount ?? 0),
       0

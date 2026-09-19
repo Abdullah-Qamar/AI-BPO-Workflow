@@ -32,7 +32,7 @@ const PHASE_AGENT: Record<HubPhase, { agent: ActivityAgent; live: boolean }> = {
   identifying: { agent: "intake", live: true },
   intake: { agent: "intake", live: true },
   "intake-done": { agent: "intake", live: false },
-  reconciling: { agent: "reconciliation", live: true },
+  matching: { agent: "reconciliation", live: true },
   summary: { agent: "summary", live: false },
   posting: { agent: "summary", live: true },
   complete: { agent: "summary", live: false },

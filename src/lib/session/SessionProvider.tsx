@@ -96,7 +96,7 @@ export function SessionProvider({
   cycle: string;
   selectedSessionId: string;
   /* When true the controller stops after intake instead of auto-advancing into
-   * reconciliation, parking the session at `runState: "running"` with no active
+   * reconciliation, parking the session at `runState: "reading"` with no active
    * agent. The host then calls `startReconciliation()` on a user gesture.
    *
    * V1 leaves this off and keeps its uninterrupted run. V2's core hands the
@@ -141,11 +141,11 @@ export function SessionProvider({
     cancelTimer();
     const { runState } = state;
 
-    if (runState === "running") {
+    if (runState === "reading") {
       runIntakePhase();
-    } else if (runState === "reconciling") {
+    } else if (runState === "matching") {
       runReconciliationPhase();
-    } else if (runState === "updating-yardi") {
+    } else if (runState === "posting") {
       runPostingPhase();
     }
 
@@ -169,7 +169,7 @@ export function SessionProvider({
         return;
       }
       timerRef.current = setTimeout(() => {
-        dispatch({ type: "advanceRunState", to: "reconciling" });
+        dispatch({ type: "advanceRunState", to: "matching" });
         dispatch({ type: "setActiveAgent", agent: "reconciliation" });
       }, REVIEW_AUTO_GATE_MS);
     });
@@ -295,13 +295,13 @@ export function SessionProvider({
       (id) => stateRef.current.banks[id]?.stage === "reconciled"
     );
     if (ids.length === 0) {
-      dispatch({ type: "advanceRunState", to: "complete" });
+      dispatch({ type: "advanceRunState", to: "posted" });
       return;
     }
     walkBanks(ids, ["posting", "posted"], () => {
       dispatch({ type: "setActiveBank", bankId: null });
       timerRef.current = setTimeout(() => {
-        dispatch({ type: "advanceRunState", to: "complete" });
+        dispatch({ type: "advanceRunState", to: "posted" });
         dispatch({ type: "setActiveAgent", agent: null });
       }, REVIEW_AUTO_GATE_MS);
     });
@@ -352,7 +352,7 @@ export function SessionProvider({
   const startRun = useCallback(() => dispatch({ type: "startRun" }), []);
   /* Releases the `gateReconciliation` hold. No-op unless intake has parked. */
   const startReconciliation = useCallback(() => {
-    dispatch({ type: "advanceRunState", to: "reconciling" });
+    dispatch({ type: "advanceRunState", to: "matching" });
     dispatch({ type: "setActiveAgent", agent: "reconciliation" });
   }, []);
   const startYardiUpdate = useCallback(

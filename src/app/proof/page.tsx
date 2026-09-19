@@ -15,6 +15,8 @@
  */
 
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { BalanceProof } from "@/components/reconciliation/BalanceProof";
 import { Button } from "@/components/ui/Button";
 import type { Match } from "@/lib/reconciliation/match";
@@ -179,6 +181,30 @@ export default function ProofPage() {
           className="flex flex-col"
           style={{ gap: "var(--space-7)", paddingTop: "var(--space-6)" }}
         >
+          {/* The left rail lives inside app/page.tsx, so it exists at "/" and
+           * nowhere else. This route had no way back at all, which made it a
+           * dead end — the one defect the flows document says this product has
+           * characteristically. The design system page solves it the same way,
+           * with a ghost pill and ArrowLeft at 14/1.75, so this matches it
+           * rather than inventing a second treatment. */}
+          <Link
+            href="/"
+            className="inline-flex items-center t-body ink-primary self-start"
+            style={{
+              height: "var(--control-md)",
+              padding: "0 12px",
+              gap: 6,
+              borderRadius: 999,
+              textDecoration: "none",
+            }}
+          >
+            <ArrowLeft
+              size="var(--icon-sm)"
+              strokeWidth="var(--stroke-sm)"
+            />
+            Back to Reconciliation
+          </Link>
+
           <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
             <h1 className="canvas-title ink-primary">
               1849 Westlake Ave N, Seattle, WA 98109

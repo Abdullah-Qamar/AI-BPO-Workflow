@@ -115,7 +115,7 @@ export function ReviewCanvas({ onBack }: { onBack: () => void }) {
    * controls are gone in that state rather than lying about what they do. */
   const runState = session?.state.runState ?? "review";
   const readOnly = runState !== "review";
-  const failed = runState === "failed";
+  const failed = runState === "blocked";
 
   const bankOptions = useMemo<BankOption[]>(
     () =>
@@ -396,10 +396,10 @@ export function ReviewCanvas({ onBack }: { onBack: () => void }) {
  * "this is a record of what was decided" reads as finished. */
 function readOnlyNotice(runState: string): string | null {
   if (runState === "review") return null;
-  if (runState === "complete") {
+  if (runState === "posted") {
     return "This session is posted. Its records are a record of what was decided.";
   }
-  if (runState === "updating-yardi") {
+  if (runState === "posting") {
     return "This session is posting to Yardi. Its records are settled and can no longer be changed.";
   }
   return "This session is not in review, so its records can no longer be changed.";

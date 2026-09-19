@@ -58,7 +58,7 @@ export type HubPhase =
   | "identifying"
   | "intake"
   | "intake-done"
-  | "reconciling"
+  | "matching"
   | "summary"
   | "posting"
   | "complete"
@@ -77,17 +77,17 @@ export function hubPhase(
   switch (state.runState) {
     case "draft":
       return identifying ? "identifying" : "draft";
-    case "running":
+    case "reading":
       return isAwaitingReconciliation(state) ? "intake-done" : "intake";
-    case "reconciling":
-      return "reconciling";
+    case "matching":
+      return "matching";
     case "review":
       return "summary";
-    case "updating-yardi":
+    case "posting":
       return "posting";
-    case "complete":
+    case "posted":
       return "complete";
-    case "failed":
+    case "blocked":
       return "failed";
     default:
       return "draft";

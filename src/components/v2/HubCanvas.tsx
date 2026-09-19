@@ -456,11 +456,11 @@ function agentPills(phase: HubPhase): AgentPillState[] {
     at(
       "intake",
       past("identifying", "intake"),
-      past("intake-done", "reconciling", "summary", "posting", "complete")
+      past("intake-done", "matching", "summary", "posting", "complete")
     ),
     at(
       "reconciliation",
-      past("reconciling"),
+      past("matching"),
       past("summary", "posting", "complete")
     ),
     /* Summary counts as done at `summary`: the figures on screen are its

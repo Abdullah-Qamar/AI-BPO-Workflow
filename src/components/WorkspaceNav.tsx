@@ -65,16 +65,16 @@ const URGENCY_RANK: Record<StatusKey, number> = {
  * seeded snapshot state. */
 function stateForRunState(runState: RunState): StatusKey {
   switch (runState) {
-    case "complete":
+    case "posted":
       return "completed";
-    case "failed":
+    case "blocked":
       return "failed";
     case "review":
       return "review";
     case "draft":
-    case "running":
-    case "reconciling":
-    case "updating-yardi":
+    case "reading":
+    case "matching":
+    case "posting":
     default:
       return "active";
   }

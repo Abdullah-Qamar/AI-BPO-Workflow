@@ -52,7 +52,7 @@ export function sessionReducer(
       if (!hasAnyPairReady(state)) return state;
       return {
         ...state,
-        runState: "running",
+        runState: "reading",
         activeAgent: "intake",
         activeBankId: firstPairReadyBank(state),
       };
@@ -128,9 +128,9 @@ export function sessionReducer(
        * when a reviewer decides the matching was wrong — confirming and then
        * doing nothing. */
       if (
-        state.runState !== "failed" &&
+        state.runState !== "blocked" &&
         state.runState !== "review" &&
-        state.runState !== "complete"
+        state.runState !== "posted"
       ) {
         return state;
       }
@@ -164,7 +164,7 @@ export function sessionReducer(
       if (state.runState !== "review") return state;
       return {
         ...state,
-        runState: "updating-yardi",
+        runState: "posting",
         activeAgent: "summary",
         activeBankId: state.bankOrder[0] ?? null,
         reviewOpenBankId: null,
@@ -246,7 +246,7 @@ export function makeInitialState(args: {
   if (!session) return base;
 
   if (session.status === "failed") {
-    return { ...base, runState: "failed", failureNote: session.note };
+    return { ...base, runState: "blocked", failureNote: session.note };
   }
 
   const settled = session.status === "complete";
@@ -268,7 +268,7 @@ export function makeInitialState(args: {
 
   return {
     ...base,
-    runState: settled ? "complete" : "review",
+    runState: settled ? "posted" : "review",
     banks,
   };
 }
@@ -339,7 +339,7 @@ export function allBanksReviewed(state: SessionState): boolean {
  * reachable when the provider runs with `gateReconciliation` — without it the
  * controller advances straight through and this window never opens. */
 export function isAwaitingReconciliation(state: SessionState): boolean {
-  return state.runState === "running" && state.activeAgent === null;
+  return state.runState === "reading" && state.activeAgent === null;
 }
 
 /* The pair is "complete" once posted. Used to colour the wire-connector. */
