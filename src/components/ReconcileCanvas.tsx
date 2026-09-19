@@ -49,6 +49,8 @@ import { Check, ChevronRight, Circle, Loader } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
 import { ReconcileRun } from "@/components/ReconcileRun";
+import { ReconcilePosting } from "@/components/ReconcilePosting";
+import { buildBatch, type PostingBatch } from "@/lib/posting";
 import { MatchCard } from "@/components/entities/MatchCard";
 import { ProofLadder } from "@/components/entities/ProofLadder";
 import { OutcomeChip } from "@/components/entities/OutcomeChip";
@@ -69,6 +71,7 @@ import {
 import { westlakeMatches } from "@/lib/reconciliation/westlakeMatches";
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import { canProve, canSign, type ReconciliationState } from "@/lib/session/types";
+import { OPEN_PERIOD } from "@/lib/close";
 import { toCents } from "@/lib/money";
 
 const PERIOD_END = "2026-05-31";
@@ -225,6 +228,10 @@ export function ReconcileCanvas() {
   const [matches, setMatches] = useState<Match[]>(westlakeMatches);
   const [openId, setOpenId] = useState<string | null>(null);
   const [signedBy, setSignedBy] = useState<string | null>(null);
+
+  /* The batch, once a person has signed. Null before that, and null again after
+   * an undo — which is the point of undo. */
+  const [batch, setBatch] = useState<PostingBatch | null>(null);
 
   /* Where the run itself is.
    *
@@ -489,6 +496,17 @@ export function ReconcileCanvas() {
             </div>
           ) : run === "running" ? (
             <ReconcileRun matches={matches} onFinished={finishRun} />
+          ) : batch ? (
+            /* Once it has been signed the middle becomes the send, because what
+             * a person needs to see now is which entries landed. The proof is
+             * behind it, unchanged and still true. */
+            <ReconcilePosting
+              initial={batch}
+              reconciliation={reconciliation}
+              period={OPEN_PERIOD}
+              onUndone={() => setSignedBy(null)}
+              onDismiss={() => setBatch(null)}
+            />
           ) : showProof ? (
             /* The work is done, so the picture changes from the machine's
              * leftovers to the proof. */
@@ -693,7 +711,16 @@ export function ReconcileCanvas() {
                     entries === 1 ? "entry" : "entries"
                   } and ${clearedMarks} cleared marks into 05/2026. Each entry carries an idempotency key, so a retry cannot duplicate it, and a completed post can be undone while the period is open.`}
                   disabled={!signGuard.allowed}
-                  onConfirm={() => setSignedBy(REVIEWER)}
+                  onConfirm={() => {
+                    setSignedBy(REVIEWER);
+                    setBatch(
+                      buildBatch(
+                        "recon-westlake-operating-2026-05",
+                        "05/2026",
+                        matches
+                      )
+                    );
+                  }}
                 />
               )}
               {/* A switched-off button says why, right next to it. */}
