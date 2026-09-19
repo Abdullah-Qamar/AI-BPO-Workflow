@@ -2,56 +2,73 @@
 
 import { useEffect, useState } from "react";
 import {
-  Building2,
+  BookOpen,
+  CalendarCheck,
   Gauge,
   GitCompareArrows,
-  LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
+  Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
+import { StatusDot } from "./ui/Status";
+import { awaitingAPerson } from "@/lib/close";
 
-type Route = "dashboard" | "workspace" | "properties" | "observability";
+export type Route =
+  | "close"
+  | "reconcile"
+  | "accounts"
+  | "rules"
+  | "quality";
 
 /* Nav icons are Lucide, matching the rest of the app's icon vocabulary and the
- * compact reference ("thin, ~1.5px at 16px, never filled").
+ * compact reference ("thin, ~1.5px at 16px, never filled"). The rail keeps its
+ * icons because collapsed they are the only label there is.
  *
- * They no longer mirror a page-header icon, because the page headers no longer
- * carry one — a title that already says "Dashboard" beside a rail item that says
- * "Dashboard" beside an icon of a dashboard was three statements of the same
- * fact. The rail keeps its icons because collapsed they are the only label
- * there is.
- *
- * Reconciliation takes GitCompareArrows, already the app's mark for a
- * comparison. AI Performance takes Gauge: the page is a set of readings.
- *
- * The label matches its destination's heading exactly. "Observability" is the
- * internal word for this page; "AI Performance" is what the page is called, so
- * that is what the rail says. */
-type NavItem = { key: Route; Icon: LucideIcon; label: string };
+ * GitCompareArrows and Gauge stay: a comparison and a set of readings. Building2
+ * goes, because it draws the object its label was wrong about. Wallet reads as
+ * an account without colliding with Landmark, which already means "bank" on the
+ * statement cards. CalendarCheck carries the period and its deadline, which is
+ * what Close is about. BookOpen is what has been written down. */
+type NavGroup = "doing" | "governing";
+type NavItem = {
+  key: Route;
+  Icon: LucideIcon;
+  label: string;
+  group: NavGroup;
+};
 
-/* All four destinations, as peers.
+/* Five destinations in two groups, and the divider between them is the idea.
  *
- * AI Performance used to sit at the foot of the rail as a live status widget:
- * a two-column table of each agent's first-pass success rate and token spend.
- * It is gone, for two reasons. An accountant cannot act on a token, and that
- * widget put one on every screen in the product — cost belongs on AI
- * Performance, in dollars per reconciliation, with tokens as the engineering
- * detail underneath. And it did not fit: at 220px the rail clipped it to
- * "S…ary 89%" and "…etails ›", so the numbers it existed to show were not
- * legible anyway. Every figure it carried is on the AI Performance screen,
- * per agent, alongside the median duration it never had room for.
+ * The top three are DOING the work. The bottom two are GOVERNING it — what the
+ * machine has been taught, and whether it is getting better. Same person,
+ * different moments, and a line says so more quietly than a heading would.
  *
- * What is left is navigation, which is what a rail is for. AI Performance is a
- * fourth item in the same shape as the other three, so the one screen that was
- * reachable only through a widget is now reachable the same way as everything
- * else. */
+ * Every label changed except Reconcile, each for a reason worth keeping:
+ *
+ *   Dashboard -> Close      "Dashboard" names a shape, not a job. Every product
+ *                           has one. This screen is the month's work.
+ *   Properties -> Accounts  Pointed at the wrong object. Waiting items live on
+ *                           the ACCOUNT, and an account is the thing that can be
+ *                           proven. A property is a folder above it.
+ *   AI Performance ->       Written from our side of the screen. The reader is
+ *   Quality                 an accountant asking whether the work can be
+ *                           trusted, not whether a model is performing.
+ *   (new) Rules             Rules and the trust levels had no destination at
+ *                           all, which is how prose in a knowledge panel came to
+ *                           be doing a rule's job. */
 const ITEMS: NavItem[] = [
-  { key: "dashboard", Icon: LayoutDashboard, label: "Dashboard" },
-  { key: "workspace", Icon: GitCompareArrows, label: "Reconciliation" },
-  { key: "properties", Icon: Building2, label: "Properties" },
-  { key: "observability", Icon: Gauge, label: "AI Performance" },
+  { key: "close", Icon: CalendarCheck, label: "Close", group: "doing" },
+  {
+    key: "reconcile",
+    Icon: GitCompareArrows,
+    label: "Reconcile",
+    group: "doing",
+  },
+  { key: "accounts", Icon: Wallet, label: "Accounts", group: "doing" },
+  { key: "rules", Icon: BookOpen, label: "Rules", group: "governing" },
+  { key: "quality", Icon: Gauge, label: "Quality", group: "governing" },
 ];
 
 const STORAGE_KEY = "tieout.nav.collapsed";
@@ -99,6 +116,16 @@ export function LeftRail({
   route: Route;
   onNavigate: (r: Route) => void;
 }) {
+  /* ONLY Close carries a count. A badge that counts everything is noise, and a
+   * rail with five numbers on it teaches a reader to stop seeing all five.
+   *
+   * It counts accounts where a person is the only thing that can move the work
+   * on: blocked reads, accounts waiting for a decision, and accounts proven but
+   * not yet signed. Derived in lib/close.ts, which the Close screen reads too,
+   * so the badge and the rows beneath it cannot disagree. Nothing here types a
+   * number. */
+  const waiting = awaitingAPerson().length;
+
   const [preferCollapsed, setPreferCollapsed] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const [logoHover, setLogoHover] = useState(false);
@@ -245,7 +272,32 @@ export function LeftRail({
         </div>
       )}
 
-      {ITEMS.map((item) => renderItem(item))}
+      {ITEMS.map((item, i) => {
+        const previous = ITEMS[i - 1];
+        const startsGovernance = previous && previous.group !== item.group;
+        return (
+          <div key={item.key} style={{ width: "100%" }}>
+            {startsGovernance && (
+              /* The line that carries the idea. A structural divider, so it
+               * takes --line-soft, and it is inset to the nav items' own
+               * padding rather than running edge to edge, because it separates
+               * the items and not the rail. */
+              <div
+                aria-hidden
+                style={{
+                  height: 1,
+                  background: "var(--line-soft)",
+                  margin: collapsed
+                    ? "var(--space-4) auto"
+                    : "var(--space-4) 8px",
+                  width: collapsed ? "var(--row-md)" : "auto",
+                }}
+              />
+            )}
+            {renderItem(item)}
+          </div>
+        );
+      })}
 
       {/* Hover feedback lives in CSS rather than onMouseEnter handlers so it
         * survives the pointer leaving during a route change, which left the
@@ -314,7 +366,22 @@ export function LeftRail({
               * needs to mark the row, not compete with it. Collapsed it is the
               * only label there is — 16px is the ramp's nav size and stays
               * legible at that width. */}
-            <item.Icon size={16} strokeWidth={1.5} className="shrink-0" />
+            {/* Collapsed, the label is gone and a number at 11px inside a 60px
+              * rail would be unreadable, so the count becomes a mark at the
+              * icon's corner and the tooltip carries the figure. */}
+            <span
+              className="relative flex items-center shrink-0"
+              style={{ lineHeight: 0 }}
+            >
+              <item.Icon size={16} strokeWidth={1.5} className="shrink-0" />
+              {collapsed && item.key === "close" && waiting > 0 && (
+                <StatusDot
+                  tone="warn"
+                  ring
+                  style={{ position: "absolute", top: -2, right: -3 }}
+                />
+              )}
+            </span>
             {!collapsed && (
               <span
                 className="truncate"
@@ -336,6 +403,18 @@ export function LeftRail({
                 {item.label}
               </span>
             )}
+            {!collapsed && item.key === "close" && waiting > 0 && (
+              <span
+                className="t-meta nums shrink-0"
+                style={{
+                  marginLeft: "auto",
+                  color: "var(--ink-tertiary)",
+                  fontWeight: "var(--weight-medium)",
+                }}
+              >
+                {waiting}
+              </span>
+            )}
           </button>
         );
 
@@ -343,7 +422,11 @@ export function LeftRail({
         return collapsed ? (
           <Tooltip
             key={item.key}
-            label={item.label}
+            label={
+              item.key === "close" && waiting > 0
+                ? `${item.label} · ${waiting} waiting`
+                : item.label
+            }
             side="right"
             tone={active ? "info" : "neutral"}
           >

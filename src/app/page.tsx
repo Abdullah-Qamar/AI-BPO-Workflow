@@ -7,7 +7,12 @@ import { HubCanvas } from "@/components/v2/HubCanvas";
 import { ReviewDrawer } from "@/components/v2/ReviewDrawer";
 import { AgentsPanel } from "@/components/AgentsPanel";
 import { DashboardCanvas } from "@/components/DashboardCanvas";
-import { AIQualityDetail } from "@/components/AIQualityDetail";
+import {
+  SurfacePlaceholder,
+  RULES_PLACEHOLDER,
+  QUALITY_PLACEHOLDER,
+} from "@/components/SurfacePlaceholder";
+import { BookOpen, Gauge } from "lucide-react";
 import { PropertiesCanvas } from "@/components/PropertiesCanvas";
 import { EmptyWorkspace } from "@/components/EmptyWorkspace";
 import {
@@ -20,10 +25,14 @@ import {
 import { useResponsiveLayout } from "@/lib/useResponsiveLayout";
 import { SessionProvider } from "@/lib/session/SessionProvider";
 
-type Route = "dashboard" | "workspace" | "properties" | "observability";
+/* Route keys, renamed with the rail. No aliases are kept: a key called
+ * "workspace" that renders a screen called Reconcile is exactly the drift the
+ * vocabulary contract exists to prevent, and leaving one behind guarantees the
+ * next person adds a second. */
+import type { Route } from "@/components/LeftRail";
 
 export default function Page() {
-  const [route, setRoute] = useState<Route>("dashboard");
+  const [route, setRoute] = useState<Route>("close");
   /* Properties owns its own list/detail state internally. Clicking Properties
    * in the rail while already sitting inside a property detail was a no-op —
    * the route never changed, so nothing reset. Bumping this key on every
@@ -92,7 +101,7 @@ export default function Page() {
     cycle?: string
   ) => {
     const property: PropertyRecord | undefined = propertyById[propertyId];
-    setRoute("workspace");
+    setRoute("reconcile");
     setReviewOpen(false);
     if (sessionId) {
       setSelectedSessionId(sessionId);
@@ -118,25 +127,32 @@ export default function Page() {
       <LeftRail
         route={route}
         onNavigate={(next) => {
-          if (next === "properties") setPropertiesKey((k) => k + 1);
+          if (next === "accounts") setPropertiesKey((k) => k + 1);
           setRoute(next);
         }}
       />
-      {route === "observability" && (
-        /* A top-level destination now, not a view nested inside the Dashboard.
-         * It was reachable only by a link on one screen, which made a whole page
-         * of the product hard to find and impossible to return to directly. */
-        <AIQualityDetail />
+      {/* Rules and Quality are destinations before they are screens.
+        *
+        * Quality does NOT render the old AI Performance page. That page leads
+        * on tokens used and first-pass accuracy, which are the two figures the
+        * specs remove from it by name, and putting it behind a label reading
+        * "Quality" would be the rail making a promise the screen breaks. The
+        * component stays in the tree for the rebuild to draw on. */}
+      {route === "rules" && (
+        <SurfacePlaceholder spec={{ ...RULES_PLACEHOLDER, Icon: BookOpen }} />
       )}
-      {route === "dashboard" && (
+      {route === "quality" && (
+        <SurfacePlaceholder spec={{ ...QUALITY_PLACEHOLDER, Icon: Gauge }} />
+      )}
+      {route === "close" && (
         <DashboardCanvas
-          onOpenObservability={() => setRoute("observability")}
+          onOpenObservability={() => setRoute("quality")}
           onOpenSession={(propertyId, sessionId, cycle) =>
             openProperty(propertyId, sessionId, cycle)
           }
         />
       )}
-      {route === "workspace" && (
+      {route === "reconcile" && (
         <>
           <WorkspaceNav
             selectedSessionId={selectedSessionId}
@@ -191,7 +207,7 @@ export default function Page() {
           )}
         </>
       )}
-      {route === "properties" && (
+      {route === "accounts" && (
         <PropertiesCanvas
           key={propertiesKey}
           onStartSession={(propertyId, sessionId) =>
