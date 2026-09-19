@@ -44,10 +44,11 @@
  * docs/BUILD_PROMPTS.md S5 to S7.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronRight, Circle, Loader } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
+import { ReconcileRun } from "@/components/ReconcileRun";
 import { MatchCard } from "@/components/entities/MatchCard";
 import { ProofLadder } from "@/components/entities/ProofLadder";
 import { OutcomeChip } from "@/components/entities/OutcomeChip";
@@ -225,6 +226,17 @@ export function ReconcileCanvas() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [signedBy, setSignedBy] = useState<string | null>(null);
 
+  /* Where the run itself is.
+   *
+   * `draft` means the documents are in and nobody has pressed start. `running`
+   * is the machine working, and the middle of the screen is a picture of it.
+   * `finished` is everything after, which is where the queue and the proof
+   * live. Three values rather than replaying the fourteen-state machine here:
+   * this is about which PICTURE the middle shows, and the reconciliation's own
+   * state is derived below from the work rather than from the animation. */
+  const [run, setRun] = useState<"draft" | "running" | "finished">("draft");
+  const finishRun = useCallback(() => setRun("finished"), []);
+
   const proof = useMemo(
     () =>
       buildProof({
@@ -260,9 +272,13 @@ export function ReconcileCanvas() {
    * field somebody can set to `proven` while money is unexplained. */
   const state: ReconciliationState = signedBy
     ? "signed"
-    : owed === 0 && proof.tied
-      ? "proven"
-      : "review";
+    : run === "draft"
+      ? "draft"
+      : run === "running"
+        ? "reading"
+        : owed === 0 && proof.tied
+          ? "proven"
+          : "review";
 
   const reconciliation = {
     id: "recon-westlake-operating-2026-05",
@@ -333,28 +349,52 @@ export function ReconcileCanvas() {
     return n;
   }, 0);
 
+  /* The lanes track the run, so a lane cannot claim to have read a document
+   * before anybody started. "not started" is a state the old canvas never had,
+   * which is why every lane on it looked busy from the moment it mounted. */
+  const before = run === "draft";
+  const during = run === "running";
+
+  /* A lane may only report what it has actually touched YET.
+   *
+   * An earlier pass gated the lane's STATE on the run but left its text
+   * unconditional, so while the documents were still being read the Pairing
+   * lane already claimed "7 paired by rule · 5 left for you". A lane that
+   * reports its finished figures before it has started is worse than a spinner:
+   * a spinner says nothing, and this said something false. */
+  const notYet = before || during;
+
   const lanes: { name: string; state: LaneState; touched: string }[] = [
     {
       name: "Reading",
-      state: "done",
-      touched:
-        "bai2-westlake-operating-2026-05.bai · 14 lines · totals matched the header",
+      state: before ? "waiting" : during ? "active" : "done",
+      touched: before
+        ? "2 documents in · a bai2 statement and a Yardi export"
+        : during
+          ? "extracting rows, then grading them against the header"
+          : "bai2-westlake-operating-2026-05.bai · 14 lines · totals matched the header",
     },
     {
       name: "Pairing",
-      state: "done",
-      touched: `${paired} paired by rule · ${oneSided} one-sided · ${owed} left for you`,
+      state: notYet ? "waiting" : "done",
+      touched: notYet
+        ? "not started"
+        : `${paired} paired by rule · ${oneSided} one-sided · ${owed} left for you`,
     },
     {
       name: "Checking",
-      state: owed > 0 ? "active" : "done",
-      touched: `${confirmed} pattern confirmed · ${proposed} proposed · ${ambiguous} ranked, not decided`,
+      state: notYet ? "waiting" : owed > 0 ? "active" : "done",
+      touched: notYet
+        ? "not started"
+        : `${confirmed} pattern confirmed · ${proposed} proposed · ${ambiguous} ranked, not decided`,
     },
     {
       name: "Sending",
       state: state === "signed" ? "active" : "waiting",
       touched:
-        state === "signed"
+        notYet
+          ? "not started"
+          : state === "signed"
           ? "sending"
           : `${entries} correcting ${
               entries === 1 ? "entry" : "entries"
@@ -362,7 +402,7 @@ export function ReconcileCanvas() {
     },
   ];
 
-  const showProof = owed === 0;
+  const showProof = run === "finished" && owed === 0;
 
   return (
     <main
@@ -385,7 +425,15 @@ export function ReconcileCanvas() {
             <span className="t-body ink-secondary nums">
               ••••3421 · GL 1010 Operating Cash · May 2026 ·{" "}
               <span style={{ fontWeight: "var(--weight-medium)" }}>
-                {stateWords(state)}
+                {/* `draft` covers two situations the state machine does not
+                  * separate: no documents yet, and both documents in with
+                  * nothing read. "Waiting for files" is only true of the first,
+                  * and the spec's own answer is that a draft shows its document
+                  * count — "0 of 2 expected" — so a full count is what a draft
+                  * looks like once they arrive. */}
+                {state === "draft"
+                  ? "2 of 2 documents in · not yet run"
+                  : stateWords(state)}
               </span>
             </span>
           </div>
@@ -404,8 +452,44 @@ export function ReconcileCanvas() {
             ))}
           </div>
 
-          {/* ---------- The middle ---------- */}
-          {showProof ? (
+          {/* ---------- The middle ---------- *
+            *
+            * Three pictures and never two at once. The machine while it runs,
+            * the queue and the item while work is owed, the proof when nothing
+            * is. The spec is explicit that this same area changes, and the
+            * reason is that a proof over five open items would be showing a
+            * conclusion nobody has reached. */}
+          {run === "draft" ? (
+            <div
+              className="flex flex-col items-start"
+              style={{
+                background: "var(--surface-card)",
+                borderRadius: "var(--radius-card)",
+                boxShadow: "var(--shadow-card)",
+                padding: "var(--space-9)",
+                gap: "var(--space-5)",
+              }}
+            >
+              <span className="t-title ink-primary">
+                Both documents are in
+              </span>
+              <span className="t-prose ink-secondary">
+                The statement and the ledger export are bound to this account
+                and period. The run reads them, checks the extracted rows
+                against the totals the statement declares in its own header, and
+                stops rather than reconcile against half a statement.
+              </span>
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => setRun("running")}
+              >
+                Start the run
+              </Button>
+            </div>
+          ) : run === "running" ? (
+            <ReconcileRun matches={matches} onFinished={finishRun} />
+          ) : showProof ? (
             /* The work is done, so the picture changes from the machine's
              * leftovers to the proof. */
             <ProofLadder
@@ -544,7 +628,16 @@ export function ReconcileCanvas() {
           >
             {/* The figure lives here only while the proof is not on screen.
               * Exactly one --type-metric figure at any moment. */}
-            {showProof ? (
+            {run !== "finished" ? (
+              <div className="flex flex-col" style={{ gap: 2 }}>
+                <span className="t-label">Next</span>
+                <span className="t-body ink-secondary">
+                  {run === "draft"
+                    ? "Start the run. Nothing has been read yet, so there is no figure to show."
+                    : "Reading and pairing. The figure appears when the machine hands over."}
+                </span>
+              </div>
+            ) : showProof ? (
               <div className="flex flex-col" style={{ gap: 2 }}>
                 <span className="t-label">Next</span>
                 <span className="t-body ink-secondary">
@@ -579,7 +672,7 @@ export function ReconcileCanvas() {
               className="flex flex-col items-end"
               style={{ gap: "var(--space-3)" }}
             >
-              {state === "signed" ? (
+              {run !== "finished" ? null : state === "signed" ? (
                 <span className="t-body ink-secondary">
                   Signed by {signedBy}
                 </span>
@@ -608,7 +701,7 @@ export function ReconcileCanvas() {
                 * the guard rather than being restated here. Two copies of
                 * "why can this not happen" is how a screen ends up disagreeing
                 * with the rule it is describing. */}
-              {!signGuard.allowed && state !== "signed" && (
+              {run === "finished" && !signGuard.allowed && state !== "signed" && (
                 <span className="t-meta ink-tertiary">
                   {proveGuard.allowed ? "Ready to sign" : proveGuard.because}
                 </span>

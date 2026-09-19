@@ -28,7 +28,7 @@ import { BookOpen, Gauge } from "lucide-react";
 import { LeftRail, type Route } from "@/components/LeftRail";
 import { CloseCanvas } from "@/components/CloseCanvas";
 import { ReconcileCanvas } from "@/components/ReconcileCanvas";
-import { PropertiesCanvas } from "@/components/PropertiesCanvas";
+import { AccountsCanvas } from "@/components/AccountsCanvas";
 import {
   SurfacePlaceholder,
   RULES_PLACEHOLDER,
@@ -74,16 +74,10 @@ export default function Page() {
       {route === "reconcile" && <ReconcileCanvas />}
 
       {/* ---------- Accounts ----------
-        * Still the old properties canvas. The standing world with each
-        * account's running record of open items is later work, and the label
-        * moved ahead of the screen on purpose: the rail had to stop pointing at
-        * the wrong object before the right one could be built. */}
-      {route === "accounts" && (
-        <PropertiesCanvas
-          key={accountsKey}
-          onStartSession={() => setRoute("reconcile")}
-        />
-      )}
+        * The standing world. PropertiesCanvas is retired here: it pointed at
+        * the property, and waiting items live on the ACCOUNT — a property is a
+        * folder above it and cannot be proven. This screen has no month. */}
+      {route === "accounts" && <AccountsCanvas key={accountsKey} />}
 
       {/* ---------- Rules and Quality ----------
         * Destinations before they are screens, so each says what it is for and

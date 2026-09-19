@@ -31,16 +31,15 @@ export const STALE_AFTER_DAYS = 90;
 /* Whole days between two ISO dates. Exported because the account screen and the
  * proof both need the same arithmetic, and two implementations of "how old is
  * this" is how two surfaces come to disagree about one cheque. */
-export function ageInDays(writtenOn: string, periodEnd: string): number {
+export function ageInDays(writtenOn: string, asOf: string): number {
   const days =
-    (Date.parse(`${periodEnd}T00:00:00Z`) -
-      Date.parse(`${writtenOn}T00:00:00Z`)) /
+    (Date.parse(`${asOf}T00:00:00Z`) - Date.parse(`${writtenOn}T00:00:00Z`)) /
     86_400_000;
   return Math.max(0, Math.round(days));
 }
 
-export function isStale(writtenOn: string, periodEnd: string): boolean {
-  return ageInDays(writtenOn, periodEnd) > STALE_AFTER_DAYS;
+export function isStale(writtenOn: string, asOf: string): boolean {
+  return ageInDays(writtenOn, asOf) > STALE_AFTER_DAYS;
 }
 
 export function OpenItemRow({
@@ -48,7 +47,7 @@ export function OpenItemRow({
   reference,
   amount,
   writtenOn,
-  periodEnd,
+  asOf,
 }: {
   description: string;
   /* The cheque number or control number. What identifies the item in its own
@@ -57,10 +56,20 @@ export function OpenItemRow({
   amount: number;
   /* ISO date the item was written or banked. */
   writtenOn: string;
-  /* ISO date of the close this row is being read at. */
-  periodEnd: string;
+  /* The date this row is being read AT, and the two screens pass different
+   * things on purpose.
+   *
+   * On a reconciliation it is the PERIOD END, so re-opening May in September
+   * still says seven days — the age is a property of the item at that close and
+   * must not creep while nobody is looking.
+   *
+   * On the Accounts screen it is TODAY, because that screen has no month. It is
+   * about the account as an ongoing thing, and the question there is how long
+   * this cheque has actually been sitting, which is a different question with a
+   * different answer. */
+  asOf: string;
 }) {
-  const age = ageInDays(writtenOn, periodEnd);
+  const age = ageInDays(writtenOn, asOf);
   const stale = age > STALE_AFTER_DAYS;
 
   return (

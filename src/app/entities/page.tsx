@@ -460,28 +460,28 @@ export default function EntitiesPage() {
                 reference="Cheque 1042"
                 amount={-3200}
                 writtenOn="2026-05-24"
-                periodEnd="2026-05-31"
+                asOf="2026-05-31"
               />
               <OpenItemRow
                 description="Pacific Mutual Insurance · Property premium Q2"
                 reference="Cheque 1051"
                 amount={-8450}
                 writtenOn="2026-05-28"
-                periodEnd="2026-05-31"
+                asOf="2026-05-31"
               />
               <OpenItemRow
                 description="Kerr & Associates · Legal, lease review"
                 reference="Cheque 1055"
                 amount={-6590.5}
                 writtenOn="2026-05-29"
-                periodEnd="2026-05-31"
+                asOf="2026-05-31"
               />
               <OpenItemRow
                 description="Northgate Glazing · Window replacement"
                 reference="Cheque 0987"
                 amount={-2140}
                 writtenOn="2026-02-11"
-                periodEnd="2026-05-31"
+                asOf="2026-05-31"
               />
             </Sheet>
             <p className="t-meta ink-tertiary">
