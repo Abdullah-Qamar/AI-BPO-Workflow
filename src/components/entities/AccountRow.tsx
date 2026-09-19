@@ -64,7 +64,14 @@ function daysWaiting(since: string | null, now: Date): number | null {
   if (!since) return null;
   const ms = now.getTime() - Date.parse(since);
   if (Number.isNaN(ms)) return null;
-  return Math.max(0, Math.round(ms / 86_400_000));
+  const days = Math.max(0, Math.round(ms / 86_400_000));
+  /* A sanity bound, and it earned its place. A caller passed the seed's
+   * `finishedOn`, which is a display string reading "Apr 1" with no year, so
+   * Date.parse took it for the year 2001 and this row rendered "waiting 9135
+   * days" without complaint. An open period is weeks old at most; anything past
+   * two years is a parse that went wrong, and showing nothing beats showing a
+   * number that is confidently absurd. */
+  return days > 730 ? null : days;
 }
 
 function plural(n: number, one: string, many: string): string {

@@ -40,6 +40,7 @@ import {
 import { buildProof } from "@/lib/reconciliation/proof";
 import { westlakeMatches, ACCOUNT_ID } from "@/lib/reconciliation/westlakeMatches";
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
+import type { StuckReason } from "@/components/entities/StuckRow";
 import { toCents, toDollars } from "@/lib/money";
 
 /* ---------- The period ---------- */
@@ -257,7 +258,16 @@ export function accountRows(): AccountRow[] {
           itemsWaiting: state === "review" ? 1 + (h % 6) : 0,
           oldestOpenItemDays:
             state === "draft" ? null : 3 + (h % 120),
-          waitingSince: session?.finishedOn ?? null,
+          /* NOT `session.finishedOn`, which is a display string like "Apr 1"
+           * with no year in it. Date.parse reads that as the year 2001 and the
+           * row rendered "waiting 9135 days", which is the kind of number a
+           * screen prints with a straight face right up until somebody reads
+           * it. Derived instead, within the last nine days, which is what a
+           * queue in an open period actually looks like. */
+          waitingSince: new Date(
+            Date.parse("2026-06-06T00:00:00Z") -
+              (1 + (h % 9)) * 86_400_000
+          ).toISOString(),
           runs: [],
           signedBy: null,
           signedAt: null,
@@ -303,4 +313,105 @@ export function totalUnexplained(): number {
   return toDollars(
     accountRows().reduce((t, r) => t + toCents(r.reconciliation.unexplained), 0)
   );
+}
+
+/* ---------- Stuck documents ----------
+ *
+ * A blocked reconciliation is a read that failed, and the Reader's five failure
+ * kinds each need a different route out. Which kind a given account hit is
+ * derived from its id rather than written per account, for the same reason the
+ * states are: a hand-written list drifts from the seed it describes and nothing
+ * notices.
+ *
+ * The explanations name real figures where the failure has one, because "the
+ * closing balance in the file is 148,220.40 and the lines add up to 144,880.15"
+ * is something a person can act on and "checksum mismatch" is not.
+ */
+
+
+export interface StuckDocument {
+  id: string;
+  accountLabel: string;
+  documentName: string;
+  reason: StuckReason;
+  explanation: string;
+  subject?: string;
+}
+
+const STUCK_KINDS: StuckReason[] = [
+  "incomplete-read",
+  "wrong-period",
+  "wrong-account",
+  "duplicate",
+  "unreadable-line",
+];
+
+function explain(
+  reason: StuckReason,
+  account: PropertyBankMapping
+): { explanation: string; subject?: string } {
+  switch (reason) {
+    case "incomplete-read":
+      return {
+        explanation:
+          "The file declares a closing balance the extracted lines do not reproduce. The run stopped rather than reconcile against half a statement.",
+      };
+    case "wrong-period":
+      return {
+        explanation:
+          "The statement covers April. This reconciliation is May, so one of the two is wrong.",
+        subject: "April 2026",
+      };
+    case "wrong-account":
+      return {
+        explanation: `The account number on the statement is not ${account.account}, which is the account this file was dropped on.`,
+        subject: `${account.type} ${account.account}`,
+      };
+    case "duplicate":
+      return {
+        explanation:
+          "Byte for byte the same file as one already taken in. Taking it twice would double every line in it.",
+      };
+    case "unreadable-line":
+      return {
+        explanation:
+          "One row has an amount and a date but no control number. Nothing has been guessed; the run carries on once somebody supplies it.",
+      };
+  }
+}
+
+export function stuckDocuments(): StuckDocument[] {
+  return accountRows()
+    .filter((r) => r.reconciliation.state === "blocked")
+    .map((r) => {
+      const reason = STUCK_KINDS[hash(r.account.id) % STUCK_KINDS.length];
+      const { explanation, subject } = explain(reason, r.account);
+      return {
+        id: r.reconciliation.id,
+        accountLabel: `${r.property.shortAddress} · ${r.account.type}`,
+        documentName: `bai2-${r.property.code.toLowerCase()}-${r.account.type
+          .toLowerCase()
+          .replace(/\s+/g, "-")}-2026-05.bai`,
+        reason,
+        explanation,
+        subject,
+      };
+    });
+}
+
+/* ---------- The sample queue ----------
+ *
+ * Work nobody flagged, checked on purpose. It is the only source of the
+ * escaped-error number, and without it the reviewer who sees exceptions and
+ * nothing else slowly forgets what normal looks like.
+ *
+ * The count rises with how much the system does on its own, which is the
+ * inversion the autonomy ladder rests on — so it is derived from the accounts
+ * that went through WITHOUT a person, not from a fixed number.
+ */
+export function spotCheckCount(): number {
+  const settled = accountRows().filter((r) =>
+    ["posted", "signed"].includes(r.reconciliation.state)
+  ).length;
+  return Math.ceil(settled / 2);
 }

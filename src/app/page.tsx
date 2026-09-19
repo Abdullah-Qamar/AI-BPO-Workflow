@@ -6,7 +6,7 @@ import { WorkspaceNav } from "@/components/WorkspaceNav";
 import { HubCanvas } from "@/components/v2/HubCanvas";
 import { ReviewDrawer } from "@/components/v2/ReviewDrawer";
 import { AgentsPanel } from "@/components/AgentsPanel";
-import { DashboardCanvas } from "@/components/DashboardCanvas";
+import { CloseCanvas } from "@/components/CloseCanvas";
 import {
   SurfacePlaceholder,
   RULES_PLACEHOLDER,
@@ -145,12 +145,11 @@ export default function Page() {
         <SurfacePlaceholder spec={{ ...QUALITY_PLACEHOLDER, Icon: Gauge }} />
       )}
       {route === "close" && (
-        <DashboardCanvas
-          onOpenObservability={() => setRoute("quality")}
-          onOpenSession={(propertyId, sessionId, cycle) =>
-            openProperty(propertyId, sessionId, cycle)
-          }
-        />
+        /* DashboardCanvas is retired here. It led on tokens used and first-pass
+         * accuracy, counted matched records nobody acts on, and offered "New
+         * session" — but the calendar creates the work, not a button. The file
+         * stays in the tree; nothing routes to it. */
+        <CloseCanvas onOpenAccount={() => setRoute("reconcile")} />
       )}
       {route === "reconcile" && (
         <>
