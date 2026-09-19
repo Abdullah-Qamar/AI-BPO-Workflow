@@ -30,7 +30,7 @@
  */
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Landmark } from "lucide-react";
+import { ChevronDown, ChevronRight, Landmark, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { OpenItemRow, ageInDays } from "@/components/entities/OpenItemRow";
 import { RuleRow } from "@/components/entities/RuleRow";
@@ -223,9 +223,27 @@ function WaitingItem({
   );
 }
 
-/* ---------- The roster ---------- */
+/* ---------- The account nav ----------
+ *
+ * The roster used to be a card on the canvas, inside the same gutter as the
+ * account it was pointing at. That made it read as content — a list you scroll
+ * past — when what it actually is, is navigation: twenty-two destinations, one
+ * of which you are looking at.
+ *
+ * So it wears the rail's clothes, because it does the rail's job. Same sticky
+ * full-height column, same hairline on the right, same transparent ground so
+ * the page gradient runs through both, same 32px rows with the selected one
+ * taking --surface-chip and a white border. Two nav columns side by side, one
+ * for the five places in the product and one for the accounts inside this one,
+ * which is the shape the screen was already describing and drawing wrong.
+ *
+ * Twenty-two rows is where a list stops being scannable and starts needing to
+ * be searched, so it has a search field. It filters on property, account type,
+ * bank and number together — an accountant looking for "the Wells Fargo one"
+ * and an accountant looking for "4280" are both right, and a filter that only
+ * matched the visible label would fail the second one. */
 
-function Roster({
+function AccountNav({
   accounts,
   selectedId,
   onSelect,
@@ -234,68 +252,161 @@ function Roster({
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+  const shown = q
+    ? accounts.filter((a) =>
+        [
+          a.property.shortAddress,
+          a.account.type,
+          a.account.shortName,
+          a.account.account,
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      )
+    : accounts;
+
   return (
-    <div
-      className="flex flex-col"
+    <aside
+      className="flex flex-col shrink-0"
       style={{
-        background: "var(--surface-card)",
-        borderRadius: "var(--radius-card)",
-        boxShadow: "var(--shadow-card)",
-        padding: "var(--space-5)",
-        gap: "var(--space-2)",
-        maxHeight: "calc(100vh - var(--space-10) * 2)",
-        overflowY: "auto",
+        width: 248,
+        padding: "var(--space-5) var(--space-4)",
+        gap: "var(--space-4)",
+        borderRight: "1px solid var(--line)",
+        position: "sticky",
+        top: 0,
+        alignSelf: "flex-start",
+        height: "100vh",
+        zIndex: 10,
       }}
     >
-      {accounts.map((a) => {
-        const oldest = oldestWaitingDays(a.id);
-        const selected = a.id === selectedId;
-        return (
-          <button
-            key={a.id}
-            type="button"
-            onClick={() => onSelect(a.id)}
-            className="flex flex-row items-center w-full text-left"
+      <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
+        <span className="t-label">Accounts</span>
+        {/* The search sits on --surface-input rather than a white field: the
+          * rail's ground is the page gradient, and a white box on it would read
+          * as a card floating in the nav rather than a control set into it. */}
+        <div
+          className="flex flex-row items-center"
+          style={{
+            height: "var(--control-md)",
+            padding: "0 var(--space-4)",
+            gap: "var(--space-3)",
+            borderRadius: "var(--radius-control)",
+            background: "var(--surface-input)",
+            border: "1px solid transparent",
+          }}
+        >
+          <Search
+            size="var(--icon-sm)"
+            strokeWidth="var(--stroke-sm)"
+            style={{ color: "var(--ink-tertiary)", flexShrink: 0 }}
+            aria-hidden
+          />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search accounts"
+            aria-label="Search accounts"
+            className="t-body ink-primary min-w-0 flex-1"
             style={{
-              minHeight: "var(--row-lg)",
-              padding: "var(--space-4) var(--space-5)",
-              gap: "var(--space-4)",
-              borderRadius: "var(--radius-row)",
-              background: selected ? "#FFFFFF" : "transparent",
-              border: `1px solid ${
-                selected ? "var(--line-row-hover)" : "transparent"
-              }`,
-              boxShadow: selected ? "var(--shadow-chip)" : "none",
-              cursor: "pointer",
+              background: "transparent",
+              border: "none",
+              outline: "none",
               fontFamily: "inherit",
             }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="scroll-thin flex flex-col min-h-0 flex-1"
+        style={{ gap: 2, overflowY: "auto" }}
+      >
+        {shown.map((a) => {
+          const oldest = oldestWaitingDays(a.id);
+          const selected = a.id === selectedId;
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onSelect(a.id)}
+              aria-current={selected ? "page" : undefined}
+              className="account-nav-item flex flex-row items-center w-full text-left transition"
+              data-active={selected ? "true" : undefined}
+              style={{
+                minHeight: "var(--row-lg)",
+                padding: "var(--space-3) var(--space-4)",
+                gap: "var(--space-4)",
+                borderRadius: "var(--radius-row)",
+                background: selected ? "var(--surface-chip)" : "transparent",
+                border: `1px solid ${selected ? "#FFFFFF" : "transparent"}`,
+                boxShadow: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              <div className="flex flex-col min-w-0 flex-1" style={{ gap: 1 }}>
+                <span
+                  className="t-body truncate"
+                  style={{
+                    color: selected
+                      ? "var(--ink-primary)"
+                      : "var(--ink-secondary)",
+                    fontWeight: selected
+                      ? "var(--weight-medium)"
+                      : "var(--weight-regular)",
+                  }}
+                >
+                  {a.property.shortAddress} · {a.account.type}
+                </span>
+                <span className="t-meta ink-tertiary nums truncate">
+                  {a.account.shortName} {a.account.account}
+                </span>
+              </div>
+              {/* The nav's one figure is the age, because that is the screen's
+                * one number. An account with nothing waiting shows nothing, not
+                * a zero: it has no oldest item, and "0 days" would claim it
+                * does. */}
+              {oldest !== null && (
+                <span className="t-meta ink-secondary nums shrink-0">
+                  {oldest}d
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {shown.length === 0 && (
+          <span
+            className="t-meta ink-tertiary"
+            style={{ padding: "var(--space-4)" }}
           >
-            <div className="flex flex-col min-w-0 flex-1" style={{ gap: 2 }}>
-              <span className="t-body ink-primary truncate">
-                {a.property.shortAddress} · {a.account.type}
-              </span>
-              <span className="t-meta ink-tertiary nums truncate">
-                {a.account.shortName} {a.account.account}
-              </span>
-            </div>
-            {/* The roster's one figure is the age, because that is the screen's
-              * one number. An account with nothing waiting shows nothing, not a
-              * zero: it has no oldest item, and "0 days" would claim it does. */}
-            {oldest !== null && (
-              <span className="t-meta ink-secondary nums shrink-0">
-                {oldest}d
-              </span>
-            )}
-            <ChevronRight
-              size="var(--icon-sm)"
-              strokeWidth="var(--stroke-sm)"
-              style={{ color: "var(--ink-tertiary)", flexShrink: 0 }}
-              aria-hidden
-            />
-          </button>
-        );
-      })}
-    </div>
+            No account matches {query}.
+          </span>
+        )}
+      </div>
+
+      {/* Hover in CSS rather than handlers, for the reason the rail gives: a
+        * pointer leaving during a state change leaves an inline hover stuck
+        * on. Same two values the rail uses, so the two columns cannot drift. */}
+      <style jsx>{`
+        .account-nav-item:hover {
+          background: rgba(255, 255, 255, 0.45) !important;
+          border-color: rgba(255, 255, 255, 0.75) !important;
+        }
+        .account-nav-item[data-active="true"]:hover {
+          background: var(--surface-chip) !important;
+          border-color: #ffffff !important;
+        }
+        .account-nav-item:active {
+          transform: scale(0.98);
+        }
+      `}</style>
+    </aside>
   );
 }
 
@@ -323,30 +434,36 @@ export function AccountsCanvas() {
   });
 
   return (
-    <main
-      className="canvas-scope flex-1 min-w-0"
-      style={{ background: "var(--bg-grad)", minHeight: "100vh" }}
-    >
-      <div
-        className="canvas-pad"
-        style={{ maxWidth: 1120, margin: "0 auto", width: "100%" }}
+    /* Two columns, and the left one is navigation rather than content.
+     *
+     * The nav sits OUTSIDE `.canvas-pad` on purpose. Inside it, the list shared
+     * the account's gutter and the page gradient stopped at the canvas edge, so
+     * a column doing the rail's job was drawn as a card on the page. Out here
+     * it is a sibling of the rail: the gradient runs under both, the hairline
+     * continues, and the content column keeps the same gutter every other
+     * canvas has. */
+    <div className="flex flex-row flex-1 min-w-0">
+      <AccountNav
+        accounts={accounts}
+        selectedId={account.id}
+        onSelect={setSelectedId}
+      />
+
+      <main
+        className="canvas-scope flex-1 min-w-0"
+        style={{ background: "var(--bg-grad)", minHeight: "100vh" }}
       >
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(260px, 320px) minmax(360px, 1fr)",
-            gap: "var(--space-6)",
-            alignItems: "start",
-            paddingBottom: "var(--space-10)",
-          }}
+          className="canvas-pad"
+          style={{ maxWidth: 860, margin: "0 auto", width: "100%" }}
         >
-          <Roster
-            accounts={accounts}
-            selectedId={account.id}
-            onSelect={setSelectedId}
-          />
-
-          <div className="flex flex-col" style={{ gap: "var(--space-9)" }}>
+          <div
+            className="flex flex-col"
+            style={{
+              gap: "var(--space-9)",
+              paddingBottom: "var(--space-10)",
+            }}
+          >
             {/* ---------- What the account is ---------- */}
             <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
               <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
@@ -634,7 +751,7 @@ export function AccountsCanvas() {
             </Section>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
