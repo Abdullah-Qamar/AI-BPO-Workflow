@@ -335,12 +335,23 @@ export function MatchCard({
   match,
   modelSentence,
   onAct,
+  available,
 }: {
   match: Match;
   /* The candidate ranker's one sentence, where it produced one. Optional
    * because most matches have no ambiguity for it to speak about. */
   modelSentence?: string;
   onAct?: (kind: ResolutionKind, candidateId: string | null) => void;
+  /* Whether each action can be taken, and why not when it cannot. Supplied by
+   * the screen rather than decided here, because the rules are about the
+   * reconciliation's state as much as the match's — and a button that is off
+   * for a reason this card invented would be a second opinion nobody asked
+   * for. Falls back to the one rule the card can decide alone: you cannot pick
+   * a different match without picking one. */
+  available?: (
+    kind: ResolutionKind,
+    candidateId: string | null
+  ) => { allowed: true } | { allowed: false; because: string };
 }) {
   const ambiguous = match.candidates.length > 1;
   const [selected, setSelected] = useState<string | null>(
@@ -499,12 +510,15 @@ export function MatchCard({
         style={{ marginTop: "var(--space-7)", gap: "var(--space-4)" }}
       >
         {ACTIONS.map((a) => {
-          /* "Pick a different match" needs something to pick. Switched off
-            * rather than hidden, with the reason beside it, because a button
-            * that comes and goes teaches a person the screen is unpredictable.
-            */
+          /* Switched off rather than hidden. A button that comes and goes
+            * teaches a person the screen is unpredictable, and hiding the one
+            * action that does not apply hides the fact that it exists. */
           const needsCandidate = a.kind === "correct-the-match";
-          const disabled = needsCandidate && (!ambiguous || selected === null);
+          const verdict =
+            available?.(a.kind, selected) ??
+            (needsCandidate && (!ambiguous || selected === null)
+              ? { allowed: false as const, because: "Choose a candidate first" }
+              : { allowed: true as const });
 
           return (
             <Button
@@ -515,10 +529,8 @@ export function MatchCard({
                   : "secondary"
               }
               size="md"
-              disabled={disabled}
-              onClick={
-                onAct ? () => onAct(a.kind, selected) : undefined
-              }
+              disabled={!verdict.allowed}
+              onClick={onAct ? () => onAct(a.kind, selected) : undefined}
             >
               {a.label}
             </Button>
@@ -526,14 +538,36 @@ export function MatchCard({
         })}
       </div>
 
-      {ambiguous && selected === null && (
-        <span
-          className="t-meta ink-tertiary"
-          style={{ display: "block", marginTop: "var(--space-4)" }}
-        >
-          Pick a different match is off until you choose a candidate above.
-        </span>
-      )}
+      {/* Every switched-off action says why, in one line under the row. The
+        * cross-screen rule is that a disabled control carries its reason right
+        * beside it, and four buttons with four possible refusals is exactly
+        * where a person otherwise starts clicking to find out. */}
+      {(() => {
+        const refusals = ACTIONS.map((a) => ({
+          label: a.label,
+          verdict:
+            available?.(a.kind, selected) ??
+            (a.kind === "correct-the-match" &&
+            (!ambiguous || selected === null)
+              ? { allowed: false as const, because: "choose a candidate above" }
+              : { allowed: true as const }),
+        })).filter((r) => !r.verdict.allowed);
+
+        if (!refusals.length) return null;
+        return (
+          <div
+            className="flex flex-col"
+            style={{ marginTop: "var(--space-4)", gap: 2 }}
+          >
+            {refusals.map((r) => (
+              <span key={r.label} className="t-meta ink-tertiary">
+                {r.label} is off ·{" "}
+                {!r.verdict.allowed ? r.verdict.because : ""}
+              </span>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
