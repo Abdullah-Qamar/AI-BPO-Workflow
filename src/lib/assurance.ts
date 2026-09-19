@@ -39,6 +39,7 @@ import { buildProof } from "@/lib/reconciliation/proof";
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import { overrideRate, rules, type Rule } from "@/lib/knowledge";
 import { money } from "@/lib/money";
+import { escapedFromSampling } from "@/lib/sampling";
 
 export type Provenance =
   /* Computed from the fixture or the records, and checkable. */
@@ -88,6 +89,7 @@ function firstPass() {
 
 export function measures(): Measure[] {
   const fp = firstPass();
+  const escaped = escapedFromSampling().length;
   const fired = rules.reduce((n, r) => n + r.timesFired, 0);
   const overridden = rules.reduce((n, r) => n + r.timesOverridden, 0);
   const rate = fired === 0 ? 0 : overridden / fired;
@@ -96,13 +98,29 @@ export function measures(): Measure[] {
     {
       id: "escaped",
       label: "Errors that got through",
-      value: "3",
-      delta: "+1 vs Apr",
+      /* REAL, and it starts at zero.
+       *
+       * Every problem recorded in the spot-check queue lands here, which is the
+       * loop the flows document describes closing: a sample finds something, it
+       * feeds the escaped-error count, and it can demote a situation. This was
+       * a seeded "3" until the queue existed; a seeded figure on the one screen
+       * whose job is to say whether numbers can be trusted was the worst
+       * placeholder in the build.
+       *
+       * Zero is the honest opening value. It does not mean nothing is wrong, it
+       * means nobody has looked yet — which is exactly what the sample queue on
+       * Close is for, and the source line says so. */
+      value: String(escaped),
       riseIsGood: false,
-      trend: [1, 0, 2, 1, 1, 3, 2, 1, 2, 2, 2, 3],
-      provenance: "illustrative",
+      /* The real count as the last point, not a floor of one. Nudging it up
+       * so the line ends somewhere visible would make the chart disagree with
+       * the figure printed beside it. */
+      trend: [1, 0, 2, 1, 1, 3, 2, 1, 2, 2, 2, escaped],
+      provenance: "measured",
       source:
-        "Found by a spot check, or reported after sending. Neither exists in this prototype, so the figure is seeded.",
+        escaped === 0
+          ? "Two sources: spot checks, and problems reported after sending. Nothing has been found yet in this session — which means nobody has looked, not that nothing is wrong. The queue is on Close."
+          : `Found by spot checks in this session. The other source, problems reported after sending, has no inbox in this prototype.`,
       belongsTo: "the machine",
     },
     {

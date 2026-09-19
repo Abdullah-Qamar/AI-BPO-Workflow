@@ -41,7 +41,7 @@
  * Spec: docs/BUILD_PROMPTS.md S4, docs/UX_SPECS.md section 1.
  */
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { AccountRow } from "@/components/entities/AccountRow";
@@ -52,13 +52,14 @@ import {
   accountRows,
   daysUntilClose,
   provenCount,
-  spotCheckCount,
   stuckDocuments,
   totalUnexplained,
   OPEN_PERIOD,
   type AccountRow as Row,
 } from "@/lib/close";
 import { money } from "@/lib/money";
+import { SpotCheckCanvas } from "@/components/SpotCheckCanvas";
+import { getFindings, sampleQueue, subscribe } from "@/lib/sampling";
 import { toCents } from "@/lib/money";
 
 /* ---------- Section furniture ---------- */
@@ -155,11 +156,17 @@ export function CloseCanvas({
 }: {
   onOpenAccount?: (reconciliationId: string) => void;
 }) {
+  /* Spot checks live on Close rather than in the rail. Sampling is part of
+   * the month's work, and a sixth destination for it would make it a place you
+   * visit rather than a thing you do — which is how a queue that can always be
+   * postponed becomes a queue that never happens. */
+  const [checking, setChecking] = useState(false);
+  const findings = useSyncExternalStore(subscribe, getFindings, getFindings);
+
   const rows = accountRows();
   const { proven, due } = provenCount();
   const stuck = stuckDocuments();
   const days = daysUntilClose();
-  const samples = spotCheckCount();
 
   /* Sorted by unexplained money, descending. Not by property, not by time.
    * A person working a queue should spend their attention where the most of it
@@ -193,6 +200,10 @@ export function CloseCanvas({
 
   const everythingProven = proven === due;
 
+  const queue = sampleQueue();
+  const done = findings.length;
+  const problems = findings.filter((f) => f.verdict === "problem").length;
+
   const renderRow = (r: Row) => (
     <AccountRow
       key={r.reconciliation.id}
@@ -208,6 +219,10 @@ export function CloseCanvas({
       onOpen={onOpenAccount ? () => onOpenAccount(r.reconciliation.id) : undefined}
     />
   );
+
+  if (checking) {
+    return <SpotCheckCanvas onBack={() => setChecking(false)} />;
+  }
 
   return (
     <main
@@ -367,7 +382,21 @@ export function CloseCanvas({
                 className="flex flex-col"
                 style={{ gap: "var(--space-5)" }}
               >
-                <SectionHead title="Spot checks" count={samples} />
+                <SectionHead
+                  title="Spot checks"
+                  count={queue.length - done}
+                  note={
+                    done > 0
+                      ? `${done} of ${queue.length} checked${
+                          problems > 0
+                            ? ` · ${problems} ${
+                                problems === 1 ? "problem" : "problems"
+                              } found`
+                            : ""
+                        }`
+                      : undefined
+                  }
+                />
                 <Card>
                   <div
                     className="flex flex-row items-center justify-between"
@@ -381,8 +410,12 @@ export function CloseCanvas({
                       the system does more of the work on its own, which is the
                       point of it rather than a backlog you are failing at.
                     </span>
-                    <Button variant="secondary" size="md">
-                      Start checking
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      onClick={() => setChecking(true)}
+                    >
+                      {done === queue.length ? "Look again" : "Start checking"}
                     </Button>
                   </div>
                 </Card>

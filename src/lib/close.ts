@@ -399,19 +399,10 @@ export function stuckDocuments(): StuckDocument[] {
     });
 }
 
-/* ---------- The sample queue ----------
+/* The sample queue itself lives in `lib/sampling.ts`.
  *
- * Work nobody flagged, checked on purpose. It is the only source of the
- * escaped-error number, and without it the reviewer who sees exceptions and
- * nothing else slowly forgets what normal looks like.
- *
- * The count rises with how much the system does on its own, which is the
- * inversion the autonomy ladder rests on — so it is derived from the accounts
- * that went through WITHOUT a person, not from a fixed number.
- */
-export function spotCheckCount(): number {
-  const settled = accountRows().filter((r) =>
-    ["posted", "signed"].includes(r.reconciliation.state)
-  ).length;
-  return Math.ceil(settled / 2);
-}
+ * A `spotCheckCount()` used to sit here, deriving a number from how many
+ * accounts went through without a person. It was a reasonable guess and it was
+ * a SECOND source of truth for a figure the queue itself can answer exactly, so
+ * it went the moment the queue became real. Two places that compute the same
+ * number is how a badge and the rows under it come to disagree. */

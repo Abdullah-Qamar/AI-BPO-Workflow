@@ -36,7 +36,7 @@
  * Spec: docs/UX_SPECS.md section 5, docs/RECONCILER_PLAYBOOK.md Part 6.
  */
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight, Gauge } from "lucide-react";
 import { Sparkline, EmphasisBar } from "@/components/entities/Sparkline";
 import {
@@ -46,6 +46,7 @@ import {
   overrideBreakdown,
   type Measure,
 } from "@/lib/assurance";
+import { getFindings, subscribe } from "@/lib/sampling";
 
 /* ---------- Furniture ---------- */
 
@@ -205,6 +206,11 @@ function MeasureTile({
 /* ---------- The screen ---------- */
 
 export function QualityCanvas() {
+  /* Subscribed, so a problem recorded in the spot-check queue shows up here
+   * without a reload. The two screens are the two ends of the same loop and a
+   * stale figure between them would undo the point of building it. */
+  useSyncExternalStore(subscribe, getFindings, getFindings);
+
   const all = measures();
   const headline = all[0];
   const rest = all.slice(1);
@@ -266,10 +272,16 @@ export function QualityCanvas() {
                   >
                     {headline.value}
                   </span>
-                  <span className="t-body ink-secondary nums">
-                    {headline.delta}
-                  </span>
-                  <Illustrative />
+                  {headline.delta && (
+                    <span className="t-body ink-secondary nums">
+                      {headline.delta}
+                    </span>
+                  )}
+                  {/* Only when it is. This chip was unconditional while the
+                    * figure was seeded; the figure is now counted from the
+                    * spot-check queue, and leaving the chip on would be the
+                    * screen disowning its one real number. */}
+                  {headline.provenance === "illustrative" && <Illustrative />}
                 </div>
                 <span className="t-prose ink-secondary">
                   {headline.source}

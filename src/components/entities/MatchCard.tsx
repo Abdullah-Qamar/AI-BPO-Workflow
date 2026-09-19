@@ -336,6 +336,7 @@ export function MatchCard({
   modelSentence,
   onAct,
   available,
+  readOnly,
 }: {
   match: Match;
   /* The candidate ranker's one sentence, where it produced one. Optional
@@ -352,6 +353,11 @@ export function MatchCard({
     kind: ResolutionKind,
     candidateId: string | null
   ) => { allowed: true } | { allowed: false; because: string };
+  /* Hides the action row entirely. For a spot check, where the job is to LOOK
+   * at a decision the machine already made rather than to take one — four
+   * disabled buttons would invite a click and then refuse it, which is a worse
+   * answer than not offering the row. */
+  readOnly?: boolean;
 }) {
   const ambiguous = match.candidates.length > 1;
   const [selected, setSelected] = useState<string | null>(
@@ -504,6 +510,8 @@ export function MatchCard({
         </div>
       )}
 
+      {!readOnly && (
+        <>
       {/* ---------- The four actions ---------- */}
       <div
         className="flex flex-row flex-wrap"
@@ -568,6 +576,8 @@ export function MatchCard({
           </div>
         );
       })()}
+        </>
+      )}
     </div>
   );
 }
