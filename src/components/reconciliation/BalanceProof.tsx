@@ -122,11 +122,28 @@ function Journey({
         aria-hidden
       />
 
-      <div className="flex flex-col" style={{ gap: "var(--space-5)" }}>
-        {side.lines.map((line) => (
-          <Line key={line.id} line={line} />
-        ))}
-      </div>
+      {/* A journey with no adjustments on it.
+       *
+       * The book side is empty at first pass and it is empty for a real reason:
+       * nothing reaches the ledger until a person books it, so before anyone has
+       * acted there is genuinely nothing to list. Left as bare space between two
+       * rules it read as a table that had failed to load, which is the gap the
+       * cross-screen rules call out — empty is a designed state, not a hole.
+       *
+       * So it says what is true and what will change it. The count is left off
+       * on purpose: the band below already carries how many items are owed, and
+       * a second count here would be a number to keep in step for no gain. */}
+      {side.lines.length === 0 ? (
+        <span className="t-body ink-tertiary">
+          Nothing booked yet. Every correction a person accepts lands here.
+        </span>
+      ) : (
+        <div className="flex flex-col" style={{ gap: "var(--space-5)" }}>
+          {side.lines.map((line) => (
+            <Line key={line.id} line={line} />
+          ))}
+        </div>
+      )}
 
       {/* A heavier rule under the last adjustment, the way a printed proof
        * draws one before a total. */}

@@ -51,12 +51,44 @@ import {
  * And the lesson the fixture was built to carry: the proof reaches 0.00 either
  * way. Pick the wrong refund and it still ties, and the wrong tenant is repaid.
  */
+/* The three statement items the books never recorded, and the entry each one
+ * needs. Amounts are read off the bank line rather than restated here, so a
+ * change to the fixture cannot leave a stale figure behind.
+ *
+ * These used to require nothing: the proof applied them the moment the matcher
+ * classified them. They now wait for a person, so the resolved month has to
+ * carry their authorisations like any other decision. */
+const BOOKED: Record<string, string> = {
+  "m-stripe-payout-0512":
+    "Card settlement reached the bank on 12 May. Booking it to rental income for the period.",
+  "m-interest-0531":
+    "Interest credited by the bank. Booking it to interest income.",
+  "m-service-fee-0529":
+    "Account analysis fee. Booking it to bank charges.",
+};
+
 function resolvedMonth(): Match[] {
   const chosen = "gl-v20901";
   const loser = "gl-v20907";
 
   return westlakeMatches
     .map((m): Match => {
+      if (BOOKED[m.id]) {
+        return {
+          ...m,
+          resolution: {
+            kind: "add-correcting-entry",
+            /* The statement line's own figure. A reviewer booking a fee at a
+             * different amount is a real case the contract allows for, and it
+             * is not this one. */
+            amount: m.bankLines[0].amount,
+            reason: BOOKED[m.id],
+            by: "N. Okafor",
+            at: "2026-06-02T09:38:00Z",
+          },
+        };
+      }
+
       if (m.id === "m-returned-payment-308") {
         return {
           ...m,
@@ -75,6 +107,9 @@ function resolvedMonth(): Match[] {
         return {
           ...m,
           outcome: "matched",
+          /* Narrowed from both candidate rows to the chosen one. The loser is
+           * handed to a timing match below, which is the shape the real action
+           * has to produce: one decision, two matches. */
           ledgerRows: [ledgerRowById(chosen)],
           rule: m.candidates[0].rule,
           resolution: {

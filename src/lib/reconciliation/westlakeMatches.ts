@@ -494,9 +494,27 @@ export const westlakeMatches: Match[] = [
     cycle: CYCLE,
     outcome: "needs-adjustment",
     bankLines: [bank("bank-br0515001")],
-    /* Deliberately empty. Two candidates are in range and the matcher chose
-     * neither, so committing one here would record a decision nobody made. */
-    ledgerRows: [],
+    /* BOTH candidate rows, not one and not none.
+     *
+     * Empty was the first instinct and it was wrong. The reasoning for empty
+     * was sound as far as it went — committing one row here would record a
+     * decision nobody made — but it threw away the half of this match that is
+     * not in doubt. Two refunds of 210.00 sit in the books against one debit of
+     * 210.00 on the statement, so exactly one of them has not cleared, and that
+     * is true before anybody chooses and stays true whichever way they choose.
+     * With the rows absent, 210.00 of genuinely outstanding money was invisible
+     * to the proof until the decision was taken.
+     *
+     * So `ledgerRows` holds every row this match touches, and `candidates`
+     * holds the ways they could pair. The two fields answer different
+     * questions, which is why the apparent redundancy is not one. Resolving
+     * the match narrows `ledgerRows` to the chosen row and hands the other to
+     * a `timing` match of its own.
+     *
+     * It reads correctly in the item view too: bank line on the left, two
+     * ledger rows on the right, each one selectable. That is the shape of the
+     * decision. */
+    ledgerRows: [ledger("gl-v20901"), ledger("gl-v20907")],
     rule: null,
     candidates: REFUND_CANDIDATES,
     /* An UNCONFIRMED pattern, and the distinction is the whole point of the
@@ -524,5 +542,13 @@ export const westlakeMatches: Match[] = [
     },
     resolution: null,
     reason: "Two refunds of 210.00 one day either side · the memo says invoice 4912, which no rule can confirm",
+    /* 17 days: the age of the OLDER of the two candidate rows, 14 May.
+     *
+     * The surplus is whichever row loses, so its true age is 15 days or 17 and
+     * nobody knows which yet. The older figure is the one to show. It feeds an
+     * "oldest" statement and a staleness flag, and on both of those the safe
+     * direction to be wrong is towards looking older: overstating age invites a
+     * second look, understating it suppresses one. */
+    ageDays: ageAtClose("2026-05-14"),
   },
 ];

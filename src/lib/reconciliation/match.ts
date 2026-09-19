@@ -281,10 +281,20 @@ export function isStale(m: Match): boolean {
   return (m.ageDays ?? 0) > 90;
 }
 
-/* Whether this match still needs a person. A `needs-adjustment` with a
- * resolution is settled; one without is the work still owed. */
+/* Whether this match still needs a person.
+ *
+ * Two outcomes qualify, and it used to be one. A `bank-only` item does not
+ * enter the books until somebody books it, so an unresolved one is work owed
+ * just as much as an unresolved difference — it was left out while the proof
+ * applied those items silently, and once it stopped, the queue had to grow to
+ * match or the screen would show a figure with nothing to click.
+ *
+ * `timing` and `matched` never qualify. A cheque that has not cleared is the
+ * most routine thing in the month, and putting it in a queue of work is gap 2:
+ * once half the queue is nothing, nobody trusts the queue. */
 export function needsDecision(m: Match): boolean {
-  return m.outcome === "needs-adjustment" && m.resolution === null;
+  if (m.resolution !== null) return false;
+  return m.outcome === "needs-adjustment" || m.outcome === "bank-only";
 }
 
 /* How this match enters the balance proof.
@@ -308,8 +318,33 @@ export function proofContribution(m: Match): ProofContribution {
     }
 
     case "bank-only":
-      /* The bank saw it and the books did not, so the books get the entry. */
-      return { side: "book", kind: "book-reconciling-item" };
+      /* The bank saw it and the books did not, so the books get the entry —
+       * but ONLY once a person has made it.
+       *
+       * This branch used to return the book side unconditionally, and that was
+       * wrong in a way the arithmetic hid. A bank-only item is a journal entry
+       * going into the accounting system: a fee, interest, a card settlement
+       * nobody booked. Applying it the moment the matcher classified it meant
+       * the machine moved the books on its own and the proof arrived at the
+       * reviewer already three corrections further along than the reviewer was.
+       *
+       * The playbook is explicit that an AI cannot be accountable and that the
+       * control is AI prepares, human approves. That control cannot be real if
+       * the preparation has already posted itself to the ledger side of the
+       * proof. UX_SPECS section 2 makes the same point from the other end: the
+       * reviewer approves each correction and watches the figure move, going
+       * below zero and coming back, and that movement is only visible because
+       * nothing moved before they touched it.
+       *
+       * So it behaves exactly like `needs-adjustment`: nothing until resolved.
+       * What still separates the two outcomes is the QUESTION each asks. A
+       * bank-only item asks "shall I book this?", where the answer is nearly
+       * always yes and the work is authorising it. A needs-adjustment asks
+       * "what happened here?", and the work is deciding. */
+      if (m.resolution?.kind === "add-correcting-entry") {
+        return { side: "book", kind: "book-reconciling-item" };
+      }
+      return { side: "none" };
 
     case "needs-adjustment":
       /* Only once resolved with a correcting entry does it adjust anything.
@@ -319,6 +354,38 @@ export function proofContribution(m: Match): ProofContribution {
       if (m.resolution?.kind === "add-correcting-entry") {
         return { side: "book", kind: "book-reconciling-item" };
       }
+
+      /* The one part of an unresolved difference that is NOT in dispute.
+       *
+       * When the matcher cannot choose between candidates, it is choosing which
+       * ledger row pairs with the bank line — not whether the surplus rows
+       * cleared. The fixture's refund is the case: two ledger rows of -210.00
+       * against one bank debit of -210.00. Whichever row the reviewer picks,
+       * the other is a payment the books have made and the bank has not seen,
+       * which is an outstanding item by definition.
+       *
+       * Every candidate in an ambiguous match absorbs the same amount — that
+       * sameness is WHY it is ambiguous — so the surplus is identical under
+       * every outcome of the decision, and holding it back until someone picks
+       * would understate what is waiting to clear by 210.00 and overstate the
+       * unexplained figure by the same. UX_SPECS puts it plainly: the total of
+       * waiting items is 18,450.50 either way.
+       *
+       * This is also the fixture's sharpest lesson made mechanical. The proof
+       * is completely unaffected by WHICH refund is chosen, so it reaches zero
+       * on a wrong pick exactly as readily as on a right one. */
+      if (
+        m.resolution === null &&
+        isAmbiguous(m) &&
+        m.ledgerRows.length > m.bankLines.length
+      ) {
+        const surplus = ledgerTotal(m) - bankTotal(m);
+        return {
+          side: "bank",
+          kind: surplus < 0 ? "outstanding" : "in-transit",
+        };
+      }
+
       return { side: "none" };
 
     case "ledger-only":
@@ -336,12 +403,32 @@ export function proofAmount(m: Match): number {
   switch (m.outcome) {
     case "timing":
       return m.ledgerRows.length ? ledgerTotal(m) : bankTotal(m);
+
     case "bank-only":
-      return bankTotal(m);
-    case "needs-adjustment":
+      /* The entry a person authorised, not the statement line. They are the
+       * same figure in every ordinary case, and reading the resolution rather
+       * than the line is what makes them able to differ — a reviewer who books
+       * a fee at a corrected amount must see their figure in the proof, not the
+       * one the matcher assumed. Zero until then. */
       return m.resolution?.kind === "add-correcting-entry"
         ? m.resolution.amount ?? 0
         : 0;
+
+    case "needs-adjustment":
+      if (m.resolution?.kind === "add-correcting-entry") {
+        return m.resolution.amount ?? 0;
+      }
+      /* The undisputed surplus. Mirrors the branch in `proofContribution`;
+       * read the reasoning there. */
+      if (
+        m.resolution === null &&
+        isAmbiguous(m) &&
+        m.ledgerRows.length > m.bankLines.length
+      ) {
+        return ledgerTotal(m) - bankTotal(m);
+      }
+      return 0;
+
     default:
       return 0;
   }

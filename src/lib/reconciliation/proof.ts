@@ -49,6 +49,7 @@
  */
 
 import {
+  needsDecision,
   proofAmount,
   proofContribution,
   type Match,
@@ -260,27 +261,40 @@ export function buildProof(input: {
 
   const unexplainedCents = adjustedBankCents - adjustedBookCents;
 
-  const openItems: OpenItem[] = matches
-    .filter((m) => m.outcome === "needs-adjustment" && m.resolution === null)
-    .map((m) => ({
-      matchId: m.id,
-      /* A confirmed pattern names the whole event. Otherwise the type code's
-       * meaning, for the same reason the ladder uses it: it is short, it is the
-       * bank's own classification, and it is not upper case. The statement
-       * description is deliberately not used here either. */
-      label:
-        (m.pattern?.confirmed ? m.pattern.label : null) ??
-        m.bankLines[0]?.typeMeaning ??
-        "Difference",
-      amount: toDollars(
-        toCents(sumDollars(m.bankLines.map((l) => l.amount))) -
-          toCents(sumDollars(m.ledgerRows.map((l) => l.amount)))
-      ),
-      question:
-        m.candidates.length > 1
-          ? `Choose between ${m.candidates.length} candidates`
+  /* Everything still waiting on a person, which is now `needsDecision` rather
+   * than a local test for `needs-adjustment`. Bank-only items joined the queue
+   * when they stopped applying themselves: a fee the books never recorded does
+   * not reach the ledger until somebody books it, and a proof that shows a gap
+   * with nothing to click is worse than one that shows the gap and the four
+   * items behind it.
+   *
+   * The two kinds ask different questions, and the `question` field is where
+   * that difference lives rather than in a second list. */
+  const openItems: OpenItem[] = matches.filter(needsDecision).map((m) => ({
+    matchId: m.id,
+    /* A confirmed pattern names the whole event. Otherwise the type code's
+     * meaning, for the same reason the ladder uses it: it is short, it is the
+     * bank's own classification, and it is not upper case. The statement
+     * description is deliberately not used here either. */
+    label:
+      (m.pattern?.confirmed ? m.pattern.label : null) ??
+      m.bankLines[0]?.typeMeaning ??
+      "Difference",
+    amount: toDollars(
+      toCents(sumDollars(m.bankLines.map((l) => l.amount))) -
+        toCents(sumDollars(m.ledgerRows.map((l) => l.amount)))
+    ),
+    question:
+      m.candidates.length > 1
+        ? `Choose between ${m.candidates.length} candidates`
+        : m.outcome === "bank-only"
+          ? /* Not "needs a correcting entry". The entry is not in question — the
+             * bank charged the fee and the books are simply missing it. What is
+             * owed is somebody accepting it into the ledger, and saying so
+             * keeps this row honestly distinct from a real difference. */
+            "Book it to the ledger"
           : "Needs a correcting entry",
-    }));
+  }));
 
   return {
     bank: {
