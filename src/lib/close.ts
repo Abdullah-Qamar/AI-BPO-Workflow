@@ -42,6 +42,7 @@ import { westlakeMatches, ACCOUNT_ID } from "@/lib/reconciliation/westlakeMatche
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import type { StuckReason } from "@/components/entities/StuckRow";
 import { toCents, toDollars } from "@/lib/money";
+import { daysUntilClose as untilClose } from "@/lib/period";
 
 /* ---------- The period ---------- */
 
@@ -59,9 +60,9 @@ export const OPEN_PERIOD: Period = {
  * its own. Measured from the fixture's own close date so the demo is stable. */
 export const PERIOD_CLOSES_ON = "2026-06-10";
 
-export function daysUntilClose(today = new Date("2026-06-06T00:00:00Z")): number {
-  const end = Date.parse(`${PERIOD_CLOSES_ON}T00:00:00Z`);
-  return Math.max(0, Math.round((end - today.getTime()) / 86_400_000));
+/* Deferred to lib/period.ts, which owns the one clock. */
+export function daysUntilClose(): number {
+  return untilClose(PERIOD_CLOSES_ON);
 }
 
 /* ---------- The row a screen renders ---------- */

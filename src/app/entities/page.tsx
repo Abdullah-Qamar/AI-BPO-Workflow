@@ -370,7 +370,7 @@ export default function EntitiesPage() {
           {tab === "rows" && (
           <Section
             title="Account row"
-            note="The primary row in the product. Never a bare percentage, and never a state coloured off the status ramp — urgency is carried by which section a row sits in, because position cannot cry wolf the way a tint can."
+            note="The primary row in the product. Never a bare percentage, and never a state coloured off the status ramp. Urgency is carried by which section a row sits in, because position cannot cry wolf the way a tint can."
           >
             <Sheet>
               {ACCOUNT_STATES.map((state, i) => (
@@ -401,7 +401,7 @@ export default function EntitiesPage() {
           {tab === "stuck" && (
           <Section
             title="Stuck row"
-            note="A document that could not be read, with the way out beside it. It cannot render without at least one action, because the actions are looked up from the reason code rather than passed in — there is no prop through which to leave them off."
+            note="A document that could not be read, with the way out beside it. It cannot render without at least one action, because the actions are looked up from the reason code rather than passed in. There is no prop through which to leave them off."
           >
             <div className="flex flex-col" style={{ gap: "var(--space-4)" }}>
               {STUCK.map((s) => (

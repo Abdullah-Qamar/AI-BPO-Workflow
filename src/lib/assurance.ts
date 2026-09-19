@@ -119,7 +119,7 @@ export function measures(): Measure[] {
       provenance: "measured",
       source:
         escaped === 0
-          ? "Two sources: spot checks, and problems reported after sending. Nothing has been found yet in this session — which means nobody has looked, not that nothing is wrong. The queue is on Close."
+          ? "Two sources: spot checks, and problems reported after sending. Nothing has been found yet in this session, which means nobody has looked rather than that nothing is wrong. The queue is on Close."
           : `Found by spot checks in this session. The other source, problems reported after sending, has no inbox in this prototype.`,
       belongsTo: "the machine",
     },

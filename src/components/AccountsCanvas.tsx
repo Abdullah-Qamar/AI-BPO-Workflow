@@ -30,7 +30,7 @@
  */
 
 import { useState } from "react";
-import { ChevronRight, Landmark } from "lucide-react";
+import { ChevronDown, ChevronRight, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { OpenItemRow, ageInDays } from "@/components/entities/OpenItemRow";
 import { RuleRow } from "@/components/entities/RuleRow";
@@ -48,8 +48,10 @@ import {
   TODAY,
   WESTLAKE_OPERATING_ID,
   type AccountIdentity,
+  type WaitingItem as WaitingItemData,
 } from "@/lib/accounts";
 import { sumDollars } from "@/lib/money";
+import { carryForward, goesStaleAt } from "@/lib/period";
 
 /* ---------- Furniture ---------- */
 
@@ -95,6 +97,128 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex flex-col" style={{ gap: 2 }}>
       <span className="t-label">{label}</span>
       <span className="t-body ink-primary">{value}</span>
+    </div>
+  );
+}
+
+/* ---------- One item, and its life ---------- */
+
+/* The row, plus every close it has been through and the ones ahead of it.
+ *
+ * This is joint 1 made visible. Cheque 1042 is not May's problem: it belongs to
+ * the account, and each close inherits it, ages it and hands it forward. The
+ * `inherited` column is the field the whole design turns on — false at the
+ * close that first had to report it, true at every close after — because that
+ * is the difference between a month that produced a problem and a month that
+ * received one, and the reason a reconciliation takes three inputs rather than
+ * two files.
+ *
+ * The future rows are marked as projections and drawn without the confidence of
+ * the past ones. A projection is a different kind of statement from a record
+ * and must never be printed as one. It is also the more useful half: a cheque
+ * that WILL be stale in August is a reason to ring the payee today, where one
+ * that is already stale is only a reason to feel bad. */
+function WaitingItem({
+  item,
+  asOf,
+}: {
+  item: WaitingItemData;
+  asOf: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const life = carryForward(item.writtenOn);
+  const stale = goesStaleAt(item.writtenOn);
+
+  return (
+    <div className="flex flex-col">
+      <OpenItemRow
+        description={item.description}
+        reference={item.reference}
+        amount={item.amount}
+        writtenOn={item.writtenOn}
+        asOf={asOf}
+      />
+      <div
+        className="flex flex-col"
+        style={{ padding: "0 var(--space-5) var(--space-4)" }}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex flex-row items-center self-start"
+          style={{
+            gap: "var(--space-3)",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            color: "var(--ink-secondary)",
+          }}
+        >
+          {open ? (
+            <ChevronDown size="var(--icon-sm)" strokeWidth="var(--stroke-sm)" />
+          ) : (
+            <ChevronRight size="var(--icon-sm)" strokeWidth="var(--stroke-sm)" />
+          )}
+          <span className="t-meta">
+            {open
+              ? "Hide what happens to it"
+              : stale
+                ? `Carries forward · stale at the ${stale.label.split(" ")[0]} close`
+                : "Carries forward"}
+          </span>
+        </button>
+
+        {open && (
+          <div
+            className="flex flex-col"
+            style={{
+              marginTop: "var(--space-4)",
+              gap: "var(--space-3)",
+              padding: "var(--space-5)",
+              borderRadius: "var(--radius-row)",
+              background: "var(--surface-list)",
+            }}
+          >
+            {life.map((step) => (
+              <div
+                key={step.period.id}
+                className="flex flex-row items-baseline justify-between"
+                style={{
+                  gap: "var(--space-5)",
+                  opacity: step.projected ? 0.7 : 1,
+                }}
+              >
+                <span className="t-meta ink-secondary">
+                  {step.period.label}
+                  {step.projected && " · projected"}
+                </span>
+                <span className="t-meta ink-tertiary">
+                  {step.inherited ? "inherited" : "first reported here"} ·{" "}
+                  <span className="nums">{step.ageAtClose}</span> days
+                  {step.stale && (
+                    <span
+                      style={{
+                        color: "var(--ink-secondary)",
+                        fontWeight: "var(--weight-medium)",
+                      }}
+                    >
+                      {" · stale"}
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+            <span className="t-prose ink-secondary">
+              {stale
+                ? `Nothing here is wrong. Every close proves correctly with it in place. It is an operations problem, and the ${stale.label} close is when it becomes one.`
+                : "It hands forward at each close with its age until it clears or somebody writes it back."}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -350,14 +474,7 @@ export function AccountsCanvas() {
                 <>
                   <Card>
                     {items.map((i) => (
-                      <OpenItemRow
-                        key={i.id}
-                        description={i.description}
-                        reference={i.reference}
-                        amount={i.amount}
-                        writtenOn={i.writtenOn}
-                        asOf={TODAY}
-                      />
+                      <WaitingItem key={i.id} item={i} asOf={TODAY} />
                     ))}
                     <div
                       className="flex flex-row items-center justify-between"
@@ -491,7 +608,7 @@ export function AccountsCanvas() {
             {/* ---------- One line per month ---------- */}
             <Section
               title="Month by month"
-              note="Proven or not, and when. Never a proof — this screen has no month."
+              note="Proven or not, and when. Never a proof · this screen has no month."
             >
               <Card>
                 {months.map((m) => (

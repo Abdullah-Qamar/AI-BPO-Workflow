@@ -33,12 +33,20 @@ import { bankLines, ledgerRows } from "@/lib/fixtures/westlakeOperating";
 import { westlakeMatches } from "@/lib/reconciliation/westlakeMatches";
 import { ageInDays } from "@/components/entities/OpenItemRow";
 
-/* 31 August 2026, which makes cheque 1042 exactly 99 days old — the figure the
- * Accounts spec uses in its own worked example. Pinning the date rather than
- * calling `new Date()` keeps the ages reproducible when somebody checks them
- * against the fixture, and stops a screenshot taken next week telling a
- * different story. */
-export const TODAY = "2026-08-31";
+/* The one clock, from lib/period.ts.
+ *
+ * This used to be 31 August, chosen so cheque 1042 would read the 99 days the
+ * spec's example prints, while the Close screen measured from 6 June and said
+ * "May closes in 4 days". Two clocks three months apart, and together they told
+ * a story neither screen meant: a May period still open at the end of August is
+ * a close a quarter late.
+ *
+ * At 6 June the four items are 8 to 23 days old and none is stale. The
+ * staleness case moves from an assertion to a projection, which is the more
+ * useful form: a cheque that WILL be stale in August is a reason to ring the
+ * payee today. */
+import { NOW } from "@/lib/period";
+export const TODAY = NOW;
 
 export const WESTLAKE_OPERATING_ID = "bm-chase-operating-3421";
 

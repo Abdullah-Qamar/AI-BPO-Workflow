@@ -265,6 +265,6 @@ export function demotionCheck(situationId: string): DemotionCheck | null {
           after
         )}. The line is ${
           DEMOTION_THRESHOLD * 100
-        }%, so it stays at level ${situation.rung} — one finding against ${seen} observations is not evidence of drift.`,
+        }%, so it stays at level ${situation.rung}. One finding against ${seen} observations is not evidence of drift.`,
   };
 }

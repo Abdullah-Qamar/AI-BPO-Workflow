@@ -60,6 +60,10 @@ import {
 import { money } from "@/lib/money";
 import { SpotCheckCanvas } from "@/components/SpotCheckCanvas";
 import { getFindings, sampleQueue, subscribe } from "@/lib/sampling";
+import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
+import { closeReadiness, nextPeriod, OPEN_PERIOD_ID } from "@/lib/period";
+import { waitingItems, WESTLAKE_OPERATING_ID } from "@/lib/accounts";
+import { sumDollars } from "@/lib/money";
 import { toCents } from "@/lib/money";
 
 /* ---------- Section furniture ---------- */
@@ -189,6 +193,26 @@ export function CloseCanvas({
     ["posted", "signed"].includes(r.reconciliation.state)
   );
 
+  /* A close package completes when every one of its accounts is posted, and the
+   * PERIOD locks when every package is complete. Two counts and whether they
+   * are equal — not a percentage, and not a judgement anybody makes. */
+  const packages = Array.from(
+    rows.reduce((map, r) => {
+      const list = map.get(r.property.id) ?? [];
+      list.push(r);
+      map.set(r.property.id, list);
+      return map;
+    }, new Map<string, Row[]>())
+  );
+  const packagesComplete = packages.filter(([, list]) =>
+    list.every((r) =>
+      ["posted", "signed", "closed"].includes(r.reconciliation.state)
+    )
+  ).length;
+  const readiness = closeReadiness(packagesComplete, packages.length);
+  const carrying = waitingItems(WESTLAKE_OPERATING_ID);
+  const into = nextPeriod(OPEN_PERIOD_ID);
+
   const byProperty = Array.from(
     rows.reduce((map, r) => {
       const list = map.get(r.property.id) ?? [];
@@ -278,12 +302,60 @@ export function CloseCanvas({
               </span>
             </div>
 
-            {/* Not "New session". The calendar creates the work; when a period
-              * opens, every account due gets a reconciliation. This appears
-              * only while the next period is still shut. */}
-            <Button variant="secondary" size="lg">
-              Open June
-            </Button>
+            <div className="flex flex-col items-end" style={{ gap: "var(--space-3)" }}>
+              <div className="flex flex-row" style={{ gap: "var(--space-4)" }}>
+                {/* Not "New session". The calendar creates the work; when a
+                  * period opens, every account due gets a reconciliation. */}
+                <Button variant="secondary" size="lg">
+                  Open June
+                </Button>
+
+                {/* Closing is irreversible and its consequence is invisible
+                  * until afterwards, which is exactly the shape of act that
+                  * needs its effect stated first. So the confirm carries the
+                  * carry-forward, item by item, the way the rule composer
+                  * carries its preview. */}
+                <ConfirmPopoverButton
+                  label={`Close ${OPEN_PERIOD.label.split(" ")[0]}`}
+                  variant="primary"
+                  size="lg"
+                  disabled={!readiness.allowed}
+                  confirmTitle={`Lock ${OPEN_PERIOD.label}`}
+                  confirmBody={`${carrying.length} open items hand forward to ${
+                    into?.label ?? "the next period"
+                  } with their age, worth ${Math.abs(
+                    sumDollars(carrying.map((i) => i.amount))
+                  ).toFixed(2)}. After the lock a correction goes into ${
+                    into?.label ?? "the next period"
+                  } rather than back into this one.`}
+                  confirmLabel="Lock it"
+                  onConfirm={() => {}}
+                />
+              </div>
+              {/* A switched-off button says why, and the sentence comes from
+                * the guard rather than being written again here.
+                *
+                * The carry-forward is stated beside it rather than only inside
+                * the confirm, because the confirm cannot be opened while the
+                * button is off — and what closing would DO is the part worth
+                * knowing before you are able to do it. Locking a preview behind
+                * the precondition it is meant to inform is the mistake the rule
+                * composer exists to avoid. */}
+              {!readiness.allowed && (
+                <div
+                  className="flex flex-col items-end"
+                  style={{ gap: 2, maxWidth: 340, textAlign: "right" }}
+                >
+                  <span className="t-meta ink-tertiary">
+                    {readiness.because}
+                  </span>
+                  <span className="t-meta ink-tertiary">
+                    When it locks, {carrying.length} open items hand forward to{" "}
+                    {into?.label ?? "the next period"} with their age.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ---------- Empty state ---------- */}
