@@ -24,16 +24,12 @@
  */
 
 import { useState } from "react";
-import { BookOpen, Gauge } from "lucide-react";
 import { LeftRail, type Route } from "@/components/LeftRail";
 import { CloseCanvas } from "@/components/CloseCanvas";
 import { ReconcileCanvas } from "@/components/ReconcileCanvas";
 import { AccountsCanvas } from "@/components/AccountsCanvas";
-import {
-  SurfacePlaceholder,
-  RULES_PLACEHOLDER,
-  QUALITY_PLACEHOLDER,
-} from "@/components/SurfacePlaceholder";
+import { RulesCanvas } from "@/components/RulesCanvas";
+import { QualityCanvas } from "@/components/QualityCanvas";
 
 export default function Page() {
   const [route, setRoute] = useState<Route>("close");
@@ -79,19 +75,17 @@ export default function Page() {
         * folder above it and cannot be proven. This screen has no month. */}
       {route === "accounts" && <AccountsCanvas key={accountsKey} />}
 
-      {/* ---------- Rules and Quality ----------
-        * Destinations before they are screens, so each says what it is for and
-        * where it is specified. Quality deliberately does NOT render the old AI
-        * Performance page: that page leads on tokens used and first-pass
-        * accuracy, the two figures the specs remove from it by name, and
-        * putting it behind a label reading "Quality" would be the rail
-        * promising what the screen breaks. */}
-      {route === "rules" && (
-        <SurfacePlaceholder spec={{ ...RULES_PLACEHOLDER, Icon: BookOpen }} />
-      )}
-      {route === "quality" && (
-        <SurfacePlaceholder spec={{ ...QUALITY_PLACEHOLDER, Icon: Gauge }} />
-      )}
+      {/* ---------- Rules ----------
+        * Everything that changes how the machine decides, in one place: rules
+        * as data with an owner and an expiry, and situations on the trust
+        * ladder. The placeholders that stood here are gone. */}
+      {route === "rules" && <RulesCanvas />}
+
+      {/* ---------- Quality ----------
+        * AIQualityDetail is retired. It led on tokens used and first-pass
+        * accuracy, which are the two figures the specs remove from this screen
+        * by name. The file stays in the tree; nothing routes to it. */}
+      {route === "quality" && <QualityCanvas />}
     </div>
   );
 }

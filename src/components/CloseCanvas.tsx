@@ -228,7 +228,13 @@ export function CloseCanvas({
             style={{ gap: "var(--space-7)" }}
           >
             <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
-              <span className="t-label">Close · {OPEN_PERIOD.label}</span>
+              {/* An h1, styled as the eyebrow it looks like. The screen leads
+                * with a count rather than a title, so there was no heading
+                * element on it at all and a screen reader landed on a page with
+                * no name. The visual is unchanged; only the element is. */}
+              <h1 className="t-label" style={{ margin: 0 }}>
+                Close · {OPEN_PERIOD.label}
+              </h1>
               {/* A count and a date. The only large figure on the screen, and
                 * deliberately a COUNT rather than a percentage: "64%" invites
                 * the question "of what", and eight accounts short of a close is
