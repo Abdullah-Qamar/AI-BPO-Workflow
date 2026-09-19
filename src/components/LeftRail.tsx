@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   BookOpen,
   CalendarCheck,
@@ -13,7 +13,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { StatusDot } from "./ui/Status";
-import { awaitingAPerson } from "@/lib/close";
+import { awaitingAPerson, getClearedBlocks, subscribeBlocks } from "@/lib/close";
 
 export type Route =
   | "close"
@@ -123,7 +123,14 @@ export function LeftRail({
    * on: blocked reads, accounts waiting for a decision, and accounts proven but
    * not yet signed. Derived in lib/close.ts, which the Close screen reads too,
    * so the badge and the rows beneath it cannot disagree. Nothing here types a
-   * number. */
+   * number.
+   *
+   * The subscription is what makes the sentence above true rather than merely
+   * intended. Reading the same function is not enough when one of its inputs
+   * can change: clearing a stuck read hands that account back to the machine
+   * and drops it out of this count, and without this the badge kept its old
+   * number while the row it was counting had already left the screen. */
+  useSyncExternalStore(subscribeBlocks, getClearedBlocks, getClearedBlocks);
   const waiting = awaitingAPerson().length;
 
   const [preferCollapsed, setPreferCollapsed] = useState(false);

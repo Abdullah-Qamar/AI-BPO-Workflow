@@ -213,6 +213,63 @@ function westlakeOperating(): Reconciliation {
   };
 }
 
+/* ---------- Blocks a person has cleared ----------
+ *
+ * The Stuck section announced five failure kinds, each with the right way out
+ * beside it, and every one of those buttons was wired to an empty function.
+ * `StuckRow` guarantees by construction that a row always OFFERS an action —
+ * there is no prop through which to leave one off — and the call site quietly
+ * made that guarantee cosmetic. That is this product's characteristic defect,
+ * the one its own component header names: a surface that says something is
+ * wrong and gives the person nowhere to go.
+ *
+ * Module-level and observable, the same shape as `sampling.ts`'s findings
+ * store, because clearing a block has to REACH somewhere. A screen that
+ * announced what it WOULD have done would be a picture of the flow rather than
+ * the flow.
+ *
+ * Deliberately not persisted, for the same reason findings are not: a reload
+ * starting clean is honest, and a prototype pretending to a history it does not
+ * have is the failure this product spends most of its design avoiding.
+ */
+
+/* Reconciliation id -> the label of the action the person took. The label is
+ * kept rather than a bare flag because "Discard" and "Replace the earlier one"
+ * are different decisions about the same duplicate, and a store that remembers
+ * only THAT somebody acted cannot say which. Nothing reads it yet; an activity
+ * log is the obvious consumer. */
+let clearedBlocks = new Map<string, string>();
+const blockListeners = new Set<() => void>();
+
+export function subscribeBlocks(cb: () => void): () => void {
+  blockListeners.add(cb);
+  return () => blockListeners.delete(cb);
+}
+
+export function getClearedBlocks(): ReadonlyMap<string, string> {
+  return clearedBlocks;
+}
+
+/* A person resolved a blocked read. There is no timeout and no machine path
+ * into this function: `blocked` only ever leaves by a person or a new document,
+ * which is the guard in docs/FLOWS.md Part 2 and the reason this takes an
+ * explicit action label rather than inferring one. */
+export function clearBlock(reconciliationId: string, action: string): void {
+  if (clearedBlocks.has(reconciliationId)) return;
+  clearedBlocks = new Map(clearedBlocks).set(reconciliationId, action);
+  /* The board is derived from this now, so the memo has to go. Every consumer
+   * — the rail's count, the proven tally, the Stuck list — reads `accountRows`,
+   * and dropping the cache is what keeps them one number instead of three. */
+  cached = null;
+  blockListeners.forEach((cb) => cb());
+}
+
+export function resetClearedBlocks(): void {
+  clearedBlocks = new Map();
+  cached = null;
+  blockListeners.forEach((cb) => cb());
+}
+
 /* ---------- The board ---------- */
 
 let cached: AccountRow[] | null = null;
@@ -244,14 +301,31 @@ export function accountRows(): AccountRow[] {
         return;
       }
 
-      const state = stateFor(property, account, index);
+      const id = `recon-${property.code}-${account.id}-2026-05`;
+      const seeded = stateFor(property, account, index);
+
+      /* A cleared block hands the work back to the machine.
+       *
+       * `matching` rather than `reading`: docs/FLOWS.md F1 terminates every
+       * resolved branch at the reconciliation going to `matching`, and states
+       * its exit as "every reconciliation is `matching`, or `blocked` with a
+       * named reason". The `blocked -> reading` line in Part 2's guard table
+       * describes what may open the gate — only a person or a new document —
+       * not a resting place, and parking rows permanently in `reading` would
+       * claim a read is under way that nothing in this prototype performs.
+       *
+       * Guarded on `seeded === "blocked"` so an id in the store can never
+       * rewrite a state that was not blocked to begin with. */
+      const state =
+        seeded === "blocked" && clearedBlocks.has(id) ? "matching" : seeded;
+
       const openItems = session?.openItems ?? 0;
       const unexplained = unexplainedFor(account, state, openItems);
       const h = hash(account.id);
 
       rows.push({
         reconciliation: {
-          id: `recon-${property.code}-${account.id}-2026-05`,
+          id,
           accountId: account.id,
           periodId: OPEN_PERIOD.id,
           state,

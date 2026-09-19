@@ -12,6 +12,12 @@ and nothing is half-finished.
 commits, `929eb8f` through `76574a9`. The three-agent canvas, the metrics-wall
 dashboard and the properties roster are retired; five real screens replaced them.
 
+**Then all nine flows were driven in a browser rather than read.** Every figure
+in section 3 was reproduced by clicking, and the guards in section 4 were checked
+against the DOM rather than the paint. One dead control turned up and is fixed —
+see section 8. Nothing else in this document changed as a result, which is the
+useful part of having run it.
+
 ---
 
 ## 1 · Read these first, in this order
@@ -40,7 +46,8 @@ then `docs/design-system/*.md`.
 src/lib/
   money.ts                    integer cents + the three money formats
   period.ts                   THE ONE CLOCK (NOW = 2026-06-06), periods, carry-forward
-  close.ts                    the open period as 22 account rows; the rail's count
+  close.ts                    the open period as 22 account rows; the rail's count;
+                              an observable store of blocks a person has cleared
   accounts.ts                 the standing world: waiting items, code dictionary
   knowledge.ts                rules, situations, the rule PREVIEW (it really runs)
   assurance.ts                the quality measures
@@ -185,7 +192,10 @@ artwork.
 
 ## 8 · Known gaps, honestly
 
-Not bugs. Things the build chose not to do, each blocked on something real.
+The bullets are not bugs: they are things the build chose not to do, each
+blocked on something real. What follows them is a bug that was found and fixed,
+a dev-server trap, and an error in the specs — kept here because this is where
+somebody looks when something does not behave.
 
 - **The Reader's intermediate retries.** The grade is visible; the retry loop
   behind it is not, because there is no parser to fail. The surface is designed.
@@ -198,6 +208,53 @@ Not bugs. Things the build chose not to do, each blocked on something real.
 - **The dev server caches stale build errors.** If the console shows an error
   whose line number no longer matches the file, restart it. `npx tsc --noEmit`
   is the authority, not the browser console.
+
+### One dead control, found by running the flows and now fixed
+
+The Stuck section's buttons did nothing. `CloseCanvas` passed
+`onAct={() => {}}`, so "Move to Operating ••••1145" and "Fill in the missing
+field" rendered, enabled, and swallowed the click.
+
+Worth understanding rather than just noting, because the shape of it recurs.
+`StuckRow`'s header states that it can never render without a way out — the
+actions are looked up from the reason code and there is no prop through which to
+omit them — and that guarantee was real. The call site made it cosmetic anyway.
+A component can only promise that an action is *offered*; whether it *does*
+anything is always the caller's.
+
+The fix is a cleared-blocks store in `close.ts`, shaped like `sampling.ts`'s
+findings store, and a cleared block moves the account to `matching`. `matching`
+rather than `reading` because F1 terminates every resolved branch there, and
+because parking a row in `reading` would claim a read is under way that nothing
+here performs. The reasoning is at the call site.
+
+**What it caught on the way:** the first version worked and the rail badge still
+read 13 while the row it counted had left the screen. `LeftRail` reads
+`awaitingAPerson()` and its comment promises the badge and the rows "cannot
+disagree" — but reading the same function is not enough once one of its inputs
+can change. It subscribes now. If you add another store that feeds the board,
+that badge is the thing that will quietly go stale.
+
+### If the dev server dies with a heap OOM
+
+Not an app leak, and worth knowing before you go looking for one. `.next`
+artifacts encode paths relative to whatever workspace root built them. Serve a
+cache built under one root from a server running another and the RSC client
+manifest lookup fails —
+
+> Could not find the module "[project]/…/src/app/page.tsx#default" in the React
+> Client Manifest
+
+— after which the server leaks hard and dies at about 8 GB. Measured with a
+clean `.next`, the two root configurations are identical (788 → 962 MB versus
+774 → 972 MB over fifty requests, roughly 4 MB a request). **`rm -rf .next`
+after any change to `turbopack.root`, the lockfile layout, or where the project
+lives.**
+
+`next.config.ts` pins `turbopack.root` because a stray 93-byte
+`package-lock.json` in the home directory, with no `package.json` beside it,
+makes Turbopack choose `~` as the workspace root. Delete that file and the pin
+can go.
 
 ### One real inconsistency found in the specs
 
@@ -229,9 +286,23 @@ Then, in the app:
    must report 1 item worth 210.00 and then block approval.
 6. **Close → Start checking** — record a problem, then Quality's escaped errors
    goes from 0 to 1.
+7. **Close → Stuck** — click both actions. The section empties, and the rail's
+   badge counts 13 → 12 → 11 as it does. Proven stays at 10 of 22, because a
+   cleared block hands the account to the machine and does not prove it.
 
 If step 5 does not block, the conflict check is broken and that is the single
 most important thing on that screen.
+
+Step 7 is there because those buttons were wired to an empty function until
+19 September and nothing in the tree noticed. **A control that changes nothing
+is invisible to `tsc`, to the build, and to a reading of the component** — it is
+only ever caught by clicking it.
+
+Check the disabled states the same way, from the DOM rather than the paint.
+`ui/Button` sets the real `disabled` attribute, so a control that merely looks
+grey is a different bug from one that is genuinely out of the tab order, and the
+two are indistinguishable in a screenshot. Steps 2 and 5 both turn on that
+distinction.
 
 ---
 

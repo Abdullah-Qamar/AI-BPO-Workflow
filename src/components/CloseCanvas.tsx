@@ -50,9 +50,12 @@ import { PropertyRollup } from "@/components/entities/PropertyRollup";
 import { stateWords } from "@/components/entities/AccountRow";
 import {
   accountRows,
+  clearBlock,
   daysUntilClose,
+  getClearedBlocks,
   provenCount,
   stuckDocuments,
+  subscribeBlocks,
   totalUnexplained,
   OPEN_PERIOD,
   type AccountRow as Row,
@@ -169,6 +172,12 @@ export function CloseCanvas({
    * postponed becomes a queue that never happens. */
   const [checking, setChecking] = useState(false);
   const findings = useSyncExternalStore(subscribe, getFindings, getFindings);
+
+  /* Clearing a block changes the board, not just the Stuck list: the account
+   * leaves the rail's count and the proven tally re-reads. Subscribing here
+   * rather than holding the cleared ids in component state is what keeps those
+   * three numbers one number. */
+  useSyncExternalStore(subscribeBlocks, getClearedBlocks, getClearedBlocks);
 
   const rows = accountRows();
   const { proven, due } = provenCount();
@@ -426,7 +435,12 @@ export function CloseCanvas({
                         reason={d.reason}
                         explanation={d.explanation}
                         subject={d.subject}
-                        onAct={() => {}}
+                        /* The action a person took is passed through rather
+                         * than discarded: which way out they chose is the
+                         * decision, and a store that recorded only THAT they
+                         * acted could not tell a discarded duplicate from one
+                         * confirmed as superseding the earlier file. */
+                        onAct={(label) => clearBlock(d.id, label)}
                       />
                     ))}
                   </div>
