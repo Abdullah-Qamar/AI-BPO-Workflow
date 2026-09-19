@@ -45,7 +45,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { Check, ChevronRight, Circle, Loader } from "lucide-react";
+import { Check, ChevronRight, FileText, Minus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
 import { ReconcileRun } from "@/components/ReconcileRun";
@@ -56,6 +56,7 @@ import { ProofLadder } from "@/components/entities/ProofLadder";
 import { OutcomeChip } from "@/components/entities/OutcomeChip";
 import { Money } from "@/components/entities/Money";
 import { stateWords } from "@/components/entities/AccountRow";
+import { AgentOrb, type AgentJob } from "@/components/entities/AgentOrb";
 import {
   difference,
   needsDecision,
@@ -69,7 +70,12 @@ import {
   undoResolution,
 } from "@/lib/reconciliation/resolve";
 import { westlakeMatches } from "@/lib/reconciliation/westlakeMatches";
-import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
+import {
+  bankLines,
+  controlTotals,
+  ledgerRows,
+  ledgerTotals,
+} from "@/lib/fixtures/westlakeOperating";
 import { canProve, canSign, type ReconciliationState } from "@/lib/session/types";
 import { OPEN_PERIOD } from "@/lib/close";
 import { money, toCents } from "@/lib/money";
@@ -97,10 +103,15 @@ function Lane({
   name,
   state,
   touched,
+  job,
 }: {
   name: string;
   state: LaneState;
   touched: string;
+  /* Which part of the machine this lane is. Only used while the lane is
+   * active — a finished lane gets a check, because what matters then is that
+   * it is done, not which agent did it. */
+  job: AgentJob;
 }) {
   return (
     <div
@@ -116,14 +127,23 @@ function Lane({
             aria-hidden
           />
         ) : state === "active" ? (
-          <Loader
-            size="var(--icon-sm)"
-            strokeWidth="var(--stroke-sm)"
-            style={{ color: "var(--ink-primary)" }}
-            aria-hidden
-          />
+          /* The orb replaces a spinner here, and the difference is not
+            * decoration. A spinner says "something is happening" and is the
+            * same glyph for every job in every product; the orb is per-agent,
+            * so the Reader sweeping a document and the Matcher wiring two
+            * sides together do not look identical while they run. It is the
+            * one place on this screen where a machine is working rather than
+            * having worked, which is why it appears here and nowhere else in
+            * the strip. */
+          <AgentOrb job={job} size={20} label={`${name}, running`} />
         ) : (
-          <Circle
+          /* A dash, not a circle.
+           *
+           * An empty circle outline is the radio-button shape, and it is a
+           * control affordance almost everywhere else a person has seen one.
+           * These are status marks: the lane has not run, and there is nothing
+           * to choose. A dash cannot be mistaken for something to click. */
+          <Minus
             size="var(--icon-sm)"
             strokeWidth="var(--stroke-sm)"
             style={{ color: "var(--line)" }}
@@ -149,6 +169,58 @@ function Lane({
         </span>
         {/* What the lane touched, not that it was busy. */}
         <span className="t-meta ink-tertiary">{touched}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- The two documents ----------
+ *
+ * The screen talked about the statement and the ledger in prose and never
+ * showed them. They are the only two objects the whole month rests on, and
+ * "a bai2 statement and a Yardi export" is a description of them rather than
+ * the things themselves.
+ *
+ * Every figure here is read off the fixture rather than typed. The line counts
+ * are the arrays' lengths, the balances are the control totals the file
+ * declares in its own header, and the date the statement landed is the one in
+ * its BAI2 `01` record — 260601, the first of June. Nothing on this strip is
+ * invented, which is the point of putting it on the one account that is real.
+ *
+ * Stating the control totals HERE, before the Reader reaches them, is what
+ * makes its self-check legible when it happens: a reader who has already seen
+ * "closes at 301,980.10" understands what the grading beat is comparing. A
+ * guarantee you can only verify after the fact is a guarantee nobody checks. */
+function DocumentRow({
+  name,
+  kind,
+  facts,
+}: {
+  name: string;
+  kind: string;
+  facts: string;
+}) {
+  return (
+    <div
+      className="list-row flex flex-row items-center"
+      style={{
+        minHeight: "var(--row-lg)",
+        padding: "var(--space-4) var(--space-5)",
+        gap: "var(--space-5)",
+        borderRadius: "var(--radius-row)",
+      }}
+    >
+      <FileText
+        size="var(--icon-md)"
+        strokeWidth="var(--stroke-md)"
+        style={{ color: "var(--ink-tertiary)", flexShrink: 0 }}
+        aria-hidden
+      />
+      <div className="flex flex-col min-w-0 flex-1" style={{ gap: 2 }}>
+        <span className="t-body ink-primary truncate">{name}</span>
+        <span className="t-meta ink-tertiary truncate">
+          {kind} · {facts}
+        </span>
       </div>
     </div>
   );
@@ -241,7 +313,25 @@ export function ReconcileCanvas() {
    * live. Three values rather than replaying the fourteen-state machine here:
    * this is about which PICTURE the middle shows, and the reconciliation's own
    * state is derived below from the work rather than from the animation. */
-  const [run, setRun] = useState<"draft" | "running" | "finished">("draft");
+  /* The run starts on its own, and there is no state before it.
+   *
+   * There used to be a `draft` picture with a Start button on it, and the
+   * question it asked had no decision in it. Reading and pairing write nothing,
+   * reach nothing, and are reversible by ignoring them; both documents were
+   * already bound to the account and period; and the gate this product does
+   * have is at the SIGNATURE, which is where a person takes responsibility. A
+   * second gate at the front is the same click "New session" was on the Close
+   * screen — the calendar creates the work, and documents landing start the
+   * run.
+   *
+   * The tell was already in this file: "Run it again" went straight to
+   * `running`. The second attempt never asked. Only the first one did, and
+   * nothing about the first attempt is more consequential than the second.
+   *
+   * `stopped` is NOT that gate coming back. It exists only after somebody
+   * presses Stop, so the button that restarts the run has a reason on screen
+   * for why it is being offered: you stopped it. */
+  const [run, setRun] = useState<"running" | "stopped" | "finished">("running");
 
   /* Every attempt, oldest first. A reconciliation can be run more than once —
    * mid-month against a partial statement, then again when the final one lands
@@ -311,8 +401,12 @@ export function ReconcileCanvas() {
    * field somebody can set to `proven` while money is unexplained. */
   const state: ReconciliationState = signedBy
     ? "signed"
-    : run === "draft"
-      ? "draft"
+    : run === "stopped"
+      ? /* Stopped by a person mid-read. `blocked` is the honest state: the run
+         * is not going to finish on its own and only a person can move it,
+         * which is exactly what that state means. It is not `draft` — the
+         * documents are in — and it is not `reading`, because nothing is. */
+        "blocked"
       : run === "running"
         ? "reading"
         : owed === 0 && proof.tied
@@ -391,7 +485,9 @@ export function ReconcileCanvas() {
   /* The lanes track the run, so a lane cannot claim to have read a document
    * before anybody started. "not started" is a state the old canvas never had,
    * which is why every lane on it looked busy from the moment it mounted. */
-  const before = run === "draft";
+  /* `before` is now only ever true because somebody stopped the run. There is
+   * no state before a run that nobody has started, because every run starts. */
+  const before = run === "stopped";
   const during = run === "running";
 
   /* A lane may only report what it has actually touched YET.
@@ -403,18 +499,25 @@ export function ReconcileCanvas() {
    * a spinner says nothing, and this said something false. */
   const notYet = before || during;
 
-  const lanes: { name: string; state: LaneState; touched: string }[] = [
+  const lanes: {
+    name: string;
+    state: LaneState;
+    touched: string;
+    job: AgentJob;
+  }[] = [
     {
       name: "Reading",
+      job: "reading",
       state: before ? "waiting" : during ? "active" : "done",
       touched: before
-        ? "2 documents in · a bai2 statement and a Yardi export"
+        ? "stopped before it finished · nothing was written"
         : during
           ? "extracting rows, then grading them against the header"
           : "bai2-westlake-operating-2026-05.bai · 14 lines · totals matched the header",
     },
     {
       name: "Pairing",
+      job: "pairing",
       state: notYet ? "waiting" : "done",
       touched: notYet
         ? "not started"
@@ -422,6 +525,7 @@ export function ReconcileCanvas() {
     },
     {
       name: "Checking",
+      job: "checking",
       state: notYet ? "waiting" : owed > 0 ? "active" : "done",
       touched: notYet
         ? "not started"
@@ -429,6 +533,7 @@ export function ReconcileCanvas() {
     },
     {
       name: "Sending",
+      job: "sending",
       state: state === "signed" ? "active" : "waiting",
       touched:
         notYet
@@ -464,15 +569,23 @@ export function ReconcileCanvas() {
             <span className="t-body ink-secondary nums">
               ••••3421 · GL 1010 Operating Cash · May 2026 ·{" "}
               <span style={{ fontWeight: "var(--weight-medium)" }}>
-                {/* `draft` covers two situations the state machine does not
-                  * separate: no documents yet, and both documents in with
-                  * nothing read. "Waiting for files" is only true of the first,
-                  * and the spec's own answer is that a draft shows its document
-                  * count — "0 of 2 expected" — so a full count is what a draft
-                  * looks like once they arrive. */}
-                {state === "draft"
-                  ? "2 of 2 documents in · not yet run"
-                  : stateWords(state)}
+                {/* The document count stays on every state, not just the one
+                  * before the run. It is the cheapest "you are in the right
+                  * place" fact on the screen and it does not stop being true
+                  * once reading starts.
+                  *
+                  * "not yet run" is gone with the state that used to carry it.
+                  * The run starts on its own now, so there is no moment when
+                  * both documents are in and nothing has begun.
+                  *
+                  * `stopped` says "stopped" rather than taking `blocked`'s word
+                  * "stuck". It maps to `blocked` because only a person can move
+                  * it on, which is what that state means — but a run somebody
+                  * halted on purpose is not a read that failed, and the subtitle
+                  * should say which of the two happened. */}
+                {`2 of 2 documents in · ${
+                  run === "stopped" ? "stopped" : stateWords(state)
+                }`}
               </span>
             </span>
           </div>
@@ -588,6 +701,33 @@ export function ReconcileCanvas() {
             ))}
           </div>
 
+          {/* ---------- The documents themselves ---------- */}
+          <div
+            className="flex flex-col"
+            style={{
+              background: "var(--surface-list)",
+              borderRadius: "var(--radius-sheet)",
+              boxShadow: "var(--shadow-depth-1)",
+              padding: "var(--space-2)",
+              ["--list-inset" as string]: "var(--space-5)",
+            }}
+          >
+            <DocumentRow
+              name="bai2-westlake-operating-2026-05.bai"
+              kind="Bank statement · BAI2"
+              facts={`${bankLines.length} lines · landed 1 June · opens ${money(
+                controlTotals.openingBalance
+              )} · closes ${money(controlTotals.closingBalance)}`}
+            />
+            <DocumentRow
+              name="yardi-gl-westlake-operating-2026-05.csv"
+              kind="Ledger export · Yardi"
+              facts={`${ledgerRows.length} rows · post month 05/2026 · book balance ${money(
+                ledgerTotals().bookBalance
+              )}`}
+            />
+          </div>
+
           {/* ---------- The middle ---------- *
             *
             * Three pictures and never two at once. The machine while it runs,
@@ -595,7 +735,7 @@ export function ReconcileCanvas() {
             * is. The spec is explicit that this same area changes, and the
             * reason is that a proof over five open items would be showing a
             * conclusion nobody has reached. */}
-          {run === "draft" ? (
+          {run === "stopped" ? (
             <div
               className="flex flex-col items-start"
               style={{
@@ -607,24 +747,31 @@ export function ReconcileCanvas() {
               }}
             >
               <span className="t-title ink-primary">
-                Both documents are in
+                Stopped before it finished
               </span>
+              {/* The sentence that used to sell the run now explains what
+                * stopping cost, which is nothing. It is the same guarantee read
+                * from the other side: a run that writes nothing until a
+                * signature is a run you can abandon without consequence. */}
               <span className="t-prose ink-secondary">
-                The statement and the ledger export are bound to this account
-                and period. The run reads them, checks the extracted rows
-                against the totals the statement declares in its own header, and
-                stops rather than reconcile against half a statement.
+                Nothing was written. Reading and pairing touch no ledger, so a
+                run that does not finish leaves the account exactly as it was.
+                Starting again reads both documents from the beginning.
               </span>
               <Button
                 variant="primary"
                 size="lg"
                 onClick={() => setRun("running")}
               >
-                Start the run
+                Start the run again
               </Button>
             </div>
           ) : run === "running" ? (
-            <ReconcileRun matches={matches} onFinished={finishRun} />
+            <ReconcileRun
+              matches={matches}
+              onFinished={finishRun}
+              onStop={() => setRun("stopped")}
+            />
           ) : batch ? (
             /* Once it has been signed the middle becomes the send, because what
              * a person needs to see now is which entries landed. The proof is
@@ -779,8 +926,8 @@ export function ReconcileCanvas() {
               <div className="flex flex-col" style={{ gap: 2 }}>
                 <span className="t-label">Next</span>
                 <span className="t-body ink-secondary">
-                  {run === "draft"
-                    ? "Start the run. Nothing has been read yet, so there is no figure to show."
+                  {run === "stopped"
+                    ? "Stopped. Nothing was read, so there is no figure to show."
                     : "Reading and pairing. The figure appears when the machine hands over."}
                 </span>
               </div>

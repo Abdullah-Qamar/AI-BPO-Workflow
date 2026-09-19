@@ -40,6 +40,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Check, ShieldQuestion } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { AgentOrb } from "@/components/entities/AgentOrb";
 import { MatchCard } from "@/components/entities/MatchCard";
 import { Money } from "@/components/entities/Money";
 import { difference } from "@/lib/reconciliation/match";
@@ -286,8 +287,24 @@ export function SpotCheckCanvas({ onBack }: { onBack: () => void }) {
                     gap: "var(--space-3)",
                   }}
                 >
-                  <span className="t-label">
-                    Why this one · {STRATUM_WORDS[item.stratum]}
+                  {/* The orb marks the half of this panel the machine owns.
+                    * The sampler picked the item; the person does the looking,
+                    * and the sentence below says so. Putting the mark on the
+                    * "why this one" heading rather than on the panel keeps the
+                    * two halves visibly separate, which is the point the copy
+                    * is making in words. */}
+                  <span
+                    className="flex flex-row items-center"
+                    style={{ gap: "var(--space-3)" }}
+                  >
+                    <AgentOrb
+                      job="sampling"
+                      size={20}
+                      label="The sampler chose this item"
+                    />
+                    <span className="t-label">
+                      Why this one · {STRATUM_WORDS[item.stratum]}
+                    </span>
                   </span>
                   <span className="t-prose ink-secondary">
                     {item.chosenBecause}

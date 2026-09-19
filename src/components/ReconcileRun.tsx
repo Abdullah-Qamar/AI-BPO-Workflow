@@ -213,9 +213,19 @@ function DocumentColumn({
 export function ReconcileRun({
   matches,
   onFinished,
+  onStop,
 }: {
   matches: Match[];
   onFinished: () => void;
+  /* Stop it early.
+   *
+   * The run starts on its own, so this is the intervention that replaces the
+   * old Start button. The architecture document asks for planning visibility —
+   * show the plan before the work so the operator can stop it early — and a
+   * gate is only one way to answer that, and the more expensive one: it spends
+   * a click on every run to buy the ability to intervene in the rare one. A
+   * visible Stop buys the same ability and charges nothing for it. */
+  onStop: () => void;
 }) {
   const bank = useMemo(
     () =>
@@ -416,9 +426,20 @@ export function ReconcileRun({
         </div>
 
         {phase !== "done" && (
-          <Button variant="secondary" size="sm" onClick={skip}>
-            Skip to the end
-          </Button>
+          <div className="flex flex-row items-center" style={{ gap: "var(--space-4)" }}>
+            {/* Stop is the quieter of the two on purpose. Skipping is what a
+              * person watching a demo wants; stopping is what somebody who has
+              * spotted the wrong file wants, and it is the rarer act. Neither
+              * writes anything — nothing this run does reaches the ledger until
+              * a signature, which is why stopping is cheap and why the gate
+              * that used to precede it was not buying safety. */}
+            <Button variant="ghost" size="sm" onClick={onStop}>
+              Stop
+            </Button>
+            <Button variant="secondary" size="sm" onClick={skip}>
+              Skip to the end
+            </Button>
+          </div>
         )}
       </div>
     </div>
