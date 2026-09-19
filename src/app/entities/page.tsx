@@ -598,12 +598,11 @@ export default function EntitiesPage() {
               cycle="May 2026"
             />
             <p className="t-meta ink-tertiary">
-              The tied state, with both journeys landing on 292,844.60 and the
-              figure reaching 0.00, is at{" "}
-              <Link href="/proof" style={{ textDecoration: "underline" }}>
-                /proof
-              </Link>
-              .
+              This is the first-pass state, at 2,900.60 unexplained. The tied
+              state, with both journeys landing on 292,844.60 and the figure
+              reaching 0.00, is the settled state of Reconcile: work the five
+              items and the panel arrives there. The proof has no address of its
+              own, on purpose.
             </p>
           </Section>
           )}

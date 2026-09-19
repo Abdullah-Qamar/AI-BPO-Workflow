@@ -59,9 +59,12 @@ import {
 } from "@/lib/close";
 import { money } from "@/lib/money";
 import { SpotCheckCanvas } from "@/components/SpotCheckCanvas";
-import { getFindings, sampleQueue, subscribe } from "@/lib/sampling";
+import { getFindings, queuedSince, sampleQueue, subscribe } from "@/lib/sampling";
+import { ageInDays } from "@/components/entities/OpenItemRow";
+import { NOW } from "@/lib/period";
 import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
 import { closeReadiness, nextPeriod, OPEN_PERIOD_ID } from "@/lib/period";
+import { atRiskOfMissingClose } from "@/lib/close";
 import { waitingItems, WESTLAKE_OPERATING_ID } from "@/lib/accounts";
 import { sumDollars } from "@/lib/money";
 import { toCents } from "@/lib/money";
@@ -211,6 +214,10 @@ export function CloseCanvas({
   ).length;
   const readiness = closeReadiness(packagesComplete, packages.length);
   const carrying = waitingItems(WESTLAKE_OPERATING_ID);
+  /* Accounts that have been waiting longer than the days left before the lock.
+   * Ageing rather than escalating: escalation needs somebody to escalate to,
+   * and this product has one person in it. */
+  const atRisk = atRiskOfMissingClose(days);
   const into = nextPeriod(OPEN_PERIOD_ID);
 
   const byProperty = Array.from(
@@ -300,6 +307,19 @@ export function CloseCanvas({
                 <span className="nums">{money(totalUnexplained())}</span>{" "}
                 unexplained across the portfolio
               </span>
+              {/* What happens when nobody acts, said as arithmetic rather than
+                * as a nudge. An account that has waited longer than the days
+                * left is on course to miss the lock, which is a sentence a
+                * person does something about. */}
+              {atRisk.length > 0 && (
+                <span className="t-meta ink-secondary">
+                  <span className="nums">{atRisk.length}</span>{" "}
+                  {atRisk.length === 1 ? "account has" : "accounts have"} been
+                  waiting longer than the {days} days left, so{" "}
+                  {atRisk.length === 1 ? "it is" : "they are"} on course to miss
+                  the lock.
+                </span>
+              )}
             </div>
 
             <div className="flex flex-col items-end" style={{ gap: "var(--space-3)" }}>
@@ -457,6 +477,10 @@ export function CloseCanvas({
                 <SectionHead
                   title="Spot checks"
                   count={queue.length - done}
+                  /* It waits rather than interrupting, so it has to age in the
+                    * open. A number that is getting worse and has somebody's
+                    * name on it is the pressure that works on a professional;
+                    * a modal is the pressure they learn to click through. */
                   note={
                     done > 0
                       ? `${done} of ${queue.length} checked${
@@ -466,7 +490,7 @@ export function CloseCanvas({
                               } found`
                             : ""
                         }`
-                      : undefined
+                      : `waiting ${ageInDays(queuedSince(), NOW)} days`
                   }
                 />
                 <Card>

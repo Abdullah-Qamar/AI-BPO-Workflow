@@ -134,6 +134,44 @@ export const STATES_AWAITING_A_PERSON: readonly ReconciliationState[] = [
   "post-failed",
 ];
 
+/* ---------- Where `blocked` lives ----------
+ *
+ * ON THE DOCUMENT, and the reconciliation reports the worst state of its
+ * documents. A statement can be perfectly fine while the ledger export is the
+ * wrong period, and a reconciliation carrying one `blocked` flag cannot say
+ * which of its two inputs is the problem — which is the difference between a
+ * person knowing to re-export from Yardi and a person re-uploading the bank
+ * file for no reason.
+ *
+ * It also matters for recovery. `blocked` clears when a NEW DOCUMENT arrives,
+ * and a document is the thing that arrives. A flag on the reconciliation would
+ * have to be cleared by guessing which upload was meant to fix it. */
+export interface ReconciliationDocument {
+  id: string;
+  /* Which of the two it is. */
+  side: "statement" | "ledger";
+  filename: string;
+  /* A fingerprint, so a swapped file is detectable and a duplicate is
+   * recognisable before it is taken in twice. */
+  fingerprint: string;
+  /* `blocked` here is the Reader's failure on THIS file, with its reason. */
+  state: "waiting" | "reading" | "blocked" | "bound";
+  blockedBecause?: string;
+}
+
+/* The reconciliation's reading state, derived from its documents rather than
+ * stored beside them. Worst wins: one blocked file blocks the run, because
+ * reconciling against half a statement is the thing the Reader's grade exists
+ * to prevent. */
+export function readingStateOf(
+  docs: ReconciliationDocument[]
+): "draft" | "reading" | "blocked" {
+  if (docs.some((d) => d.state === "blocked")) return "blocked";
+  if (docs.some((d) => d.state === "reading")) return "reading";
+  if (docs.length > 0 && docs.every((d) => d.state === "bound")) return "reading";
+  return "draft";
+}
+
 /* One attempt at a reconciliation.
  *
  * A reconciliation can be run more than once — against a partial statement

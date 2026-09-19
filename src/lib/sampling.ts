@@ -86,6 +86,30 @@ function settledByMachine(): Match[] {
 const ACCOUNT = "1849 Westlake · Operating";
 const PERIOD = "May 2026";
 
+/* When the queue was filled: the moment the run handed over.
+ *
+ * DOES IT INTERRUPT, OR WAIT? It waits — and it ages in the open, which is the
+ * answer to the objection that a queue you can always put off is a queue that
+ * never happens.
+ *
+ * A hard interrupt is the wrong instrument here. Blocking somebody from closing
+ * a month until they have sampled would make sampling the thing standing
+ * between them and their deadline, and the first workaround anybody finds is to
+ * click through it. Worse, it would put a sampling prompt in front of a person
+ * mid-decision on a real exception, which is where their attention is worth
+ * most.
+ *
+ * So it waits, and the Close screen says how long. An unchecked sample that has
+ * been sitting eleven days is visible as eleven days, next to a count that
+ * grows as the system does more. That is the pressure that works on a
+ * professional: not a modal, but a number that is getting worse and has their
+ * name on it. */
+const QUEUED_SINCE = "2026-06-02";
+
+export function queuedSince(): string {
+  return QUEUED_SINCE;
+}
+
 export function sampleQueue(): SampleItem[] {
   const pool = settledByMachine();
   const byId = (id: string) => pool.find((m) => m.id === id);

@@ -72,7 +72,7 @@ import { westlakeMatches } from "@/lib/reconciliation/westlakeMatches";
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import { canProve, canSign, type ReconciliationState } from "@/lib/session/types";
 import { OPEN_PERIOD } from "@/lib/close";
-import { toCents } from "@/lib/money";
+import { money, toCents } from "@/lib/money";
 
 const PERIOD_END = "2026-05-31";
 const REVIEWER = "N. Okafor";
@@ -242,7 +242,22 @@ export function ReconcileCanvas() {
    * this is about which PICTURE the middle shows, and the reconciliation's own
    * state is derived below from the work rather than from the animation. */
   const [run, setRun] = useState<"draft" | "running" | "finished">("draft");
-  const finishRun = useCallback(() => setRun("finished"), []);
+
+  /* Every attempt, oldest first. A reconciliation can be run more than once —
+   * mid-month against a partial statement, then again when the final one lands
+   * — and the question the specs left open was whether the earlier attempts are
+   * visible history or silently superseded.
+   *
+   * Visible. A figure that moved between attempts is exactly the thing somebody
+   * will ask about in six months, and "the machine got 2,900.60 on the partial
+   * statement and 2,900.60 again on the final one" is a different fact from
+   * either number alone. Silently superseding them would also make the frozen
+   * first-pass figure meaningless: frozen at WHICH verdict?
+   *
+   * Only the last one can be signed. */
+  const [runs, setRuns] = useState<
+    { attempt: number; finishedAt: string; unexplained: number; owed: number }[]
+  >([]);
 
   const proof = useMemo(
     () =>
@@ -254,6 +269,23 @@ export function ReconcileCanvas() {
       }),
     [matches]
   );
+
+  const finishRun = useCallback(() => {
+    setRun("finished");
+    setRuns((prev) => [
+      ...prev,
+      {
+        attempt: prev.length + 1,
+        finishedAt: new Date().toISOString(),
+        /* Frozen at the machine's verdict. It is computed here, before any
+         * resolution exists, and never recomputed — a quality number that
+         * improves when a person cleans up is not measuring the machine. */
+        unexplained: proof.unexplained,
+        owed: matches.filter(needsDecision).length,
+      },
+    ]);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [proof.unexplained, matches]);
 
   /* The queue, biggest money first, because that is the order in which a
    * person's attention is worth most. Settled items stay in the list rather
@@ -444,6 +476,103 @@ export function ReconcileCanvas() {
               </span>
             </span>
           </div>
+
+          {/* ---------- Who prepared it, and who signs ----------
+            *
+            * Stated rather than left implicit, which is what the flows document
+            * asks for. The control that matters in accounting is that whoever
+            * prepared the work is not whoever approves it, and that is not a
+            * headcount rule: AI prepares, a person approves, and it satisfies
+            * the control better than two people would because the preparer's
+            * every step is recorded and replayable.
+            *
+            * So yes, one person can sign a reconciliation they "prepared" —
+            * they did not prepare it, the machine did, and the screen should
+            * say so where somebody is about to put their name to it. */}
+          {run === "finished" && (
+            <div
+              className="flex flex-col"
+              style={{
+                background: "var(--surface-card)",
+                borderRadius: "var(--radius-card)",
+                boxShadow: "var(--shadow-card)",
+                padding: "var(--space-6)",
+                gap: "var(--space-4)",
+              }}
+            >
+              <span className="t-label">Who did what</span>
+              <span className="t-prose ink-secondary">
+                The machine read both documents, paired what it could and
+                proposed the rest. Every figure on this screen came from that,
+                and every decision on it will carry your name. That separation
+                is the control, and it holds with one person because the
+                preparer is not a person.
+              </span>
+
+              {/* Running it again is a real event, not a reset: a partial
+                * statement mid-month, then the final one when it lands. The
+                * earlier attempt stays in the list, because a first-pass figure
+                * frozen at the machine's verdict is meaningless if nobody can
+                * see which verdict. Resolutions are cleared, since they were
+                * decisions about rows a new read may not even produce. */}
+              {run === "finished" && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  style={{ alignSelf: "flex-start" }}
+                  onClick={() => {
+                    setMatches(westlakeMatches);
+                    setOpenId(null);
+                    setSignedBy(null);
+                    setBatch(null);
+                    setRun("running");
+                  }}
+                >
+                  Run it again
+                </Button>
+              )}
+
+              {runs.length > 0 && (
+                <div
+                  className="flex flex-col"
+                  style={{
+                    gap: "var(--space-3)",
+                    paddingTop: "var(--space-4)",
+                    borderTop: "1px solid var(--line-hair)",
+                  }}
+                >
+                  <span className="t-label">
+                    {runs.length === 1
+                      ? "One attempt"
+                      : `${runs.length} attempts · only the last can be signed`}
+                  </span>
+                  {runs.map((r, i) => (
+                    <div
+                      key={r.attempt}
+                      className="flex flex-row items-baseline justify-between"
+                      style={{
+                        gap: "var(--space-5)",
+                        opacity: i === runs.length - 1 ? 1 : 0.6,
+                      }}
+                    >
+                      <span className="t-meta ink-secondary">
+                        Run {r.attempt}
+                        {i < runs.length - 1 && " · superseded"}
+                      </span>
+                      <span className="t-meta ink-tertiary nums">
+                        first pass {money(r.unexplained)} · {r.owed}{" "}
+                        {r.owed === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+                  ))}
+                  <span className="t-meta ink-tertiary">
+                    A first-pass figure is frozen at the machine's verdict. It
+                    does not improve because somebody cleaned up afterwards.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ---------- The four lanes ---------- */}
           <div

@@ -42,7 +42,7 @@ import { westlakeMatches, ACCOUNT_ID } from "@/lib/reconciliation/westlakeMatche
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import type { StuckReason } from "@/components/entities/StuckRow";
 import { toCents, toDollars } from "@/lib/money";
-import { daysUntilClose as untilClose } from "@/lib/period";
+import { daysUntilClose as untilClose, NOW } from "@/lib/period";
 
 /* ---------- The period ---------- */
 
@@ -310,6 +310,32 @@ export function provenCount(): { proven: number; due: number } {
 
 /* Total money unexplained across the open period, in dollars. Summed in cents,
  * because twenty-two floats added in a row do not land where they should. */
+/* ---------- What happens when nobody acts ----------
+ *
+ * A reconciliation sitting in review for five days while the period is about to
+ * close is a real operational state, and the product had nothing to say about
+ * it.
+ *
+ * What it says now is arithmetic rather than a nudge. This build has no
+ * messaging layer, and inventing notifications for a design prototype would be
+ * a feature nobody can see working. What IS computable and useful: an account
+ * that has been waiting longer than the days left before the lock is an account
+ * that is on course to miss the close, and that is a sentence a person acts on.
+ *
+ * Ageing, not escalating. Escalation needs somebody to escalate TO, and this
+ * product has one person in it. */
+export function atRiskOfMissingClose(daysLeft: number): AccountRow[] {
+  const now = Date.parse(`${NOW}T00:00:00Z`);
+  return accountRows().filter((r) => {
+    if (!STATES_AWAITING_A_PERSON.includes(r.reconciliation.state)) return false;
+    if (!r.reconciliation.waitingSince) return false;
+    const waited = Math.round(
+      (now - Date.parse(r.reconciliation.waitingSince)) / 86_400_000
+    );
+    return waited > daysLeft;
+  });
+}
+
 export function totalUnexplained(): number {
   return toDollars(
     accountRows().reduce((t, r) => t + toCents(r.reconciliation.unexplained), 0)
