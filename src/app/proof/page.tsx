@@ -17,10 +17,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { BalanceProof } from "@/components/reconciliation/BalanceProof";
+import { ProofLadder } from "@/components/entities/ProofLadder";
 import { Button } from "@/components/ui/Button";
 import type { Match } from "@/lib/reconciliation/match";
-import { buildProof } from "@/lib/reconciliation/proof";
 import {
   ACCOUNT_LABEL,
   ACCOUNT_NUMBER,
@@ -161,13 +160,6 @@ function ledgerRowById(id: string) {
 export default function ProofPage() {
   const [resolved, setResolved] = useState(false);
 
-  const proof = buildProof({
-    matches: resolved ? resolvedMonth() : westlakeMatches,
-    statementClosing: controlTotals.closingBalance,
-    ledgerClosing: ledgerTotals().bookBalance,
-    periodEndLabel: "May 31",
-  });
-
   return (
     <div
       className="canvas-scope"
@@ -235,8 +227,11 @@ export default function ProofPage() {
             </Button>
           </div>
 
-          <BalanceProof
-            proof={proof}
+          <ProofLadder
+            matches={resolved ? resolvedMonth() : westlakeMatches}
+            statementClosing={controlTotals.closingBalance}
+            ledgerClosing={ledgerTotals().bookBalance}
+            periodEndLabel="May 31"
             accountLabel={ACCOUNT_LABEL}
             accountNumber={ACCOUNT_NUMBER}
             cycle={CYCLE}

@@ -1,6 +1,19 @@
 "use client";
 
-/* The balance proof panel.
+/* ProofLadder — the balance proof. Two short columns that meet at one figure.
+ *
+ * NEVER accepts a pre-computed total as a prop. It takes the MATCHES and the two
+ * balances the source documents declare, and works out every adjustment, both
+ * adjusted totals and the unexplained figure itself. If it took a total, the
+ * caption in its corner would be a lie the first time a caller passed a stale
+ * one, and that caption is the whole reason the panel is trusted.
+ *
+ * The two balances it does take are facts read off documents, not summaries:
+ * the statement's own declared closing balance from its type-015 header, and
+ * the ledger's opening balance plus every row. Neither is derived from matching,
+ * which is exactly why the proof can fail — if the figures were computed from
+ * the same matches they explain, they would agree by construction and prove
+ * nothing.
  *
  * Gap 4 in the playbook: the product could report counts, percentages and a
  * "tied" label that was a seeded string, and had no balances anywhere in its
@@ -44,7 +57,9 @@ import { Surface } from "@/components/ui/Surface";
 import { Button } from "@/components/ui/Button";
 import { StatusDot } from "@/components/ui/Status";
 import { money, moneyAccounting, moneySigned } from "@/lib/money";
-import type { BalanceProof as Proof, ProofLine, ProofSide } from "@/lib/reconciliation/proof";
+import { buildProof } from "@/lib/reconciliation/proof";
+import type { ProofLine, ProofSide } from "@/lib/reconciliation/proof";
+import type { Match } from "@/lib/reconciliation/match";
 
 /* ---------- One line of a ladder ---------- */
 
@@ -181,19 +196,39 @@ function Journey({
 
 /* ---------- The panel ---------- */
 
-export function BalanceProof({
-  proof,
+export function ProofLadder({
+  matches,
+  statementClosing,
+  ledgerClosing,
+  periodEndLabel,
   accountLabel,
   accountNumber,
   cycle,
   onReview,
 }: {
-  proof: Proof;
+  /* The records. Everything on this panel is derived from them. */
+  matches: Match[];
+  /* Type code 015 from the statement's own account header: what the BANK said
+   * its closing balance was, transcribed rather than recomputed. */
+  statementClosing: number;
+  /* The ledger's opening balance plus every row in it. A fact about the ledger,
+   * arrived at without reference to matching. */
+  ledgerClosing: number;
+  periodEndLabel: string;
   accountLabel: string;
   accountNumber: string;
   cycle: string;
   onReview?: () => void;
 }) {
+  /* Worked out here, on every render, from the matches passed in. There is no
+   * prop through which a caller could hand this panel a figure. */
+  const proof = buildProof({
+    matches,
+    statementClosing,
+    ledgerClosing,
+    periodEndLabel,
+  });
+
   const { tied, unexplained, openItems } = proof;
 
   const tone = tied
@@ -224,7 +259,7 @@ export function BalanceProof({
          * left to be read. Its predecessor was a seeded "tied" string, which is
          * exactly the thing this line promises the panel no longer does. */}
         <span className="t-meta ink-tertiary shrink-0">
-          Calculated, not estimated
+          Worked out, not estimated
         </span>
       </div>
 

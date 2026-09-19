@@ -155,6 +155,51 @@
   --agent-reconciliation: #3e8c93;
   --agent-summary: #8a6bbf;
 
+  /* ---------- Match outcome identity ----------
+   * WHAT KIND OF THING this is, never how it is going. A third ramp, kept apart
+   * from --status-* for exactly the reason --agent-* is, and the reason is not
+   * tidiness.
+   *
+   * Map an outcome onto the status ramp and a `timing` item — an uncleared
+   * cheque, the single most routine thing in a month, the reason a statement
+   * and a ledger are SUPPOSED to disagree — gets tinted amber and reads as a
+   * problem. Once half the warnings are nothing, nobody believes any of the
+   * colours. That is the two-bucket bug reappearing as paint after the data
+   * model has stopped making the mistake.
+   *
+   * Five outcomes, five hues, each with a mark for the dot and a bg/ink pair
+   * for the chip, matching the shape of the status trio so the chip components
+   * stay interchangeable.
+   *
+   * Chroma is deliberately low and the hues are evenly spread. An outcome is a
+   * CATEGORY, and categories are carried by words; the colour is the second
+   * cue, not the first, which is why every one of these chips also says its own
+   * name. Inks sit near 35% lightness on near-white tints for AA at 11px; marks
+   * clear the 3.0:1 non-text minimum on the card surface.
+   *
+   * None of the five is a status colour. --outcome-bank-only sits close to
+   * --agent-intake, which is tolerable because agents appear in the run lanes
+   * and outcomes appear on match rows, and the two never share a surface. */
+  --outcome-matched: #5f6c7b;
+  --outcome-matched-bg: #eef0f3;
+  --outcome-matched-ink: #434e5b;
+
+  --outcome-timing: #2f7d9a;
+  --outcome-timing-bg: #e8f2f6;
+  --outcome-timing-ink: #215c74;
+
+  --outcome-bank-only: #7b5ea7;
+  --outcome-bank-only-bg: #f0ecf7;
+  --outcome-bank-only-ink: #574183;
+
+  --outcome-ledger-only: #a75f45;
+  --outcome-ledger-only-bg: #f8efeb;
+  --outcome-ledger-only-ink: #7a4130;
+
+  --outcome-needs-adjustment: #9c4f6d;
+  --outcome-needs-adjustment-bg: #f8ecf0;
+  --outcome-needs-adjustment-ink: #73374f;
+
   /* Failed-file chips */
   --chip-failed-bg: var(--status-danger-bg);
   --chip-failed-border: #f0c7c7;
