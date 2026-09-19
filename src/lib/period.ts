@@ -140,8 +140,8 @@ export interface CloseReadiness {
   allowed: boolean;
   /* Why not, in one line, when it is not. */
   because?: string;
-  packagesComplete: number;
-  packagesTotal: number;
+  posted: number;
+  total: number;
 }
 
 /* A period locks when every close package in it is complete, and a close
@@ -150,19 +150,41 @@ export interface CloseReadiness {
  *
  * This is the guard the playbook asks for in code rather than in a prompt. A
  * correction found after the lock goes into the NEXT period; it does not
- * reopen this one. */
+ * reopen this one.
+ *
+ * ---------------------------------------------------------------------------
+ * Counted in ACCOUNTS, though the rule above is written in packages
+ *
+ * The two are the same condition. A package completes exactly when all of its
+ * accounts are posted, so "every package complete" and "every account posted"
+ * are true together and false together; nothing about the guard changes.
+ *
+ * What changes is the sentence, and that was worth doing. The Close screen
+ * leads on "10 of 22 accounts proven", and this line used to answer it with
+ * "7 of 12 properties still have an account that is not posted" — a second
+ * denominator, for a different kind of thing, an inch away from the first. A
+ * reader had to work out that the two were counting different objects before
+ * they could tell whether the numbers agreed. Properties are the roll-up's
+ * unit and the roll-up is where they belong; the screen you act on counts
+ * accounts, because an account is the thing you can actually prove. */
 export function closeReadiness(
-  packagesComplete: number,
-  packagesTotal: number
+  posted: number,
+  total: number
 ): CloseReadiness {
-  const outstanding = packagesTotal - packagesComplete;
+  const outstanding = total - posted;
   return outstanding === 0
-    ? { allowed: true, packagesComplete, packagesTotal }
+    ? { allowed: true, posted, total }
     : {
         allowed: false,
-        because: `${outstanding} of ${packagesTotal} properties still have an account that is not posted`,
-        packagesComplete,
-        packagesTotal,
+        /* A bare count, not "14 of 22". The header three inches away reads
+         * "10 of 22 accounts proven", and the same denominator on both invites
+         * adding them — which gives 24, because proven and posted are
+         * different milestones and two accounts are proven but unsigned. The
+         * reason a button is off needs one number, not a fraction that has to
+         * be reconciled against another fraction. */
+        because: `${outstanding} accounts are not posted yet`,
+        posted,
+        total,
       };
 }
 

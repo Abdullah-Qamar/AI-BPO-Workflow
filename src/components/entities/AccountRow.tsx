@@ -56,24 +56,6 @@ export function stateWords(state: ReconciliationState): string {
   return STATE_WORDS[state];
 }
 
-/* Whole days between an ISO timestamp and now. Used for "how long has this been
- * sitting", which is the question the old "Updated 4h ago" column was failing to
- * answer: what matters is how long something has been WAITING, not when it last
- * moved. */
-function daysWaiting(since: string | null, now: Date): number | null {
-  if (!since) return null;
-  const ms = now.getTime() - Date.parse(since);
-  if (Number.isNaN(ms)) return null;
-  const days = Math.max(0, Math.round(ms / 86_400_000));
-  /* A sanity bound, and it earned its place. A caller passed the seed's
-   * `finishedOn`, which is a display string reading "Apr 1" with no year, so
-   * Date.parse took it for the year 2001 and this row rendered "waiting 9135
-   * days" without complaint. An open period is weeks old at most; anything past
-   * two years is a parse that went wrong, and showing nothing beats showing a
-   * number that is confidently absurd. */
-  return days > 730 ? null : days;
-}
-
 function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -89,7 +71,17 @@ export interface AccountRowProps {
   unexplained: number;
   itemsWaiting: number;
   oldestOpenItemDays: number | null;
-  waitingSince: string | null;
+  /* On course to miss the lock: this account has sat longer than the days left
+   * in the period.
+   *
+   * It replaces a "waiting N days" that every row carried. Two ages side by
+   * side — the age of the oldest item INSIDE the account, and how long the
+   * account itself had sat — read as the same kind of fact and could not be
+   * told apart at a glance. The first one stays, because it is the age the
+   * ninety-day rule is about. The second was only ever worth saying when it
+   * had a consequence, so it is said as the consequence and only on the rows
+   * that have it. */
+  atRisk?: boolean;
   /* True when the figures are seeded rather than computed from a statement. The
    * row says so, because a screen printing twenty-two figures where one came
    * from a real document is making twenty-one claims it cannot support. */
@@ -117,24 +109,25 @@ export function AccountRow({
   unexplained,
   itemsWaiting,
   oldestOpenItemDays,
-  waitingSince,
+  atRisk = false,
   illustrative = false,
   onOpen,
-  now = new Date("2026-06-06T00:00:00Z"),
 }: AccountRowProps) {
-  const waited = daysWaiting(waitingSince, now);
-
-  /* The meta line: the state first, because it says what kind of row this is,
-   * then only the facts that exist. An account waiting for files has no items
-   * and no ages, and printing "0 items · oldest 0 days" against it would be
-   * inventing measurements of a thing nobody has looked at. */
-  const facts: string[] = [stateWords(state)];
+  /* The meta line carries only the facts that exist, and NOT the state.
+   *
+   * The state used to lead it, and it was on every row: a queue of nine that
+   * all read "waiting for you" under a heading that already said so. A fact
+   * true of every row in a list discriminates between none of them, and it was
+   * spending the first and most-read words of the line to do it. The section
+   * the row is in says what state it is in; the row says what is in it.
+   *
+   * `stateWords` is still exported and still right — the Reconcile header and
+   * the Accounts screen both name a single account's state, where it IS the
+   * information. It is the repetition down a column that was the problem. */
+  const facts: string[] = [];
   if (itemsWaiting > 0) facts.push(plural(itemsWaiting, "item", "items"));
   if (oldestOpenItemDays !== null && oldestOpenItemDays > 0) {
     facts.push(`oldest ${plural(oldestOpenItemDays, "day", "days")}`);
-  }
-  if (waited !== null && waited > 0) {
-    facts.push(`waiting ${plural(waited, "day", "days")}`);
   }
 
   const showsMoney = MEASURED.includes(state);
@@ -164,8 +157,30 @@ export function AccountRow({
           )}
         </span>
         <span className="t-meta ink-tertiary truncate">
+          {/* The separators are computed rather than hard-coded in front of
+            * each part. Dropping the state word from the front of this line
+            * made an empty `facts` possible for the first time — an account
+            * waiting for files has no items and no ages — and a literal
+            * " · illustrative" then rendered with the middot leading and
+            * nothing before it. */}
           {facts.join(" · ")}
-          {illustrative && " · illustrative"}
+          {atRisk && (
+            /* Says its own name rather than taking a tint, exactly as a stale
+              * open item does. Nothing here is wrong — the account reconciles
+              * fine and will keep reconciling fine — it is going to run out of
+              * month, which is an operations problem and not an error. An
+              * amber row would say the arithmetic was in doubt. */
+            <span
+              style={{
+                color: "var(--ink-secondary)",
+                fontWeight: "var(--weight-medium)",
+              }}
+            >
+              {facts.length > 0 && " · "}on course to miss the lock
+            </span>
+          )}
+          {illustrative &&
+            (facts.length > 0 || atRisk ? " · illustrative" : "illustrative")}
         </span>
       </div>
 

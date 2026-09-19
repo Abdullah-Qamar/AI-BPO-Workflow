@@ -77,10 +77,19 @@ import { toCents } from "@/lib/money";
 function SectionHead({
   title,
   count,
+  total,
   note,
 }: {
   title: string;
   count?: number;
+  /* A money figure that belongs to THIS list, printed on its heading.
+   *
+   * The portfolio's unexplained total used to sit in the page header beside
+   * the proven count, where it was the second big figure and nobody could act
+   * on it: you do not fix a portfolio, you fix an account. On the heading of
+   * the nine rows it is the sum of, it is the size of the queue underneath
+   * it. */
+  total?: string;
   note?: string;
 }) {
   return (
@@ -93,8 +102,131 @@ function SectionHead({
         {count !== undefined && (
           <span className="t-body nums ink-tertiary">{count}</span>
         )}
+        {total && (
+          <span className="t-body ink-secondary">
+            <span className="nums">{total}</span> unexplained
+          </span>
+        )}
       </div>
       {note && <span className="t-meta ink-tertiary">{note}</span>}
+    </div>
+  );
+}
+
+/* The column header for the money. One label, on the one column that needs it.
+ *
+ * A figure like 8,476.16 at the end of a row is unreadable to somebody seeing
+ * this screen for the first time: it could be the account's balance, what the
+ * run matched, or the gap. Naming the column is the whole fix.
+ *
+ * Labels only, no leading glyph — a glyph here would be the loudest thing in
+ * the quietest band and would cost the column width the figures want.
+ * Spec: docs/design-system/decisions.md §3. */
+function MoneyColumnHead({ label }: { label: string }) {
+  return (
+    <div
+      className="flex flex-row items-baseline"
+      style={{
+        padding: "var(--space-2) var(--space-5)",
+        gap: "var(--space-6)",
+      }}
+    >
+      <span className="flex-1" />
+      <span className="t-label" style={{ flexShrink: 0 }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/* Measured off the reference rather than guessed, so the marks keep its
+ * proportions at our scale. Pitch 8 = a 3px mark and a 5px gap.
+ *
+ *   gap : mark          1.67   (reference 1.68)
+ *   mark : pitch        0.375  (reference 0.379)
+ *   height : mark       8.0    (reference 8.06)
+ *   unproven : proven   0.875  (reference 0.858)
+ *
+ * The last one is the ratio that was wrong first time. A short unproven mark
+ * reads as an empty slot waiting to be filled, which is a progress bar; a mark
+ * nearly as tall as its neighbour reads as an account that exists and has not
+ * been proven yet, which is what it is. The reference is centred, not sitting
+ * on a baseline, and that is why: neither end of the pair is the floor. */
+const MARK_W = 3;
+const MARK_GAP = 5;
+const MARK_H = 24;
+const MARK_H_UNPROVEN = 21;
+
+/* ProvenMeter — the month's progress as one tick per account.
+ *
+ * ONE TICK PER ACCOUNT, not a percentage of a bar. The headline above it says
+ * why: it is "deliberately a COUNT rather than a percentage", because "64%"
+ * invites the question "of what" and eight accounts short of a close is the
+ * thing a person acts on. A meter that rendered that same count as a filled
+ * proportion would reintroduce the percentage as a picture, so it does not —
+ * there are twenty-two marks here and you can count them.
+ *
+ * That is also why the numbers sit at BOTH ends. A bar closed at one end is a
+ * progress bar and invites reading the gap as "nearly there"; closed at both,
+ * it states two counts that add up to the portfolio, and the one on the right
+ * is the one with work in it.
+ *
+ * The filled marks take --status-ok because proven IS the completed state and
+ * that is what the token means. Deliberately NOT the reference's orange: amber
+ * in this app is --status-warn, which means waiting on a person, and tinting
+ * the proven accounts with it would say the opposite of what they are.
+ *
+ * Spec: docs/design-system/decisions.md §4. */
+function ProvenMeter({ proven, due }: { proven: number; due: number }) {
+  const remaining = due - proven;
+  /* The strip is exactly as wide as its marks need, and the labels below take
+   * the same width so the two counts land on its ends rather than on the
+   * canvas's. */
+  const width = due * MARK_W + (due - 1) * MARK_GAP;
+
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--space-4)", width }}>
+      {/* Narrow marks with air between them, and the strip only as wide as
+        * twenty-two of them need. Stretched across the canvas the same marks
+        * become fat blocks and the thing stops reading as a tally of accounts
+        * and starts reading as a progress bar, which is the percentage coming
+        * back in through the side door.
+        *
+        * Decorative, so it is hidden: every figure it encodes is written as
+        * text below it and again in the headline above, and a screen reader
+        * announcing twenty-two marks would be reading that count a third
+        * time. */}
+      <div
+        className="flex flex-row items-center"
+        style={{ height: MARK_H, gap: MARK_GAP }}
+        aria-hidden
+      >
+        {Array.from({ length: due }, (_, i) => (
+          <span
+            key={i}
+            style={{
+              width: MARK_W,
+              /* The unproven marks are a little shorter as well as paler.
+               * Colour alone would carry this for most readers and not for one
+               * with a red or green deficiency, and the counts below are the
+               * fallback only if you already know to look. */
+              height: i < proven ? MARK_H : MARK_H_UNPROVEN,
+              borderRadius: 1,
+              background:
+                i < proven ? "var(--status-ok)" : "var(--line-soft)",
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-row items-baseline justify-between">
+        <span className="t-meta ink-tertiary">
+          <span className="nums">{proven}</span> proven
+        </span>
+        <span className="t-meta ink-tertiary">
+          <span className="nums">{remaining}</span> still to prove
+        </span>
+      </div>
     </div>
   );
 }
@@ -196,6 +328,14 @@ export function CloseCanvas({
         Math.abs(toCents(a.reconciliation.unexplained))
     );
 
+  /* Accounts with no documents yet. `reading` and `matching` are deliberately
+   * NOT here: the machine has those and a person cannot help, which is the
+   * whole reason the run starts on its own. `draft` is the one state where the
+   * work cannot begin without somebody fetching something. */
+  const waitingForFiles = rows.filter(
+    (r) => r.reconciliation.state === "draft"
+  );
+
   /* Proven but not yet signed or sent. Separated from the queue above on
    * purpose: this is authorising, not deciding, and it is the cheapest work on
    * the screen. */
@@ -207,26 +347,25 @@ export function CloseCanvas({
 
   /* A close package completes when every one of its accounts is posted, and the
    * PERIOD locks when every package is complete. Two counts and whether they
-   * are equal — not a percentage, and not a judgement anybody makes. */
-  const packages = Array.from(
-    rows.reduce((map, r) => {
-      const list = map.get(r.property.id) ?? [];
-      list.push(r);
-      map.set(r.property.id, list);
-      return map;
-    }, new Map<string, Row[]>())
-  );
-  const packagesComplete = packages.filter(([, list]) =>
-    list.every((r) =>
-      ["posted", "signed", "closed"].includes(r.reconciliation.state)
-    )
+   * are equal — not a percentage, and not a judgement anybody makes.
+   *
+   * Counted in accounts, which is the same condition stated in the unit this
+   * screen is already using. The package grouping this used to build served
+   * only to produce a sentence in a second denominator; see closeReadiness. */
+  const postedAccounts = rows.filter((r) =>
+    ["posted", "signed", "closed"].includes(r.reconciliation.state)
   ).length;
-  const readiness = closeReadiness(packagesComplete, packages.length);
+  const readiness = closeReadiness(postedAccounts, rows.length);
   const carrying = waitingItems(WESTLAKE_OPERATING_ID);
   /* Accounts that have been waiting longer than the days left before the lock.
    * Ageing rather than escalating: escalation needs somebody to escalate to,
    * and this product has one person in it. */
   const atRisk = atRiskOfMissingClose(days);
+  /* The same set, as ids, so the rows can mark themselves. Derived from the
+   * one function rather than recomputed per row: the headline's count and the
+   * marked rows have to be the same accounts or the screen contradicts
+   * itself. */
+  const atRiskIds = new Set(atRisk.map((r) => r.reconciliation.id));
   const into = nextPeriod(OPEN_PERIOD_ID);
 
   const byProperty = Array.from(
@@ -254,7 +393,7 @@ export function CloseCanvas({
       unexplained={r.reconciliation.unexplained}
       itemsWaiting={r.reconciliation.itemsWaiting}
       oldestOpenItemDays={r.reconciliation.oldestOpenItemDays}
-      waitingSince={r.reconciliation.waitingSince}
+      atRisk={atRiskIds.has(r.reconciliation.id)}
       illustrative={r.illustrative}
       onOpen={onOpenAccount ? () => onOpenAccount(r.reconciliation.id) : undefined}
     />
@@ -309,12 +448,18 @@ export function CloseCanvas({
                 </span>
                 <span className="t-title ink-secondary">accounts proven</span>
               </div>
+              {/* The date, and only the date.
+                *
+                * The portfolio's unexplained total used to ride on this line
+                * and it has moved to the section header of the list it totals.
+                * Nobody fixes a portfolio: you fix an account. A figure that
+                * cannot be acted on where it is printed was competing with the
+                * one number this screen is about, and it now sits on the nine
+                * rows that add up to it. */}
               <span className="t-body ink-secondary">
                 {OPEN_PERIOD.label.split(" ")[0]} closes in{" "}
                 <span className="nums">{days}</span>{" "}
-                {days === 1 ? "day" : "days"} ·{" "}
-                <span className="nums">{money(totalUnexplained())}</span>{" "}
-                unexplained across the portfolio
+                {days === 1 ? "day" : "days"}
               </span>
               {/* What happens when nobody acts, said as arithmetic rather than
                 * as a nudge. An account that has waited longer than the days
@@ -331,11 +476,25 @@ export function CloseCanvas({
               )}
             </div>
 
-            <div className="flex flex-col items-end" style={{ gap: "var(--space-3)" }}>
-              <div className="flex flex-row" style={{ gap: "var(--space-4)" }}>
+            {/* The two acts are NOT siblings and must not be dressed as a pair.
+              *
+              * Opening a period is routine and undoable: it creates
+              * reconciliations for the accounts due. Closing one is irreversible
+              * — it locks the month, and from then on a correction has to go
+              * into June instead of back into May. Side by side in matching
+              * pills at the same size, the only thing telling those apart was
+              * the word on the button.
+              *
+              * So "Open June" drops to ghost and the two are pushed apart, and
+              * the irreversible one is the only filled thing in the corner. */}
+            <div className="flex flex-col items-end" style={{ gap: "var(--space-4)" }}>
+              <div
+                className="flex flex-row items-center"
+                style={{ gap: "var(--space-8)" }}
+              >
                 {/* Not "New session". The calendar creates the work; when a
                   * period opens, every account due gets a reconciliation. */}
-                <Button variant="secondary" size="lg">
+                <Button variant="ghost" size="lg">
                   Open June
                 </Button>
 
@@ -371,11 +530,19 @@ export function CloseCanvas({
                 * the precondition it is meant to inform is the mistake the rule
                 * composer exists to avoid. */}
               {!readiness.allowed && (
+                /* Left-aligned, and sitting under the button it belongs to.
+                 *
+                 * It was right-aligned prose wrapping over two lines, which
+                 * gives every line a different starting x and leaves the last
+                 * word stranded on its own. Ragged-left is hard to read at any
+                 * length and this is the smallest type on the screen. Worse,
+                 * floating in the corner it read as help text for both buttons
+                 * rather than as the reason one of them is off. */
                 <div
-                  className="flex flex-col items-end"
-                  style={{ gap: 2, maxWidth: 340, textAlign: "right" }}
+                  className="flex flex-col"
+                  style={{ gap: 2, maxWidth: 320, textAlign: "left" }}
                 >
-                  <span className="t-meta ink-tertiary">
+                  <span className="t-meta ink-secondary">
                     {readiness.because}
                   </span>
                   <span className="t-meta ink-tertiary">
@@ -386,6 +553,12 @@ export function CloseCanvas({
               )}
             </div>
           </div>
+
+          {/* ---------- The month, one mark per account ----------
+            * Sits under the headline rather than beside it: it restates the
+            * figure that is already there, and a restatement that competes with
+            * its original for the same glance is noise. */}
+          <ProvenMeter proven={proven} due={due} />
 
           {/* ---------- Empty state ---------- */}
           {everythingProven ? (
@@ -435,6 +608,7 @@ export function CloseCanvas({
                         reason={d.reason}
                         explanation={d.explanation}
                         subject={d.subject}
+                        atRisk={atRiskIds.has(d.id)}
                         /* The action a person took is passed through rather
                          * than discarded: which way out they chose is the
                          * decision, and a store that recorded only THAT they
@@ -447,6 +621,37 @@ export function CloseCanvas({
                 </section>
               )}
 
+              {/* ---------- 1b · Waiting for files ----------
+                *
+                * This section exists because an account was falling through the
+                * floor. The screen rendered blocked, review, proven and posted
+                * accounts and nothing else, so 1500 Park · Operating — in
+                * `draft`, with no statement and no ledger — appeared in no
+                * section at all. Twenty-one of twenty-two accounts were on a
+                * screen whose whole job is the month's work.
+                *
+                * It is not stuck: nothing failed. It is not a decision: there
+                * is nothing yet to decide. What it needs is a file, and the
+                * person who chases the bank for one is the same person reading
+                * this screen.
+                *
+                * Above the decisions on purpose. A missing document four days
+                * before the lock is the longest pole on the screen — everything
+                * else is work that can at least be started. */}
+              {waitingForFiles.length > 0 && (
+                <section
+                  className="flex flex-col"
+                  style={{ gap: "var(--space-5)" }}
+                >
+                  <SectionHead
+                    title="Waiting for files"
+                    count={waitingForFiles.length}
+                    note="No statement or ledger has arrived. Nothing can run until one does."
+                  />
+                  <Card>{waitingForFiles.map(renderRow)}</Card>
+                </section>
+              )}
+
               {/* ---------- 2 · Needs a decision ---------- */}
               {decisions.length > 0 && (
                 <section
@@ -456,6 +661,17 @@ export function CloseCanvas({
                   <SectionHead
                     title="Needs a decision"
                     count={decisions.length}
+                    /* Summed from the rows below rather than from the
+                     * portfolio, so the heading and its list cannot disagree.
+                     * They happen to be the same figure — an unexplained
+                     * amount only exists on an account in review — and
+                     * deriving it from anything but these nine rows would be
+                     * trusting that to stay true. */
+                    total={money(
+                      sumDollars(
+                        decisions.map((r) => r.reconciliation.unexplained)
+                      )
+                    )}
                     /* The second sentence is the prototype telling the truth
                      * about itself. One of these figures was computed from a
                      * real statement through the match contract and the proof;
@@ -464,7 +680,10 @@ export function CloseCanvas({
                      * not have to notice the absence of a word to work it out. */
                     note="Most money first. One account is worked out from a real statement; the rest are marked illustrative."
                   />
-                  <Card>{decisions.map(renderRow)}</Card>
+                  <Card>
+                    <MoneyColumnHead label="Unexplained" />
+                    {decisions.map(renderRow)}
+                  </Card>
                 </section>
               )}
 

@@ -385,14 +385,20 @@ export default function EntitiesPage() {
                   unexplained={state === "review" ? 2900.6 : 0}
                   itemsWaiting={state === "review" ? 5 : 0}
                   oldestOpenItemDays={state === "draft" ? null : 17}
-                  waitingSince="2026-06-02T09:14:00Z"
+                  atRisk={state === "review"}
                   illustrative={state !== "review"}
                   onOpen={() => {}}
                 />
               ))}
             </Sheet>
             <p className="t-meta ink-tertiary">
-              The state reads {ACCOUNT_STATES.map(stateWords).join(" · ")}.
+              The row does not print its state. It is the same word on every row
+              of a section whose heading already said it, and a fact true of
+              every row tells you nothing about any of them. The state still has
+              words — {ACCOUNT_STATES.map(stateWords).join(" · ")} — and they are
+              used where one account is named on its own, as on Reconcile and
+              Accounts. The first row here is marked on course to miss the lock,
+              which is the one time-fact the row does carry.
             </p>
           </Section>
           )}

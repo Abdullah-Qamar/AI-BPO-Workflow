@@ -127,6 +127,7 @@ export function StuckRow({
   reason,
   explanation,
   subject,
+  atRisk = false,
   onAct,
 }: {
   accountLabel: string;
@@ -140,6 +141,15 @@ export function StuckRow({
   /* The period or account a "wrong period" / "wrong account" action points at,
    * so the button can name it. */
   subject?: string;
+  /* On course to miss the lock, in the same words and the same treatment the
+   * account rows use.
+   *
+   * A blocked account is still an account waiting on a person, so it counts
+   * toward the headline's at-risk figure — and because the Stuck section draws
+   * its rows with this component rather than AccountRow, leaving it off here
+   * made the headline say six while five rows carried the mark. The number and
+   * the rows have to be the same accounts. */
+  atRisk?: boolean;
   onAct?: (label: string) => void;
 }) {
   const actions = actionsFor(reason, subject, onAct);
@@ -169,7 +179,20 @@ export function StuckRow({
           </span>
           <span className="t-meta ink-tertiary truncate">{documentName}</span>
         </div>
-        <span className="t-prose ink-secondary">{explanation}</span>
+        <span className="t-prose ink-secondary">
+          {explanation}
+          {atRisk && (
+            <span
+              style={{
+                color: "var(--ink-secondary)",
+                fontWeight: "var(--weight-medium)",
+              }}
+            >
+              {" "}
+              It is on course to miss the lock.
+            </span>
+          )}
+        </span>
 
         {/* Always present. See the header comment: the actions come from the
           * reason code, and every reason code has at least one. */}
