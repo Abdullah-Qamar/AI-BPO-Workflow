@@ -123,6 +123,19 @@ Rarely, deliberately, and with a record.
 
 Created fresh, then frozen forever as the record of what was decided and why.
 
+### And a third thing, which is neither
+
+Several objects above belong to neither world. They are not set up once and they
+are not the work — they are what makes running the work safe. Named in
+`AI_ARCHITECTURE.md` Part 1 as **the harness**:
+
+the state machine and its guards · the run record with its document fingerprint
+and rule versions · idempotency keys · the freeze taken at signing · period
+locking · scheduling.
+
+It is the largest layer in the system and it had no name until 20 September.
+Naming it stops it leaking into every other document as "and also we record...".
+
 ---
 
 ## Part 3 — The two joints

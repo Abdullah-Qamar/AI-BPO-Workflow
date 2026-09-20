@@ -178,55 +178,44 @@ const MARK_H_UNPROVEN = 21;
  *
  * Spec: docs/design-system/decisions.md §4. */
 function ProvenMeter({ proven, due }: { proven: number; due: number }) {
-  const remaining = due - proven;
-  /* The strip is exactly as wide as its marks need, and the labels below take
-   * the same width so the two counts land on its ends rather than on the
-   * canvas's. */
+  /* The strip is exactly as wide as its marks need. */
   const width = due * MARK_W + (due - 1) * MARK_GAP;
 
   return (
-    <div className="flex flex-col" style={{ gap: "var(--space-4)", width }}>
-      {/* Narrow marks with air between them, and the strip only as wide as
-        * twenty-two of them need. Stretched across the canvas the same marks
-        * become fat blocks and the thing stops reading as a tally of accounts
-        * and starts reading as a progress bar, which is the percentage coming
-        * back in through the side door.
-        *
-        * Decorative, so it is hidden: every figure it encodes is written as
-        * text below it and again in the headline above, and a screen reader
-        * announcing twenty-two marks would be reading that count a third
-        * time. */}
-      <div
-        className="flex flex-row items-center"
-        style={{ height: MARK_H, gap: MARK_GAP }}
-        aria-hidden
-      >
-        {Array.from({ length: due }, (_, i) => (
-          <span
-            key={i}
-            style={{
-              width: MARK_W,
-              /* The unproven marks are a little shorter as well as paler.
-               * Colour alone would carry this for most readers and not for one
-               * with a red or green deficiency, and the counts below are the
-               * fallback only if you already know to look. */
-              height: i < proven ? MARK_H : MARK_H_UNPROVEN,
-              borderRadius: 1,
-              background:
-                i < proven ? "var(--status-ok)" : "var(--line-soft)",
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="flex flex-row items-baseline justify-between">
-        <span className="t-meta ink-tertiary">
-          <span className="nums">{proven}</span> proven
-        </span>
-        <span className="t-meta ink-tertiary">
-          <span className="nums">{remaining}</span> still to prove
-        </span>
-      </div>
+    /* Just the marks. The "10 proven / 12 still to prove" counts that used to
+      * sit beneath the strip are gone: they restated the headline's own "10 of
+      * 22" one line below it, and a picture of a count does not also need the
+      * count spelled out under it. The strip now sits directly beneath the
+      * figure it visualises, so the number and its picture read as one thing.
+      *
+      * Narrow marks with air between them, and the strip only as wide as
+      * twenty-two of them need. Stretched across the canvas the same marks
+      * become fat blocks and the thing stops reading as a tally of accounts and
+      * starts reading as a progress bar, which is the percentage coming back in
+      * through the side door.
+      *
+      * Decorative, so it is hidden: every figure it encodes is in the headline
+      * above it, and a screen reader announcing twenty-two marks would be
+      * reading that count twice. */
+    <div
+      className="flex flex-row items-center"
+      style={{ height: MARK_H, gap: MARK_GAP, width }}
+      aria-hidden
+    >
+      {Array.from({ length: due }, (_, i) => (
+        <span
+          key={i}
+          style={{
+            width: MARK_W,
+            /* The unproven marks are a little shorter as well as paler. Colour
+             * alone would carry this for most readers and not for one with a
+             * red or green deficiency. */
+            height: i < proven ? MARK_H : MARK_H_UNPROVEN,
+            borderRadius: 1,
+            background: i < proven ? "var(--status-ok)" : "var(--line-soft)",
+          }}
+        />
+      ))}
     </div>
   );
 }
@@ -303,6 +292,12 @@ export function CloseCanvas({
    * visit rather than a thing you do — which is how a queue that can always be
    * postponed becomes a queue that never happens. */
   const [checking, setChecking] = useState(false);
+  /* Set when a person locks the period. Closing is irreversible by design, so
+   * there is no setter back to false — the screen moves to the locked notice and
+   * stays there. The prototype does not roll the board on to June; an honest
+   * acknowledgement of what the lock did beats faking a month we have no data
+   * for. */
+  const [locked, setLocked] = useState(false);
   const findings = useSyncExternalStore(subscribe, getFindings, getFindings);
 
   /* Clearing a block changes the board, not just the Stuck list: the account
@@ -403,6 +398,52 @@ export function CloseCanvas({
     return <SpotCheckCanvas onBack={() => setChecking(false)} />;
   }
 
+  /* Once locked, the screen is not the month's work any more — it is the record
+   * that the month is shut. No countdown (there is nothing left to race), no
+   * sections (nothing on them can move), and no button back (the lock is
+   * irreversible by design; a correction from here goes into the next period).
+   * Just what the lock did, stated plainly. */
+  if (locked) {
+    const carriedWorth = Math.abs(
+      sumDollars(carrying.map((i) => i.amount))
+    ).toFixed(2);
+    return (
+      <main
+        className="canvas-scope flex-1 min-w-0"
+        style={{ background: "var(--bg-grad)", minHeight: "100vh" }}
+      >
+        <div
+          className="canvas-pad"
+          style={{ maxWidth: 1120, margin: "0 auto", width: "100%" }}
+        >
+          <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
+            <h1 className="t-label" style={{ margin: 0 }}>
+              Close · {OPEN_PERIOD.label}
+            </h1>
+            <div
+              className="flex flex-row items-baseline flex-wrap"
+              style={{ gap: "var(--space-6)" }}
+            >
+              <span
+                className="t-display ink-primary"
+                style={{ lineHeight: "var(--leading-tight)" }}
+              >
+                {OPEN_PERIOD.label} is locked
+              </span>
+            </div>
+            <span className="t-body ink-secondary" style={{ maxWidth: "68ch" }}>
+              <span className="nums">{carrying.length}</span> open items handed
+              forward to {into?.label ?? "the next period"} with their age, worth{" "}
+              <span className="nums">{carriedWorth}</span>. A correction from here
+              goes into {into?.label ?? "the next period"}, not back into{" "}
+              {OPEN_PERIOD.label.split(" ")[0]}.
+            </span>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main
       className="canvas-scope flex-1 min-w-0"
@@ -425,9 +466,20 @@ export function CloseCanvas({
               {/* An h1, styled as the eyebrow it looks like. The screen leads
                 * with a count rather than a title, so there was no heading
                 * element on it at all and a screen reader landed on a page with
-                * no name. The visual is unchanged; only the element is. */}
+                * no name.
+                *
+                * The countdown rides on the eyebrow rather than on its own line
+                * under the count. It and the period line said one idea between
+                * them — which month, and when it locks — and the month was
+                * named twice ("May 2026", then "May closes…"). Chained here with
+                * the same `·` the eyebrow already uses, the duplicate "May" is
+                * gone and the raw figure sits where screen metadata belongs. The
+                * urgency a person acts on is the at-risk sentence below; this is
+                * just the date. */}
               <h1 className="t-label" style={{ margin: 0 }}>
-                Close · {OPEN_PERIOD.label}
+                Close · {OPEN_PERIOD.label} · closes in{" "}
+                <span className="nums">{days}</span>{" "}
+                {days === 1 ? "day" : "days"}
               </h1>
               {/* A count and a date. The only large figure on the screen, and
                 * deliberately a COUNT rather than a percentage: "64%" invites
@@ -448,19 +500,15 @@ export function CloseCanvas({
                 </span>
                 <span className="t-title ink-secondary">accounts proven</span>
               </div>
-              {/* The date, and only the date.
-                *
-                * The portfolio's unexplained total used to ride on this line
-                * and it has moved to the section header of the list it totals.
-                * Nobody fixes a portfolio: you fix an account. A figure that
-                * cannot be acted on where it is printed was competing with the
-                * one number this screen is about, and it now sits on the nine
-                * rows that add up to it. */}
-              <span className="t-body ink-secondary">
-                {OPEN_PERIOD.label.split(" ")[0]} closes in{" "}
-                <span className="nums">{days}</span>{" "}
-                {days === 1 ? "day" : "days"}
-              </span>
+              {/* ---------- The month, one mark per account ----------
+                * Directly beneath the count it visualises, not a separate band
+                * lower down: the figure and its picture are one statement, so
+                * they sit together. A small top margin lifts it off the 32px
+                * metric's descenders — the column's own 4px rhythm reads as
+                * cramped under a figure that large. */}
+              <div style={{ marginTop: "var(--space-2)" }}>
+                <ProvenMeter proven={proven} due={due} />
+              </div>
               {/* What happens when nobody acts, said as arithmetic rather than
                 * as a nudge. An account that has waited longer than the days
                 * left is on course to miss the lock, which is a sentence a
@@ -476,33 +524,28 @@ export function CloseCanvas({
               )}
             </div>
 
-            {/* The two acts are NOT siblings and must not be dressed as a pair.
+            {/* Closing is the only act in this corner, and that is deliberate.
               *
-              * Opening a period is routine and undoable: it creates
-              * reconciliations for the accounts due. Closing one is irreversible
-              * — it locks the month, and from then on a correction has to go
-              * into June instead of back into May. Side by side in matching
-              * pills at the same size, the only thing telling those apart was
-              * the word on the button.
+              * There is no "Open June" beside it. Opening a period is not a
+              * decision a person makes — the calendar makes it. When a period
+              * comes due the schedule creates a reconciliation for every account
+              * in it; a button that "opens" the month is the same click-with-no-
+              * decision that "New session" was, and it went for the same reason.
+              * Starting a month EARLY is the one real manual case, and it is rare
+              * enough to belong wherever early-start lives, not standing in the
+              * close screen's corner every day.
               *
-              * So "Open June" drops to ghost and the two are pushed apart, and
-              * the irreversible one is the only filled thing in the corner. */}
+              * Closing, by contrast, is a person's act: it locks the month, it is
+              * irreversible, and from then on a correction has to go into the
+              * next period. Its consequence is invisible until afterwards, which
+              * is exactly the shape of act that needs its effect stated first, so
+              * the confirm carries the carry-forward the way the rule composer
+              * carries its preview. */}
             <div className="flex flex-col items-end" style={{ gap: "var(--space-4)" }}>
               <div
                 className="flex flex-row items-center"
                 style={{ gap: "var(--space-8)" }}
               >
-                {/* Not "New session". The calendar creates the work; when a
-                  * period opens, every account due gets a reconciliation. */}
-                <Button variant="ghost" size="lg">
-                  Open June
-                </Button>
-
-                {/* Closing is irreversible and its consequence is invisible
-                  * until afterwards, which is exactly the shape of act that
-                  * needs its effect stated first. So the confirm carries the
-                  * carry-forward, item by item, the way the rule composer
-                  * carries its preview. */}
                 <ConfirmPopoverButton
                   label={`Close ${OPEN_PERIOD.label.split(" ")[0]}`}
                   variant="primary"
@@ -517,7 +560,7 @@ export function CloseCanvas({
                     into?.label ?? "the next period"
                   } rather than back into this one.`}
                   confirmLabel="Lock it"
-                  onConfirm={() => {}}
+                  onConfirm={() => setLocked(true)}
                 />
               </div>
               {/* A switched-off button says why, and the sentence comes from
@@ -554,12 +597,6 @@ export function CloseCanvas({
             </div>
           </div>
 
-          {/* ---------- The month, one mark per account ----------
-            * Sits under the headline rather than beside it: it restates the
-            * figure that is already there, and a restatement that competes with
-            * its original for the same glance is noise. */}
-          <ProvenMeter proven={proven} due={due} />
-
           {/* ---------- Empty state ---------- */}
           {everythingProven ? (
             /* One thing. Not a congratulation, and not a dashboard of nothing:
@@ -579,9 +616,25 @@ export function CloseCanvas({
                 Every account is proven and sent. Closing locks {OPEN_PERIOD.label}{" "}
                 and hands the open items forward with their age.
               </span>
-              <Button variant="primary" size="lg">
-                Close {OPEN_PERIOD.label}
-              </Button>
+              {/* The same act as the header's, so it wears the same confirm and
+                * does the same thing — a screen with two Close buttons that
+                * behaved differently would be the "same action, two treatments"
+                * bug the specs call out. */}
+              <ConfirmPopoverButton
+                label={`Close ${OPEN_PERIOD.label.split(" ")[0]}`}
+                variant="primary"
+                size="lg"
+                confirmTitle={`Lock ${OPEN_PERIOD.label}`}
+                confirmBody={`${carrying.length} open items hand forward to ${
+                  into?.label ?? "the next period"
+                } with their age, worth ${Math.abs(
+                  sumDollars(carrying.map((i) => i.amount))
+                ).toFixed(2)}. After the lock a correction goes into ${
+                  into?.label ?? "the next period"
+                } rather than back into this one.`}
+                confirmLabel="Lock it"
+                onConfirm={() => setLocked(true)}
+              />
             </div>
           ) : (
             <>
@@ -609,12 +662,16 @@ export function CloseCanvas({
                         explanation={d.explanation}
                         subject={d.subject}
                         atRisk={atRiskIds.has(d.id)}
+                        missingField={d.missingField}
+                        movesTo={d.movesTo}
                         /* The action a person took is passed through rather
                          * than discarded: which way out they chose is the
                          * decision, and a store that recorded only THAT they
                          * acted could not tell a discarded duplicate from one
                          * confirmed as superseding the earlier file. */
-                        onAct={(label) => clearBlock(d.id, label)}
+                        onAct={(label, outcome) =>
+                          clearBlock(d.id, label, outcome)
+                        }
                       />
                     ))}
                   </div>

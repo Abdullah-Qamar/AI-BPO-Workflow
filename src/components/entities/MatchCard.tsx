@@ -382,13 +382,31 @@ export function MatchCard({
       >
         <div className="flex flex-col" style={{ gap: "var(--space-3)" }}>
           <OutcomeChip outcome={match.outcome} />
-          {match.pattern && (
-            <span className="t-meta ink-tertiary">
-              {match.pattern.confirmed
-                ? `${match.pattern.label} · confirmed`
-                : `${match.pattern.label} · proposed, not confirmed`}
-            </span>
-          )}
+          {match.pattern &&
+            (match.pattern.confirmed ? (
+              <span className="t-meta ink-tertiary">
+                {match.pattern.label} · confirmed
+              </span>
+            ) : (
+              /* An UNCONFIRMED pattern is the model speaking: it proposed this,
+                * and the arithmetic has not committed it yet. So it wears the
+                * same Sparkles the ranker sentence below does — "from the model,
+                * not yet a finding" is one idea and the app marks it one way.
+                * The confirmed case above drops the mark on purpose: once a rule
+                * confirms it, a rule owns it, not the model. */
+              <span
+                className="t-meta ink-tertiary inline-flex items-center"
+                style={{ gap: "var(--space-2)" }}
+              >
+                <Sparkles
+                  size="var(--icon-sm)"
+                  strokeWidth="var(--stroke-sm)"
+                  style={{ color: "var(--ink-tertiary)" }}
+                  aria-hidden
+                />
+                {match.pattern.label} · proposed, not confirmed
+              </span>
+            ))}
         </div>
 
         {diff !== 0 && (

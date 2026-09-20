@@ -32,6 +32,23 @@
 
 export type RuleScope = "global" | "portfolio" | "property" | "account";
 
+/* What kind of rule this is, and it changes what its count MEANS.
+ *
+ * A matching rule firing 1,842 times is the system working: it paired 1,842
+ * rows nobody had to look at. A guardrail firing 3 times is the system
+ * STOPPING something: three times, a post into a locked month was refused.
+ *
+ * Those are opposite kinds of event, and they were sharing a column and the
+ * word "fired". One number, two meanings, which is the same defect the five
+ * outcomes exist to fix one level down — and the reading a person takes from
+ * it is backwards: a high count on a matching rule is good news and a high
+ * count on a guardrail is an incident report.
+ *
+ * So they are separated at the type, and a guardrail says "blocked" rather
+ * than "fired" and carries no override rate. A guardrail is not overridden;
+ * if it were, that would be its own event and a serious one. */
+export type RuleKind = "match" | "guardrail";
+
 const SCOPE_WORDS: Record<RuleScope, string> = {
   global: "Everywhere",
   portfolio: "This portfolio",
@@ -55,6 +72,7 @@ export function RuleRow({
   expires,
   timesFired,
   timesOverridden,
+  kind = "match",
   onOpen,
 }: {
   /* The condition in plain words, as a person would say it out loud: "a deposit
@@ -69,9 +87,12 @@ export function RuleRow({
   expires: string;
   timesFired: number;
   timesOverridden: number;
+  kind?: RuleKind;
   onOpen?: () => void;
 }) {
-  const rate = overrideRate(timesFired, timesOverridden);
+  /* A guardrail has no override rate to compute. See RuleKind. */
+  const rate =
+    kind === "guardrail" ? null : overrideRate(timesFired, timesOverridden);
   const expiresOn = new Date(`${expires}T00:00:00Z`).toLocaleDateString(
     "en-US",
     { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }
@@ -115,9 +136,13 @@ export function RuleRow({
         {/* The question is written beside the number, because a bare figure
           * gets read as whatever the reader was already thinking. */}
         <span className="t-meta ink-tertiary">
-          {rate === null
-            ? "times fired"
-            : `fired · overridden ${Math.round(rate * 100)}%`}
+          {kind === "guardrail"
+            ? timesFired === 1
+              ? "attempt blocked"
+              : "attempts blocked"
+            : rate === null
+              ? "times fired"
+              : `fired · overridden ${Math.round(rate * 100)}%`}
         </span>
       </div>
     </button>

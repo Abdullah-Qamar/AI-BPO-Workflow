@@ -170,8 +170,23 @@ surface in the product.
 - **Four buttons.** It is just timing. Pick a different match. Add a correction.
   Set aside.
 
-**The bar at the bottom.** Whatever comes next: start, review 8 items, sign, or
-send.
+**Before the run, the documents themselves.** This is where a person can open
+the real statement, and it is the thing the old pre-run screen was missing. Two
+rows: file name, what it is, when it landed, how many lines, and the control
+totals the statement declares about itself.
+
+> bai2-westlake-operating-2026-05.bai · 14 lines
+> declares 49,585.60 in 6 credits · 33,005.50 in 8 debits · closing 301,980.10
+
+Showing those figures *before* the run is what makes the Reader's self-check
+legible when it happens.
+
+**There is no Start button.** The run begins when both documents bind. Nothing
+in reading or pairing is consequential or irreversible, so a click there carries
+no decision. What the person gets instead is **Stop**, while the run is in
+flight.
+
+**The bar at the bottom.** Whatever comes next: review 8 items, sign, or send.
 
 ## What runs behind it
 
@@ -256,6 +271,14 @@ about the account itself.
 
 ## What you see
 
+**The list of accounts, on the left.** Every row carries **its own oldest
+waiting item in days**, and the list sorts by it, worst first. Accounts with
+nothing waiting sink to the bottom.
+
+Without this the screen fails at its own job: to find the account carrying a
+106-day item you would click through twenty accounts one at a time. The number
+this screen is about has to be visible in the list, not only in the detail.
+
 **At the top, what the account is.** Property, bank, the last four digits, what
 the account is used for, and which line in the accounting system it posts to.
 
@@ -275,6 +298,12 @@ time.
 
 **Below that**, the rules that apply to this account, with how often each one
 fired and how often somebody disagreed with it.
+
+**Guardrails are listed separately from matching rules**, and counted
+differently. A matching rule that fired 1,842 times worked 1,842 times. A
+guardrail that fired 3 times **blocked three attempts** to do something
+forbidden. Opposite events. They never share a column or a count word, and a
+guardrail reads "blocked 3 attempts" with a way to see them.
 
 **Then** what this bank's codes mean. Banks do not all use the same codes,
 especially in the 900s, so this is per bank and it is versioned.
@@ -349,6 +378,10 @@ somebody overrode it.
 
 **Sorted worst first**, by override rate. That puts the rules that are probably
 wrong at the top, which is the only sensible default.
+
+Guardrails sit in their own group beneath, never mixed in. They cannot be
+overridden, so an override rate is meaningless for them; what they carry is a
+count of what they stopped.
 
 **Writing a rule is four steps, not a text box.**
 

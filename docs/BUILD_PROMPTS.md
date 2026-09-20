@@ -228,6 +228,15 @@ get that.
           times overridden.
    Never: never renders without an owner and an expiry.
 
+6b · GuardrailRow
+   A rule that BLOCKS rather than matches. Separate component, deliberately.
+   Props: what it forbids, scope, owner, times it blocked something.
+   Reads "blocked 3 attempts", never "fired 3 times".
+   Never: never shares a column or a count word with RuleRow. A matching rule
+          firing means it worked. A guardrail firing means it stopped
+          something. Opposite events, and putting one number on both is the
+          confidence-chip mistake one level up.
+
 7 · PatternRow
    Props: name, level (1 to 4), times seen, agreement rate, sampling rate.
    The sampling indicator gets LONGER as the level goes up. That inversion is
@@ -315,6 +324,14 @@ SECTIONS, in this order, top to bottom:
 
   6. Recently closed
      Folded.
+
+CLOSING THE MONTH IS IRREVERSIBLE
+  "Close May" locks the period. After it, a correction has to go into June. It
+  must NOT sit beside "Open June" in matching styling — one is routine and one
+  cannot be undone. Separate them, and give Close a confirm that states what
+  locks and which open items hand forward.
+  A disabled Close button carries its reason immediately beside it, not on the
+  other side of the screen.
 
 THE EMPTY STATE IS A REAL DESIGN
   When all 22 are proven, this screen shows one thing: a single action to close

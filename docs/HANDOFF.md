@@ -20,6 +20,68 @@ useful part of having run it.
 
 ---
 
+## Update · 21 September 2026
+
+Three bodies of work land on top of the 19 September rebuild. `npx tsc --noEmit`
+still exits 0.
+
+**The two governing screens got their actions.** Accounts and the Stuck section
+were lists that named work and, in places, offered nothing that did it. They act
+now:
+
+- **Accounts · waiting items.** The three ways out the spec names — chase (writes
+  nothing), cancel and re-issue, write back — are wired. The two that write a
+  journal entry state it before they write it, and what they write appears in a
+  new "Entries waiting to send" section. Nothing leaves the waiting list on the
+  click, because the money has not moved until the entry posts, so the list and
+  the proof's outstanding line stay the same four items and the same 18,450.50.
+  Store, computed entries and undo live in `accounts.ts`, shaped like the
+  findings store.
+- **Accounts · the list sorts by age**, worst first, with illustrative accounts
+  answering from a shared derivation (`illustrativeOldestDays`) so the same
+  account never shows two ages on two screens. The screen answers "where are my
+  problems" rather than being a directory.
+- **Accounts · rules split into two lists.** Matching rules and guardrails have
+  opposite counts — a matching rule "fired 1,842 times" is the system working; a
+  guardrail "blocked 3 attempts" is three incidents — so `RuleKind` separates
+  them and a guardrail carries no override rate.
+- **Accounts · month by month has three states**, not two. A month that closed
+  WITHOUT ever being proven now warns, where before it looked like one still open.
+- **Close · Stuck routes every reason code somewhere real.** A misrouted
+  statement offers to move to the sibling account it actually belongs to (the old
+  copy offered to move it to the account it had just ruled out), an unreadable
+  line opens a form to supply the one missing field, and the irreversible acts
+  (move, discard) carry a confirm. A cleared block now carries a `ClearedOutcome`
+  — `handed-back` sends the account to the machine, `moved-away` sends it back to
+  waiting for a file — so it lands in the truthful section afterwards.
+
+**The Close headline and the two period acts.**
+
+- The eyebrow folded the countdown in ("Close · May 2026 · closes in 4 days"),
+  and the proven meter lost its restating labels and moved directly under the
+  count it visualises.
+- **Open June is gone.** Opening a period is the calendar's job, not a button —
+  the same argument that removed "New session". **Close May is wired**: the one
+  real act in the corner, gated until every account is posted, and confirming it
+  moves the screen to a locked notice stating what handed forward. Closing is
+  irreversible by design, so there is no way back and no fake roll-over to June.
+  It could not be exercised end to end because the fixture never reaches
+  all-posted, so the disabled guard holds; the locked view and the wiring
+  type-check.
+
+**Every model output is marked as AI.** The candidate-ranker sentence already
+wore a `Sparkles` "a suggestion, not a finding"; the unconfirmed pattern proposal
+now wears the same mark. A CONFIRMED pattern deliberately does not — by then a
+rule owns it, not the model. Sparkles is the one "from AI" glyph in the app; a
+second would break one-meaning-one-mark.
+
+**The docs moved too.** `AI_ARCHITECTURE.md` is rewritten around five jobs and a
+named harness layer; `FLOWS.md`, `TAXONOMY_AND_IA.md`, `UX_SPECS.md`,
+`RECONCILER_PLAYBOOK.md` and `BUILD_PROMPTS.md` are revised to match, and
+`WALKTHROUGH_SCRIPT.md` (a fourteen-station recorded walkthrough) is new.
+
+---
+
 ## 1 · Read these first, in this order
 
 | # | File | Why |
@@ -223,10 +285,13 @@ A component can only promise that an action is *offered*; whether it *does*
 anything is always the caller's.
 
 The fix is a cleared-blocks store in `close.ts`, shaped like `sampling.ts`'s
-findings store, and a cleared block moves the account to `matching`. `matching`
-rather than `reading` because F1 terminates every resolved branch there, and
-because parking a row in `reading` would claim a read is under way that nothing
-here performs. The reasoning is at the call site.
+findings store. Where the block clears depends on what the person did (see the
+21 September update): a `handed-back` document moves the account to `matching`,
+and a `moved-away` one sends it back to `draft` — waiting for a file — because
+the statement it needed has left. `matching` rather than `reading` for the first,
+because F1 terminates every resolved branch there and parking a row in `reading`
+would claim a read is under way that nothing here performs. The reasoning is at
+the call site.
 
 **What it caught on the way:** the first version worked and the rail badge still
 read 13 while the row it counted had left the screen. `LeftRail` reads

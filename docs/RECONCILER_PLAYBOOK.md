@@ -184,6 +184,14 @@ Confidence sits on approved and flagged items, but "how sure is this match" and
 
 ## Part 4 — Where intelligence belongs
 
+> **Superseded in detail by `docs/AI_ARCHITECTURE.md` (20 September).** The
+> argument below still holds. Three specifics have changed: the Reader is a
+> router that uses a parser for BAI2 and a model only for unstructured formats;
+> a *known* pattern is a rule, and the model's job is proposing new candidate
+> patterns; and spot-check selection is a rule, not a job. The roster is five
+> jobs, not four, because explaining split into confirmable and unconfirmable
+> halves.
+
 > The model never decides what is true. It decides what to read, and what to say.
 
 ### The dividing line is reproducibility
@@ -298,8 +306,32 @@ One person. Three kinds of involvement, and conflating them is the mistake:
 - **Sample** — checking work nobody flagged. Grows as autonomy grows.
 
 The end state is a person who signs a proven package in thirty seconds instead
-of working exceptions for three hours. That *is* AI-native — it is just honest
-about where the signature lives.
+of working exceptions for three hours.
+
+### Define AI-native before claiming it
+
+The term has no agreed meaning, so pin it first and the claim holds.
+
+> Most people mean *a model touches every step*. That is not what this is, and
+> increasingly not what any reliable system is.
+>
+> **AI-native is about where the human sits, not where the model sits.** A
+> product is AI-native when a person's job changes from *doing the work* to
+> *judging what the machine got wrong and teaching it.*
+
+Test it by removing the AI and asking what stops making sense. The exception
+queue only exists because something already settled the other ninety per cent.
+The autonomy ladder only exists because judgement improves with evidence.
+Override rate is the main health number, and ordinary software does not have one
+— it has a bug count. The correction loop is the shape of a system that learns.
+
+None of those survive the removal. So the shape is AI-native even though the
+model count is low, and it stays AI-native as models are replaced by rules,
+because the rules are learned from corrections, versioned, previewed and
+demoted.
+
+**On that definition, claim it.** Under the looser one, do not — and say why,
+because the definition is the more interesting half of the answer.
 
 **The sentence:** "I designed a system that earns autonomy one pattern at a
 time, with evidence, and gives it back automatically when it stops deserving

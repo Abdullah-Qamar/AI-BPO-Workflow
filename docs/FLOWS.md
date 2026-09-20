@@ -122,8 +122,18 @@ has one branch (bound) and drops the rest on the floor.
 
 ### F2 · Run the reconciliation
 
-**Trigger** both documents bound.
+**Trigger** both documents bound. **The run starts by itself.**
 **Actor** the machine, unattended.
+
+**No start button, and the reason matters.** Nothing in reading or pairing is
+consequential, nothing is written anywhere, and nothing is irreversible. So a
+person clicking Start is a click with no decision in it — the same argument that
+removed "New session". The gate belongs at signing, where a person takes
+responsibility.
+
+What replaces it is **Stop, available while the run is in flight**. That
+satisfies the planning-visibility pattern — the operator can halt it early —
+without asking for a click that carries no thought.
 
 ```
 matching

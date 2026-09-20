@@ -41,6 +41,7 @@ import { buildProof } from "@/lib/reconciliation/proof";
 import { westlakeMatches, ACCOUNT_ID } from "@/lib/reconciliation/westlakeMatches";
 import { controlTotals, ledgerTotals } from "@/lib/fixtures/westlakeOperating";
 import type { StuckReason } from "@/components/entities/StuckRow";
+import { illustrativeOldestDays } from "@/lib/accounts";
 import { toCents, toDollars } from "@/lib/money";
 import { daysUntilClose as untilClose, NOW } from "@/lib/period";
 
@@ -238,7 +239,22 @@ function westlakeOperating(): Reconciliation {
  * are different decisions about the same duplicate, and a store that remembers
  * only THAT somebody acted cannot say which. Nothing reads it yet; an activity
  * log is the obvious consumer. */
-let clearedBlocks = new Map<string, string>();
+/* What clearing a block DID, not just that it happened.
+ *
+ * `handed-back` — the document is usable now and the machine carries on. A
+ *                 supplied control number, a re-upload, a duplicate confirmed
+ *                 as superseding the earlier file.
+ * `moved-away`  — the document left this account. It belonged somewhere else,
+ *                 or it was discarded.
+ *
+ * The distinction is the whole reason this is not a boolean. A misrouted
+ * statement that goes to its real account leaves THIS account with nothing,
+ * so the account goes back to waiting for a file. Sending it to `matching`
+ * would have it claim the machine is pairing, using a statement that is no
+ * longer there — which is what the first version of this did. */
+export type ClearedOutcome = "handed-back" | "moved-away";
+
+let clearedBlocks = new Map<string, { action: string; outcome: ClearedOutcome }>();
 const blockListeners = new Set<() => void>();
 
 export function subscribeBlocks(cb: () => void): () => void {
@@ -246,7 +262,10 @@ export function subscribeBlocks(cb: () => void): () => void {
   return () => blockListeners.delete(cb);
 }
 
-export function getClearedBlocks(): ReadonlyMap<string, string> {
+export function getClearedBlocks(): ReadonlyMap<
+  string,
+  { action: string; outcome: ClearedOutcome }
+> {
   return clearedBlocks;
 }
 
@@ -254,9 +273,16 @@ export function getClearedBlocks(): ReadonlyMap<string, string> {
  * into this function: `blocked` only ever leaves by a person or a new document,
  * which is the guard in docs/FLOWS.md Part 2 and the reason this takes an
  * explicit action label rather than inferring one. */
-export function clearBlock(reconciliationId: string, action: string): void {
+export function clearBlock(
+  reconciliationId: string,
+  action: string,
+  outcome: ClearedOutcome
+): void {
   if (clearedBlocks.has(reconciliationId)) return;
-  clearedBlocks = new Map(clearedBlocks).set(reconciliationId, action);
+  clearedBlocks = new Map(clearedBlocks).set(reconciliationId, {
+    action,
+    outcome,
+  });
   /* The board is derived from this now, so the memo has to go. Every consumer
    * — the rail's count, the proven tally, the Stuck list — reads `accountRows`,
    * and dropping the cache is what keeps them one number instead of three. */
@@ -316,8 +342,16 @@ export function accountRows(): AccountRow[] {
        *
        * Guarded on `seeded === "blocked"` so an id in the store can never
        * rewrite a state that was not blocked to begin with. */
-      const state =
-        seeded === "blocked" && clearedBlocks.has(id) ? "matching" : seeded;
+      const cleared = seeded === "blocked" ? clearedBlocks.get(id) : undefined;
+      const state = cleared
+        ? cleared.outcome === "moved-away"
+          ? /* The file went to the account it belonged to, so this one has no
+             * statement and is waiting for one again. On Close it moves out of
+             * Stuck and into "Waiting for files", which is the truthful place
+             * for an account with nothing to read. */
+            "draft"
+          : "matching"
+        : seeded;
 
       const openItems = session?.openItems ?? 0;
       const unexplained = unexplainedFor(account, state, openItems);
@@ -331,8 +365,10 @@ export function accountRows(): AccountRow[] {
           state,
           unexplained,
           itemsWaiting: state === "review" ? 1 + (h % 6) : 0,
+          /* One derivation, shared with the Accounts list, so the same account
+           * does not report two different ages on two screens. */
           oldestOpenItemDays:
-            state === "draft" ? null : 3 + (h % 120),
+            state === "draft" ? null : illustrativeOldestDays(account.id),
           /* NOT `session.finishedOn`, which is a display string like "Apr 1"
            * with no year in it. Date.parse reads that as the year 2001 and the
            * row rendered "waiting 9135 days", which is the kind of number a
@@ -437,6 +473,33 @@ export interface StuckDocument {
   reason: StuckReason;
   explanation: string;
   subject?: string;
+  /* Where a misrouted statement actually belongs.
+   *
+   * This was the bug. `subject` was built from the account the file was
+   * dropped ON, so the explanation read "the account number is not ••••1145"
+   * and the button beside it offered to move the file TO ••••1145 — the one
+   * account the sentence had just ruled out. A recovery action has to name a
+   * destination, and the destination is the account whose number the statement
+   * actually carries.
+   *
+   * A sibling on the same property, which is the realistic mistake: somebody
+   * drops the Reserve statement on the Operating account. */
+  movesTo?: {
+    label: string;
+    account: string;
+    /* Whether that account already holds a statement.
+     *
+     * It changes what the move IS. To an account waiting for files this is a
+     * delivery and the month can run there. To one that already has a
+     * statement it is a second document on the same account and period, which
+     * is the `duplicate` case wearing a different hat — so the confirm says so
+     * rather than presenting both as the same tidy action. */
+    hasDocument: boolean;
+  };
+  /* The row the Reader could not finish, for `unreadable-line`. A person
+   * supplies the missing control number, and they cannot do that without
+   * seeing which row is short of one. */
+  missingField?: { date: string; amount: number; description: string };
 }
 
 const STUCK_KINDS: StuckReason[] = [
@@ -449,8 +512,14 @@ const STUCK_KINDS: StuckReason[] = [
 
 function explain(
   reason: StuckReason,
-  account: PropertyBankMapping
-): { explanation: string; subject?: string } {
+  account: PropertyBankMapping,
+  sibling: PropertyBankMapping | undefined,
+  siblingHasDocument: boolean
+): {
+  explanation: string;
+  subject?: string;
+  movesTo?: { label: string; account: string; hasDocument: boolean };
+} {
   switch (reason) {
     case "incomplete-read":
       return {
@@ -463,11 +532,25 @@ function explain(
           "The statement covers April. This reconciliation is May, so one of the two is wrong.",
         subject: "April 2026",
       };
-    case "wrong-account":
+    case "wrong-account": {
+      /* Without a sibling there is nowhere to route it, and an action with no
+       * destination is the dead end this whole surface exists to remove. The
+       * file goes back for somebody to place by hand. */
+      if (!sibling) {
+        return {
+          explanation: `The account number on the statement is not ${account.account}, which is the account this file was dropped on. No other account on this property matches it either.`,
+        };
+      }
       return {
-        explanation: `The account number on the statement is not ${account.account}, which is the account this file was dropped on.`,
-        subject: `${account.type} ${account.account}`,
+        explanation: `The statement is for ${sibling.account}, not ${account.account}, which is the account this file was dropped on.`,
+        subject: `${sibling.type} ${sibling.account}`,
+        movesTo: {
+          label: sibling.type,
+          account: sibling.account,
+          hasDocument: siblingHasDocument,
+        },
       };
+    }
     case "duplicate":
       return {
         explanation:
@@ -482,11 +565,43 @@ function explain(
 }
 
 export function stuckDocuments(): StuckDocument[] {
-  return accountRows()
+  const rows = accountRows();
+  return rows
     .filter((r) => r.reconciliation.state === "blocked")
     .map((r) => {
       const reason = STUCK_KINDS[hash(r.account.id) % STUCK_KINDS.length];
-      const { explanation, subject } = explain(reason, r.account);
+      /* The account the statement really belongs to: another account on the
+       * same property. Deterministic, so the destination named on the button
+       * does not change between renders. */
+      const sibling = r.property.banks.find((b) => b.id !== r.account.id);
+      /* `draft` is the only state that means "no document here yet". Anything
+       * further along has already read one. */
+      const siblingRow = sibling
+        ? rows.find((x) => x.account.id === sibling.id)
+        : undefined;
+      const siblingHasDocument =
+        siblingRow !== undefined && siblingRow.reconciliation.state !== "draft";
+
+      const { explanation, subject, movesTo } = explain(
+        reason,
+        r.account,
+        sibling,
+        siblingHasDocument
+      );
+
+      /* The row the Reader stopped on. Derived from the account id so it is
+       * stable, and deliberately unremarkable — a mid-month vendor payment is
+       * what a missing control number actually looks like. */
+      const h2 = hash(`${r.account.id}:row`);
+      const missingField =
+        reason === "unreadable-line"
+          ? {
+              date: `2026-05-${String(9 + (h2 % 18)).padStart(2, "0")}`,
+              amount: -toDollars(45_000 + (h2 % 380_000)),
+              description: "Vendor payment",
+            }
+          : undefined;
+
       return {
         id: r.reconciliation.id,
         accountLabel: `${r.property.shortAddress} · ${r.account.type}`,
@@ -496,6 +611,8 @@ export function stuckDocuments(): StuckDocument[] {
         reason,
         explanation,
         subject,
+        movesTo,
+        missingField,
       };
     });
 }

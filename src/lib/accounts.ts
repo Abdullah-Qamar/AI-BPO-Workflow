@@ -32,6 +32,8 @@ import {
 import { bankLines, ledgerRows } from "@/lib/fixtures/westlakeOperating";
 import { westlakeMatches } from "@/lib/reconciliation/westlakeMatches";
 import { ageInDays } from "@/components/entities/OpenItemRow";
+import { money } from "@/lib/money";
+import type { RuleKind } from "@/components/entities/RuleRow";
 
 /* The one clock, from lib/period.ts.
  *
@@ -181,13 +183,46 @@ export function waitingItems(accountId: string): WaitingItem[] {
   return [];
 }
 
+/* FNV-1a, the same one lib/close.ts uses, so an illustrative age derived here
+ * and an illustrative age derived there are the same number for the same
+ * account. Two hashes would give one account two ages on two screens, which is
+ * the drift this codebase spends most of its comments avoiding. */
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+/* The illustrative oldest-item age for an account with no real waiting list.
+ *
+ * Exported because `lib/close.ts` prints the same figure on its rows and the
+ * two screens must not disagree about how old the same account's oldest item
+ * is. Derived rather than stored, from the account id, so it is stable across
+ * renders and reloads. */
+export function illustrativeOldestDays(accountId: string): number {
+  return 3 + (hash(accountId) % 120);
+}
+
 /* The one number on the screen. Null when nothing is waiting, which is a real
  * state and not a zero: an account with nothing outstanding has no oldest item,
- * and "0 days" would claim otherwise. */
+ * and "0 days" would claim otherwise.
+ *
+ * Only the real account can answer this from its own items. Every other account
+ * is illustrative and says so on the row, but it still has to ANSWER — the
+ * whole job of the Accounts list is "where are my problems", and a list where
+ * one row in twenty carries the number cannot be read that way. You would click
+ * through twenty accounts to find the one with a hundred-day cheque in it. */
 export function oldestWaitingDays(accountId: string): number | null {
   const items = waitingItems(accountId);
-  if (!items.length) return null;
-  return Math.max(...items.map((i) => ageInDays(i.writtenOn, TODAY)));
+  if (items.length) {
+    return Math.max(...items.map((i) => ageInDays(i.writtenOn, TODAY)));
+  }
+  return accountId === WESTLAKE_OPERATING_ID
+    ? null
+    : illustrativeOldestDays(accountId);
 }
 
 /* ---------- What this bank's codes mean ---------- */
@@ -238,6 +273,14 @@ export interface MonthLine {
   id: string;
   period: string;
   proven: boolean;
+  /* Three states, not two.
+   *
+   * `open` and `never-proven` were both "not proven" and drew the same neutral
+   * mark, and they are opposite facts: a month still being worked on is fine,
+   * and a month that CLOSED without ever being proven is the one thing in this
+   * history somebody would ask about. A row that never got there has to look
+   * different from a row that has not got there yet. */
+  state: "open" | "proven" | "never-proven";
   /* When it was proven, or what is holding it up. */
   note: string;
 }
@@ -258,6 +301,11 @@ export function monthHistory(identity: AccountIdentity): MonthLine[] {
       id: s.id,
       period: s.pass ? `${s.cycle} · ${s.pass}` : s.cycle,
       proven: !isOpen && s.statusKey === "completed",
+      state: isOpen
+        ? "open"
+        : s.statusKey === "completed"
+          ? "proven"
+          : "never-proven",
       note: isOpen
         ? "open · being worked on now"
         : s.statusKey === "completed"
@@ -273,6 +321,10 @@ export function monthHistory(identity: AccountIdentity): MonthLine[] {
 
 export interface AccountRule {
   condition: string;
+  /* Matching rule or guardrail. See RuleKind in RuleRow: a guardrail's count
+   * is an incident log, not a performance figure, and the two must not share a
+   * list or a word. */
+  kind: RuleKind;
   scope: "global" | "property" | "account";
   scopeLabel?: string;
   owner: string;
@@ -285,6 +337,7 @@ export function rulesFor(identity: AccountIdentity): AccountRule[] {
   const base: AccountRule[] = [
     {
       condition: "A deposit matching three or more rent rows that sum to it",
+      kind: "match",
       scope: "global",
       owner: "Product",
       expires: "2027-01-31",
@@ -293,6 +346,7 @@ export function rulesFor(identity: AccountIdentity): AccountRule[] {
     },
     {
       condition: "Cheque number and amount agree with the voucher",
+      kind: "match",
       scope: "global",
       owner: "Product",
       expires: "2027-01-31",
@@ -301,6 +355,7 @@ export function rulesFor(identity: AccountIdentity): AccountRule[] {
     },
     {
       condition: "Never post into a closed period",
+      kind: "guardrail",
       scope: "global",
       owner: "Engineering",
       expires: "2030-01-01",
@@ -313,6 +368,7 @@ export function rulesFor(identity: AccountIdentity): AccountRule[] {
     base.unshift({
       condition:
         "Refunds issued within three days of the bank debit, matched to the cent",
+      kind: "match",
       scope: "account",
       scopeLabel: `${identity.property.shortAddress} · Operating`,
       owner: "N. Okafor",
@@ -333,4 +389,142 @@ export function fixtureActivity(accountId: string): {
 } | null {
   if (accountId !== WESTLAKE_OPERATING_ID) return null;
   return { bankLines: bankLines.length, ledgerRows: ledgerRows.length };
+}
+
+/* ---------- What a person does about a waiting item ----------
+ *
+ * Three actions, from UX_SPECS section 3, and the spec is precise about the
+ * difference between them: "Chase writes nothing. Cancel and re-issue, and
+ * write back, both create an entry in the books, so both then go through the
+ * sending flow."
+ *
+ * ---------------------------------------------------------------------------
+ * Why none of them removes the item from the list
+ *
+ * This was the design question, and the answer is the honest one rather than
+ * the satisfying one.
+ *
+ * The waiting list and the balance proof's outstanding line are computed from
+ * the SAME source — `westlakeMatches`, filtered to one-sided payments. They are
+ * the same four items and the same 18,450.50. So an action here that quietly
+ * dropped an item would leave the Accounts screen saying three items and the
+ * proof saying four, which is precisely the disagreement this codebase spends
+ * most of its design avoiding.
+ *
+ * And the accounting agrees with the arithmetic. Writing back a stale cheque
+ * creates a journal entry; the cheque is not cleared by writing the entry, it
+ * is cleared when the entry POSTS and the bank confirms it. Until then the
+ * money is still outstanding and both screens are right to say so.
+ *
+ * So an action changes the item's STATE and creates an entry that is waiting to
+ * send. The row says what was done and what it created, the actions that no
+ * longer apply switch off and say why, and the total does not move because the
+ * money has not moved.
+ */
+
+export type ItemActionKind = "chase" | "cancel-and-reissue" | "write-back";
+
+export const ITEM_ACTION_WORDS: Record<ItemActionKind, string> = {
+  chase: "Chase",
+  "cancel-and-reissue": "Cancel and re-issue",
+  "write-back": "Write back",
+};
+
+export interface ItemEntry {
+  description: string;
+  /* Dollars, signed the way the ledger would see it. */
+  amount: number;
+  glAccount: string;
+}
+
+export interface ItemAction {
+  itemId: string;
+  kind: ItemActionKind;
+  at: string;
+  by: string;
+  /* Null for a chase, which writes nothing. That null is the spec's sentence
+   * made structural: there is no entry to attach, rather than an entry of
+   * zero. */
+  entry: ItemEntry | null;
+}
+
+/* The entry each action creates, worked out from the item rather than typed.
+ *
+ * A chase returns null. The other two are real journal entries and the figures
+ * are the item's own, so what the confirm promises and what the entry carries
+ * cannot drift.
+ *
+ * Cancel and re-issue nets to nothing on cash: the old cheque is voided and a
+ * replacement is raised for the same amount. That is why it does not reduce
+ * what is waiting — the money is still owed and still uncleared, it is simply
+ * owed on a cheque somebody might actually present. */
+export function entryFor(
+  kind: ItemActionKind,
+  item: WaitingItem,
+  glAccount: string
+): ItemEntry | null {
+  const amount = Math.abs(item.amount);
+  switch (kind) {
+    case "chase":
+      return null;
+    case "write-back":
+      return {
+        description: `Cancels ${item.reference ?? item.description} and puts ${money(amount)} back into cash`,
+        amount,
+        glAccount,
+      };
+    case "cancel-and-reissue":
+      return {
+        description: `Voids ${item.reference ?? item.description} and raises a replacement for ${money(amount)}`,
+        amount: 0,
+        glAccount,
+      };
+  }
+}
+
+/* ---------- The store ----------
+ *
+ * Module-level and observable, the same shape as the findings store and the
+ * cleared-blocks store. Not persisted, for the same reason as both: a reload
+ * starting clean is honest, and a prototype pretending to a history it does not
+ * have is the failure this product spends most of its design avoiding. */
+
+let itemActions: ItemAction[] = [];
+const itemListeners = new Set<() => void>();
+
+export function subscribeItemActions(cb: () => void): () => void {
+  itemListeners.add(cb);
+  return () => itemListeners.delete(cb);
+}
+
+export function getItemActions(): ItemAction[] {
+  return itemActions;
+}
+
+export function actionFor(itemId: string): ItemAction | null {
+  return itemActions.find((a) => a.itemId === itemId) ?? null;
+}
+
+export function recordItemAction(action: ItemAction): void {
+  itemActions = [...itemActions, action];
+  itemListeners.forEach((cb) => cb());
+}
+
+export function undoItemAction(itemId: string): void {
+  itemActions = itemActions.filter((a) => a.itemId !== itemId);
+  itemListeners.forEach((cb) => cb());
+}
+
+export function resetItemActions(): void {
+  itemActions = [];
+  itemListeners.forEach((cb) => cb());
+}
+
+/* Every entry these actions have created, for the account. Shown on the screen
+ * so the write is a thing a person can look at rather than a claim: an action
+ * that says it created an entry and then shows no entry is the dead end again,
+ * one level up. */
+export function pendingEntries(accountId: string): ItemAction[] {
+  const ids = new Set(waitingItems(accountId).map((i) => i.id));
+  return itemActions.filter((a) => a.entry !== null && ids.has(a.itemId));
 }

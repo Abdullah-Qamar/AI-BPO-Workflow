@@ -29,11 +29,12 @@
  * Spec: docs/UX_SPECS.md section 3, docs/TAXONOMY_AND_IA.md Part 3 joint 1.
  */
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ChevronDown, ChevronRight, Landmark, Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { OpenItemRow, ageInDays } from "@/components/entities/OpenItemRow";
 import { RuleRow } from "@/components/entities/RuleRow";
+import { ConfirmPopoverButton } from "@/components/ui/ConfirmPopoverButton";
 import { Money } from "@/components/entities/Money";
 import { StatusDot } from "@/components/ui/Status";
 import {
@@ -44,13 +45,22 @@ import {
   oldestWaitingDays,
   rulesFor,
   waitingItems,
+  actionFor,
+  entryFor,
+  getItemActions,
+  pendingEntries,
+  recordItemAction,
+  subscribeItemActions,
+  undoItemAction,
+  ITEM_ACTION_WORDS,
+  type ItemActionKind,
   CODE_DICTIONARY_VERSION,
   TODAY,
   WESTLAKE_OPERATING_ID,
   type AccountIdentity,
   type WaitingItem as WaitingItemData,
 } from "@/lib/accounts";
-import { sumDollars } from "@/lib/money";
+import { money, sumDollars } from "@/lib/money";
 import { carryForward, goesStaleAt } from "@/lib/period";
 
 /* ---------- Furniture ---------- */
@@ -118,12 +128,128 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
  * and must never be printed as one. It is also the more useful half: a cheque
  * that WILL be stale in August is a reason to ring the payee today, where one
  * that is already stale is only a reason to feel bad. */
+/* Who is acting, and when. Both fixed: the reviewer is the product's one
+ * person, and the clock is the product's one clock, so an action recorded in a
+ * screenshot says the same thing next week. */
+const REVIEWER = "N. Okafor";
+const NOW_ISO = `${TODAY}T09:00:00Z`;
+const NOW_LABEL = new Date(`${TODAY}T00:00:00Z`).toLocaleDateString("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+/* ---------- The three ways out of a waiting item ----------
+ *
+ * NEVER renders without them, for the reason StuckRow never renders without
+ * its actions: a surface that says something needs attention and offers
+ * nowhere to go is this product's characteristic defect, and an ageing cheque
+ * with no way to act on it is that defect on the screen whose entire subject
+ * is ageing cheques.
+ *
+ * Chase writes nothing, so it needs no confirm. The other two create a journal
+ * entry, so each states the entry it will write before it writes it — the same
+ * contract the close confirm and the rule preview both keep.
+ *
+ * Once one has been taken the others switch off and say why, rather than
+ * disappearing: a person who wonders whether they could still write this one
+ * back should find the answer, not an absence. */
+function ItemActions({
+  item,
+  glAccount,
+}: {
+  item: WaitingItemData;
+  glAccount: string;
+}) {
+  useSyncExternalStore(subscribeItemActions, getItemActions, getItemActions);
+  const taken = actionFor(item.id);
+
+  const take = (kind: ItemActionKind) =>
+    recordItemAction({
+      itemId: item.id,
+      kind,
+      at: NOW_ISO,
+      by: REVIEWER,
+      entry: entryFor(kind, item, glAccount),
+    });
+
+  if (taken) {
+    return (
+      <div
+        className="flex flex-col"
+        style={{ gap: "var(--space-3)", marginTop: "var(--space-4)" }}
+      >
+        <span className="t-meta" style={{ color: "var(--ink-secondary)", fontWeight: "var(--weight-medium)" }}>
+          {ITEM_ACTION_WORDS[taken.kind]} · {REVIEWER} · {NOW_LABEL}
+        </span>
+        {taken.entry ? (
+          <span className="t-meta ink-tertiary">
+            {taken.entry.description} · {taken.entry.glAccount} · waiting to
+            send. It stays on this list until the entry posts and the bank
+            confirms it, because until then the money has not moved.
+          </span>
+        ) : (
+          <span className="t-meta ink-tertiary">
+            Nothing was written. A chase is a phone call, not a journal entry,
+            and the item goes on ageing until somebody presents the cheque.
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => undoItemAction(item.id)}
+        >
+          Undo
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-row flex-wrap"
+      style={{ gap: "var(--space-4)", marginTop: "var(--space-4)" }}
+    >
+      <Button variant="secondary" size="sm" onClick={() => take("chase")}>
+        Chase
+      </Button>
+      <ConfirmPopoverButton
+        label="Cancel and re-issue"
+        variant="secondary"
+        size="sm"
+        align="left"
+        confirmTitle="Void it and raise a replacement"
+        confirmBody={`Writes an entry against ${glAccount} that voids ${
+          item.reference ?? item.description
+        } and raises a replacement for the same amount. Nothing comes off this list: the money is still owed and still uncleared, it is just owed on a cheque somebody might actually present.`}
+        confirmLabel="Void and re-issue"
+        onConfirm={() => take("cancel-and-reissue")}
+      />
+      <ConfirmPopoverButton
+        label="Write back"
+        variant="secondary"
+        size="sm"
+        align="left"
+        confirmTitle="Write it back into cash"
+        confirmBody={`Writes an entry against ${glAccount} that cancels ${
+          item.reference ?? item.description
+        } and puts ${money(Math.abs(item.amount))} back into cash. The entry goes through the sending flow like any other, and the item stays here until it posts.`}
+        confirmLabel="Write it back"
+        onConfirm={() => take("write-back")}
+      />
+    </div>
+  );
+}
+
 function WaitingItem({
   item,
   asOf,
+  glAccount,
 }: {
   item: WaitingItemData;
   asOf: string;
+  glAccount: string;
 }) {
   const [open, setOpen] = useState(false);
   const life = carryForward(item.writtenOn);
@@ -170,6 +296,8 @@ function WaitingItem({
                 : "Carries forward"}
           </span>
         </button>
+
+        <ItemActions item={item} glAccount={glAccount} />
 
         {open && (
           <div
@@ -254,9 +382,25 @@ function AccountNav({
 }) {
   const [query, setQuery] = useState("");
 
+  /* Oldest first, and accounts with nothing waiting sink to the bottom.
+   *
+   * Alphabetical-by-property was a directory: it answered "show me this
+   * account", which you already knew the name of. Sorted by age it answers
+   * "where are my problems", which is the question somebody actually opens this
+   * screen with, and it puts the hundred-day cheque at the top instead of
+   * twenty clicks away. */
+  const ordered = [...accounts].sort((a, b) => {
+    const av = oldestWaitingDays(a.id);
+    const bv = oldestWaitingDays(b.id);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return bv - av;
+  });
+
   const q = query.trim().toLowerCase();
   const shown = q
-    ? accounts.filter((a) =>
+    ? ordered.filter((a) =>
         [
           a.property.shortAddress,
           a.account.type,
@@ -267,7 +411,7 @@ function AccountNav({
           .toLowerCase()
           .includes(q)
       )
-    : accounts;
+    : ordered;
 
   return (
     <aside
@@ -423,6 +567,12 @@ export function AccountsCanvas() {
   const codes = codeDictionary(account.id);
   const months = monthHistory(account);
   const rules = rulesFor(account);
+  const matchingRules = rules.filter((r) => r.kind === "match");
+  /* Subscribed so the entries section and the totals re-read when an action is
+   * taken on an item below. */
+  useSyncExternalStore(subscribeItemActions, getItemActions, getItemActions);
+  const entries = pendingEntries(account.id);
+  const guardrails = rules.filter((r) => r.kind === "guardrail");
   const activity = fixtureActivity(account.id);
   const stale = items.filter((i) => ageInDays(i.writtenOn, TODAY) > 90).length;
 
@@ -509,11 +659,15 @@ export function AccountsCanvas() {
                     </div>
                   </div>
                 ) : (
+                  /* The absence is stated ONCE, in the card that would have
+                    * held the list. It was said three times — here, on the
+                    * section note, and in the card itself — and three ways of
+                    * saying nothing is here reads as a screen apologising for
+                    * itself. The headline simply has no figure, which is the
+                    * truthful shape of it. */
                   <div className="flex flex-col" style={{ gap: 2 }}>
                     <span className="t-label">Oldest waiting item</span>
-                    <span className="t-body ink-secondary">
-                      Nothing is waiting to clear on this account.
-                    </span>
+                    <span className="t-body ink-tertiary">None</span>
                   </div>
                 )}
                 <span className="t-meta ink-tertiary">
@@ -584,14 +738,19 @@ export function AccountsCanvas() {
                         ? `${stale} past ninety days`
                         : "none past ninety days"
                     } · they belong to the account, not to any month`
-                  : "Nothing outstanding. Items land here when a month closes with something unsettled."
+                  : "Items land here when a month closes with something unsettled."
               }
             >
               {items.length > 0 ? (
                 <>
                   <Card>
                     {items.map((i) => (
-                      <WaitingItem key={i.id} item={i} asOf={TODAY} />
+                      <WaitingItem
+                        key={i.id}
+                        item={i}
+                        asOf={TODAY}
+                        glAccount={account.account.gl}
+                      />
                     ))}
                     <div
                       className="flex flex-row items-center justify-between"
@@ -672,17 +831,91 @@ export function AccountsCanvas() {
               )}
             </Section>
 
-            {/* ---------- Rules that apply here ---------- */}
-            <Section
-              title="Rules that apply here"
-              note="How often each fired, and how often somebody disagreed."
-            >
-              <Card>
-                {rules.map((r) => (
-                  <RuleRow key={r.condition} {...r} onOpen={() => {}} />
-                ))}
-              </Card>
-            </Section>
+            {/* ---------- What those actions wrote ----------
+              *
+              * An action that says it created an entry and then shows no entry
+              * is the dead end again, one level up. These are the entries, with
+              * the account they hit and the period they go into, and they sit
+              * here until they send. */}
+            {entries.length > 0 && (
+              <Section
+                title="Entries waiting to send"
+                note="Written by the actions above. They go through the sending flow like any other entry, and nothing comes off the waiting list until they post."
+              >
+                <Card>
+                  {entries.map((a) => (
+                    <div
+                      key={a.itemId}
+                      className="list-row flex flex-row items-center"
+                      style={{
+                        minHeight: "var(--row-lg)",
+                        padding: "var(--space-4) var(--space-5)",
+                        gap: "var(--space-5)",
+                        borderRadius: "var(--radius-row)",
+                      }}
+                    >
+                      <div
+                        className="flex flex-col min-w-0 flex-1"
+                        style={{ gap: 2 }}
+                      >
+                        <span className="t-body ink-primary truncate">
+                          {a.entry?.description}
+                        </span>
+                        <span className="t-meta ink-tertiary truncate">
+                          {ITEM_ACTION_WORDS[a.kind]} ·{" "}
+                          <span className="nums">{a.entry?.glAccount}</span> ·
+                          into 05/2026 · {a.by}
+                        </span>
+                      </div>
+                      <Money
+                        amount={a.entry?.amount ?? 0}
+                        form="plain"
+                        style={{
+                          fontSize: "var(--type-body)",
+                          lineHeight: "var(--leading-ui)",
+                          flexShrink: 0,
+                        }}
+                      />
+                    </div>
+                  ))}
+                </Card>
+              </Section>
+            )}
+
+            {/* ---------- Rules that apply here ----------
+              *
+              * Matching rules and guardrails in two lists, because their counts
+              * are opposite kinds of fact. "1,842 fired" on a matching rule is
+              * the system working; "3 attempts blocked" on a guardrail is three
+              * times something tried to post into a locked month and was
+              * stopped. Sharing a column and the word "fired" made the second
+              * one read as a performance figure, and a low number read as
+              * underuse rather than as three incidents worth asking about. */}
+            {matchingRules.length > 0 && (
+              <Section
+                title="Rules that apply here"
+                note="How often each fired, and how often somebody disagreed."
+              >
+                <Card>
+                  {matchingRules.map((r) => (
+                    <RuleRow key={r.condition} {...r} onOpen={() => {}} />
+                  ))}
+                </Card>
+              </Section>
+            )}
+
+            {guardrails.length > 0 && (
+              <Section
+                title="Guardrails"
+                note="Limits the machine cannot talk itself past. The count is how often one stopped something, so it reads as an incident rather than a score."
+              >
+                <Card>
+                  {guardrails.map((r) => (
+                    <RuleRow key={r.condition} {...r} onOpen={() => {}} />
+                  ))}
+                </Card>
+              </Section>
+            )}
 
             {/* ---------- What this bank's codes mean ---------- */}
             {codes.length > 0 && (
@@ -725,7 +958,11 @@ export function AccountsCanvas() {
             {/* ---------- One line per month ---------- */}
             <Section
               title="Month by month"
-              note="Proven or not, and when. Never a proof · this screen has no month."
+              /* "Never a proof · this screen has no month" was a line from the
+                * spec, not a line for a reader. It explains what the screen is
+                * NOT, which nobody needs; the sentence about items landing here
+                * stays, because that one teaches how the product works. */
+              note="Proven or not, and when."
             >
               <Card>
                 {months.map((m) => (
@@ -738,11 +975,35 @@ export function AccountsCanvas() {
                       gap: "var(--space-5)",
                     }}
                   >
-                    <StatusDot tone={m.proven ? "ok" : "neutral"} />
+                    {/* Open is neutral, proven is ok, and a month that closed
+                      * without ever being proven is the one that warrants a
+                      * mark — it is the only row here a person would need to go
+                      * and do something about. */}
+                    <StatusDot
+                      tone={
+                        m.state === "proven"
+                          ? "ok"
+                          : m.state === "never-proven"
+                            ? "warn"
+                            : "neutral"
+                      }
+                    />
                     <span className="t-body ink-primary flex-1 min-w-0">
                       {m.period}
                     </span>
-                    <span className="t-meta ink-tertiary shrink-0">
+                    <span
+                      className="t-meta shrink-0"
+                      style={{
+                        color:
+                          m.state === "never-proven"
+                            ? "var(--ink-secondary)"
+                            : "var(--ink-tertiary)",
+                        fontWeight:
+                          m.state === "never-proven"
+                            ? "var(--weight-medium)"
+                            : "var(--weight-regular)",
+                      }}
+                    >
                       {m.note}
                     </span>
                   </div>
